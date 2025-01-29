@@ -75,7 +75,7 @@ module.exports = {
                 Personalidad: cachepj.personalidad,
                 Especialidad: cachepj.especialidad,
                 Descripcion: null,
-                Historia: cachepj.historia ? historia: "In rol",
+                Historia: cachepj.historia ? cachepj.historia: "In rol",
                 Familia: cachepj.familia || "No especificado",
                 Compañero: "Sin compañero",
                 Team: "Sin team",

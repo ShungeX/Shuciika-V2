@@ -29,7 +29,7 @@ module.exports = {
     },
 
     data: new SlashCommandBuilder()
-    .setName("navi-musica")
+    .setName("musica")
     .setDescription("Comandos de música")
     .setContexts(['Guild'])
     .addSubcommand(sub => 

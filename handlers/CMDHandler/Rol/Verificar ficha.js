@@ -59,7 +59,7 @@ module.exports = async(client, interaction) => {
     const embed = new EmbedBuilder()
     .setAuthor({name: interaction.user.username, iconURL: interaction.user.displayAvatarURL({dynamic: true})})
     .setTitle(cachepj.name)
-    .setDescription(cachepj.historia ? historia: "Sin Historia (¿In rol?)")
+    .setDescription(cachepj?.historia ? cachepj.historia: "Sin Historia (¿In rol?)")
     .addFields(
             {name: `Informacion`, value: "`📑` **Apodo: ** " + apodo + "\n`🎎` **Sexo: **" + cachepj.sexo + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true },
             {name: `Extra`, value: "`🎂` **Cumple **" + cachepj.cumpleaños + "\n`👑` **Familia: **" + cachepj.familia + "\n`❔`**  Estado:** " + waiting , inline: true},

@@ -35,7 +35,7 @@ module.exports = async(client, interaction) => {
         const embed = new EmbedBuilder()
         .setAuthor({name: user.username, iconURL: user.displayAvatarURL()})
         .setTitle(ficha.name)
-        .setDescription(ficha.historia ? historia: "Sin Historia (¿In rol?)")
+        .setDescription(ficha?.historia ? ficha.historia: "Sin Historia (¿In rol?)")
         .addFields(
                 {name: "Informacion", value: "`📑` **Apodo: ** " + apodo + "\n`🎎` **Sexo: **" + ficha.sexo + "\n`🍭` **Edad: **" + ficha.edad + "\n`🛫` **C/Org: **" + ficha.ciudadOrg, inline: true}, 
                     {name: "Extra", value: "`🎂` **Cumple **" + ficha.cumpleaños + "\n`👑` **Familia: **" + ficha.familia + "\n`❔`** Estado:** No verificado", inline: true}, 

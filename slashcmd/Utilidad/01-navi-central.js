@@ -1,9 +1,11 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, InteractionContextType} = require(`discord.js`)
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, InteractionContextType, ChannelType} = require(`discord.js`)
 const {SlashCommandBuilder} = require("@discordjs/builders");
 const subcommands = {
     crearObjeto: require("../../handlers/CMDHandler/Utilidad/Crear objeto"),
     darObjeto: require("../../handlers/CMDHandler/Utilidad/Dar objeto"),
-    climaHora: require("../../handlers//CMDHandler/Utilidad/Hora rol")
+    climaHora: require("../../handlers//CMDHandler/Utilidad/Hora rol"),
+    staffinfo: require("../../handlers/CMDHandler/Utilidad/Crear Embed"),
+    foropost: require("../../handlers/CMDHandler/Utilidad/create_post")
 }
 
 module.exports = {
@@ -12,7 +14,7 @@ module.exports = {
      * @param {*} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
-     
+    devOnly: true,
 
 
     ejecutar: async(client, interaction) => {
@@ -31,15 +33,18 @@ module.exports = {
                 subcommands.climaHora(client, interaction)
                 break;
 
-            case "webhooks":
-                interaction.reply({content: "Este comando esta en desarollo", ephemeral: true})
+            case "foro_post":
+                subcommands.foropost(client, interaction)
+                break;
+            case "staff":
+                subcommands.staffinfo(client, interaction)
                 break;
         }
 
     },
 
     data: new SlashCommandBuilder()
-    .setName("navi-utilidad")
+    .setName("utilidad")
     .setDescription("Comandos de utilidad")
     .setContexts(['Guild'])
     .addSubcommand(sub => 
@@ -181,28 +186,21 @@ module.exports = {
     )
     .addSubcommand(sub => 
         sub
-        .setName("webhooks")
-        .setDescription("Envia un webhook. [Only Staff]")
-        .addStringOption(id => 
-            id.setName("url")
+        .setName("foro_post")
+        .setDescription("Crea una publicacion en el foro con Shuciika. | Envia un mensaje en el foro")
+        .addIntegerOption(ismensaje => 
+            ismensaje
+            .setName("is_mensaje")
+            .setDescription("Escribe 1 si es un mensaje o 0 si es un post")
             .setRequired(true)
-            .setDescription("URL del webhook")
-          )
-          .addStringOption(messages => 
-            messages.setName("mensaje")
-            .setDescription("El mensaje de tu webhook")
-            .setRequired(false)
-          )
-          .addAttachmentOption(img => 
-            img.setName("imagen")
-            .setDescription("Adjunta una imagen para que sea publicada")
-            .setRequired(false)
-          )
-          .addChannelOption(ch => 
-            ch.setName("canal")
-            .setDescription("Agrega el canal en el que se creara y enviara el weebhook")
-            .setRequired(false)
-          )
+            .setMaxValue(1)
+            .setMinValue(0)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("staff")
+        .setDescription("Los miembros del staff en embed")
     ),
 
     deleted: false

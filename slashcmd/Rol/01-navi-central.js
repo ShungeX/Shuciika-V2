@@ -61,7 +61,7 @@ module.exports = {
     },
 
     data: new SlashCommandBuilder()
-    .setName("navi-rol")
+    .setName("rol")
     .setDescription("Comandos de Rol.")
     .setContexts(['Guild'])
     .addSubcommand(sub => 

@@ -11,32 +11,6 @@ const db2 = clientdb.db("Rol_db")
 
 module.exports = async(client, interaction) => {
 
-    const member = interaction.guild.members.cache.get("489987292812017664")
-
-    const boosterRoleId = interaction.guild.roles.cache.find(role => role.id === '796205038665072661')?.id;
-
-    const oldMember = {
-        ...member,
-        roles: {
-            cache: member.roles.cache.filter(role => role.id !== "796205038665072661"),
-        }
-    }
-
-    const newMember = {
-        ...member,
-        roles: {
-            cache: member.roles.cache.set(boosterRoleId, interaction.guild.roles.cache.get(boosterRoleId)),
-        }
-    }
-
-    console.log(newMember)
-
-    client.emit("guildMemberAdd", interaction.member)
-    client.emit("guildMemberRemove", interaction.member)
-    client.emit("guildMemberUpdate", oldMember, newMember) 
-
-
-
     const characterCache = db2.collection("CachePJ")
     const characterPj = db2.collection("Personajes")
     const userdb = db.collection("usuarios_server")

@@ -58,7 +58,7 @@ ejecutar: async(client, interaction) => {
 
 
  data: new SlashCommandBuilder()
- .setName("navi-interact")
+ .setName("interact")
  .setDescription("Interactua con algun miembro.")
  .setContexts([0])
  .addSubcommand((sub) => 

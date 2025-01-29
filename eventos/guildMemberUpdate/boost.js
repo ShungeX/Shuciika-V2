@@ -6,7 +6,6 @@ const {Client} = require('discord.js')
      */
 
 module.exports = async(client, oldMember, newMember) => {
-    console.log(newMember)
     const guild = client.guilds.cache.get("716342375303217285")
     const boosterRoleId = guild.roles.cache.find(role => role.id === '796205038665072661')?.id;
 

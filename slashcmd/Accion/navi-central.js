@@ -7,7 +7,7 @@ const subcommands = {
 
 module.exports = {
     data: new SlashCommandBuilder()
-    .setName("navi-act")
+    .setName("act")
     .setDescription("Haz una acción.")
     .setContexts(['Guild'])
     .addSubcommand((sub) => 
