@@ -33,6 +33,7 @@ module.exports = async(client, interaction) => {
     var ffmpeg;
     var tiempoactual = 0;
     var interval;
+    var canciones_tocadas = 0;
     const TimeTotal = Math.floor(Date.now() / 1000)
 
     if(optionselect === "RND") {
@@ -167,6 +168,14 @@ module.exports = async(client, interaction) => {
 
     async function nextsong() {
         console.log("Eligiendo cancion...")
+        if(ffmpeg) ffmpeg.kill();
+        if(player) player.stop();
+
+        if(queue.length >= 50) queue = []
+        
+
+        tiempoactual = 0;
+
         if(optionselect === "RND") {
             const options = ["A1", "AN1", "KPOP1","A2", "PSK1"]
             select = options[Math.floor(Math.random() * options.length)]
@@ -208,10 +217,14 @@ module.exports = async(client, interaction) => {
             
 
 
-            return resource2 = createAudioResource(ffmpeg.stdout, {
+         resource2 = createAudioResource(ffmpeg.stdout, {
                 inlineVolume: true,
                 inputType: StreamType.Raw
             })
+
+        sendEmbed()
+        player.play(resource2)
+        canciones_tocadas += 1
 
         }
 
@@ -290,24 +303,13 @@ module.exports = async(client, interaction) => {
         )
         .setColor("Purple")
         .setThumbnail(imagen)
-        .setFooter({text: " Canciones reproducidas:" + ` ${queue.length}` })
+        .setFooter({text: " Canciones reproducidas:" + ` ${canciones_tocadas}` })
        message.edit({embeds: [embed]})
 
         if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
             player.removeAllListeners()
                 clearInterval(interval)
-
-                ffmpeg.kill()
-                tiempoactual = 0
-                await nextsong()
-                resource2.volume.setVolume(0.5)
-                await player.play(resource2)
-                await sendEmbed()
-
-
-
-
-            
+                await nextsong()          
         }
     }, 5000)
 
