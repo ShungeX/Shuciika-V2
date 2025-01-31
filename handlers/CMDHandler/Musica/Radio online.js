@@ -18,6 +18,7 @@ module.exports = async(client, interaction) => {
 
 
     const optionselect = interaction.options.getString("categoria")
+    console.log("Version", 1.0)
     var select = optionselect
     var resource2;
     var player;
