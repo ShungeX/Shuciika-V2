@@ -1,7 +1,7 @@
 const { createReadStream } = require('node:fs');
 const { join } = require('node:path')
 const { EmbedBuilder, ChatInputCommandInteraction} = require("discord.js")
-const { createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, joinVoiceChannel, StreamType, NoSubscriberBehavior } = require("@discordjs/voice")
+const { createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, joinVoiceChannel, StreamType, NoSubscriberBehavior, VoiceConnectionStatus } = require("@discordjs/voice")
 const clientdb = require("../../../Server")
 const db = clientdb.db("MusicDB")
 const { exec, spawn } = require("child_process")
@@ -31,6 +31,9 @@ module.exports = async(client, interaction) => {
     var oldurl;
     var queue = []
     var ffmpeg;
+    var tiempoactual = 0;
+    var interval;
+    const TimeTotal = Math.floor(Date.now() / 1000)
 
     if(optionselect === "RND") {
         const options = ["A1", "AN1", "KPOP1", "A2", "PSK1"]
@@ -105,11 +108,14 @@ module.exports = async(client, interaction) => {
 
         resource.volume.setVolume(0.7)
         resource2 = url
+        queue.push(url)
 
         player.play(resource)
         connection.subscribe(player)
-
+        await interaction.editReply({content: `Reproduciendo desde: <t:${TimeTotal}:R>`})
         sendEmbed()
+
+       
         
 
 
@@ -138,6 +144,15 @@ module.exports = async(client, interaction) => {
             console.log("Ocurrio un error al intentar reproducir el audio.\n", e)
         })
 
+        connection.on("stateChange", async (oldState, newState) => {
+            if(newState.status === VoiceConnectionStatus.Disconnected) {
+                clearInterval(interval)
+                console.log("Se ha desconectado del canal de voz. Volviendo a Reconectar...")
+                await new Promise((resolve) => setTimeout(resolve, 5000))
+                reconnect()
+            }
+        })
+
 
 
     } catch (e) {
@@ -159,14 +174,19 @@ module.exports = async(client, interaction) => {
 
         const rnddb = db.collection(`${select}`)
 
-        await rnddb.aggregate([{ $sample: {size: 1}}]).forEach(e => {
-            title = e.song_name
-            author = e.song_author
-            album = e.song_album
-            imagen = e.song_imagen
-            time = e.song_time
-            url = e.song_url
-        })
+        let [randomSong] = await rnddb.aggregate([{ $sample: {size: 1}}]).toArray()
+
+        title = randomSong.song_name;
+        author = randomSong.song_author;
+        album = randomSong.song_album;
+        imagen = randomSong.song_imagen;
+        time = randomSong.song_time;
+        url = randomSong.song_url;
+
+
+        console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
+
+
 
         if(!url) {
             await nextsong()
@@ -174,6 +194,8 @@ module.exports = async(client, interaction) => {
             await nextsong()
         }else {
             oldurl = url
+            queue.push(url)
+            console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
             ffmpeg = spawn('ffmpeg', [
                 '-re', // Asegura que se procese en tiempo real
                 '-i', url, // URL o archivo de entrada
@@ -222,10 +244,6 @@ module.exports = async(client, interaction) => {
     }
 
     async function sendEmbed() {
-      
-        let tiempoactual = 0;
-        console.log( "Player:", player.eventNames(), tiempoactual, )
-
 
  try {
         if(!message) {
@@ -256,7 +274,7 @@ module.exports = async(client, interaction) => {
 
 
 
-    const interval = setInterval(async () => {
+     interval = setInterval(async () => {
         tiempoactual += 5;
 
         if(tiempoactual > time) tiempoactual = time;
@@ -268,10 +286,11 @@ module.exports = async(client, interaction) => {
             title + "\n`Autor:` " + author + "\n"
         )
         .addFields(
-            {name: "Duración", value: `${await formatTime(tiempoactual)} / ${await formatTime(time)}\n${await barra(tiempoactual, time)}`}
+            {name: "Duración", value: `${await formatTime(tiempoactual)} / ${await formatTime(time)}\n${await barra(tiempoactual, time)}`},
         )
         .setColor("Purple")
         .setThumbnail(imagen)
+        .setFooter({text: " Canciones reproducidas:" + ` ${queue.length}` })
        message.edit({embeds: [embed]})
 
         if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
@@ -281,9 +300,10 @@ module.exports = async(client, interaction) => {
                 ffmpeg.kill()
                 tiempoactual = 0
                 await nextsong()
-                sendEmbed()
                 resource2.volume.setVolume(0.5)
                 await player.play(resource2)
+                await sendEmbed()
+
 
 
 
@@ -311,5 +331,51 @@ module.exports = async(client, interaction) => {
 
 
     }
+
+    async function reconnect() {
+        try {
+            
+            if(player) player.stop()
+            if(ffmpeg) ffmpeg.kill()
+            
+                const connection = joinVoiceChannel({
+                    channelId: channel.id,
+                    guildId: interaction.guildId,
+                    adapterCreator: interaction.guild.voiceAdapterCreator,
+                })
+
+        ffmpeg = spawn('ffmpeg', [
+            '-ss', tiempoactual.toString(),
+            '-re', // Asegura que se procese en tiempo real
+            '-i', url, // URL o archivo de entrada
+            '-ac', '2', // Fuerza el audio estéreo
+            '-b:a', '128k', // Establece una tasa de bits razonable
+            '-f', 's16le', // Formato de salida
+            '-ar', '48000', // Frecuencia de muestreo compatible con Discord
+            '-' // Envía el audio directamente a stdout
+        ]);
+
+        resource2 = createAudioResource(ffmpeg.stdout, {
+            inlineVolume: true,
+            inputType: StreamType.Raw
+        })
+
+        resource2.volume.setVolume(0.7);
+
+        player = createAudioPlayer();
+        player.play(resource2);
+        connection.subscribe(player);
+
+        // Mantener el embed existente
+        console.log('Reconectado exitosamente');
+        } catch (e) {
+            console.log("Error al intentar reconectar", e)
+            interaction.channel.send("Ocurrio un error al intentar reconectar")
+        }
+
+        sendEmbed()
+     
+    }
+
 
 }
