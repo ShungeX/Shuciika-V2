@@ -203,6 +203,7 @@ module.exports = async(client, interaction) => {
         }else if(url === oldurl) {
             await nextsong()
         }else {
+            sendEmbed()
             oldurl = url
             queue.push(url)
             console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
@@ -218,12 +219,12 @@ module.exports = async(client, interaction) => {
             
 
 
-         resource2 = createAudioResource(ffmpeg.stdout, {
+          resource2 = createAudioResource(ffmpeg.stdout, {
                 inlineVolume: true,
                 inputType: StreamType.Raw
             })
 
-        sendEmbed()
+
         player.play(resource2)
         canciones_tocadas += 1
 
@@ -289,7 +290,7 @@ module.exports = async(client, interaction) => {
 
 
      interval = setInterval(async () => {
-        tiempoactual += 5;
+        tiempoactual += 7;
 
         if(tiempoactual > time) tiempoactual = time;
 
@@ -309,10 +310,10 @@ module.exports = async(client, interaction) => {
 
         if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
             player.removeAllListeners()
-                clearInterval(interval)
+                await clearInterval(interval)
                 await nextsong()          
         }
-    }, 5000)
+    }, 7000)
 
 } catch (error) {
     if(error.code === 50027) {
