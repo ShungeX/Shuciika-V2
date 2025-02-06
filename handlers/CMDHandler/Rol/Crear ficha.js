@@ -88,9 +88,9 @@ module.exports = async(client, interaction) => {
         }, {
             name: "Problemas", value: "Si llegas a tener algun problema al enviar tus formularios, envia un mensaje a <@!665421882694041630>"
         }, {
-            name: "Foto de perfil", value: "Antes de colocar una foto de perfil, revisa el foro: <#1065148731164475413>."
+            name: "Foto de perfil", value: "Antes de colocar una foto de perfil, revisa el foro: <#1330769969428041822>."
         }, {
-            name: "Dudas", value: "Cualquier otra duda puedes crear una publicaciones en <#1064054917662265404>"
+            name: "Dudas", value: "Cualquier otra duda puedes crear una publicacion en <#1064054917662265404>"
         }, {
             name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar."
         }

@@ -18,7 +18,6 @@ module.exports = async(client, interaction) => {
 
 
     const optionselect = interaction.options.getString("categoria")
-    console.log("Version", 1.0)
     var select = optionselect
     var resource2;
     var player;
@@ -30,7 +29,6 @@ module.exports = async(client, interaction) => {
     var time = ""
     var url = ""
     var oldurl;
-    var queue = []
     var ffmpeg;
     var tiempoactual = 0;
     var interval;
@@ -110,7 +108,6 @@ module.exports = async(client, interaction) => {
 
         resource.volume.setVolume(0.7)
         resource2 = url
-        queue.push(url)
 
         player.play(resource)
         connection.subscribe(player)
@@ -169,11 +166,9 @@ module.exports = async(client, interaction) => {
 
     async function nextsong() {
         console.log("Eligiendo cancion...")
-        if(ffmpeg) ffmpeg.kill();
-        if(player) player.stop();
+        if(ffmpeg) await ffmpeg.kill();
+        if(player) await player.stop();
 
-        if(queue.length >= 50) queue = []
-        
 
         tiempoactual = 0;
 
@@ -203,9 +198,7 @@ module.exports = async(client, interaction) => {
         }else if(url === oldurl) {
             await nextsong()
         }else {
-            sendEmbed()
             oldurl = url
-            queue.push(url)
             console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
             ffmpeg = spawn('ffmpeg', [
                 '-re', // Asegura que se procese en tiempo real
@@ -219,12 +212,12 @@ module.exports = async(client, interaction) => {
             
 
 
-          resource2 = createAudioResource(ffmpeg.stdout, {
+         resource2 = createAudioResource(ffmpeg.stdout, {
                 inlineVolume: true,
                 inputType: StreamType.Raw
             })
 
-
+        sendEmbed()
         player.play(resource2)
         canciones_tocadas += 1
 
@@ -290,7 +283,7 @@ module.exports = async(client, interaction) => {
 
 
      interval = setInterval(async () => {
-        tiempoactual += 7;
+        tiempoactual += 5;
 
         if(tiempoactual > time) tiempoactual = time;
 
@@ -310,10 +303,10 @@ module.exports = async(client, interaction) => {
 
         if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
             player.removeAllListeners()
-                await clearInterval(interval)
+                clearInterval(interval)
                 await nextsong()          
         }
-    }, 7000)
+    }, 5000)
 
 } catch (error) {
     if(error.code === 50027) {
@@ -339,8 +332,8 @@ module.exports = async(client, interaction) => {
     async function reconnect() {
         try {
             
-            if(player) player.stop()
-            if(ffmpeg) ffmpeg.kill()
+            if(player) await player.stop()
+            if(ffmpeg) await ffmpeg.kill()
             
                 const connection = joinVoiceChannel({
                     channelId: channel.id,
