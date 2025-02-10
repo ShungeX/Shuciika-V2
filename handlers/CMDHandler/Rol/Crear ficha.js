@@ -46,7 +46,7 @@ module.exports = async(client, interaction) => {
     
     async function message() {
         const Row = new ActionRowBuilder()
-        const buttonstatus = userfind?.buttons.cachepj1 || false
+        const buttonstatus = userfind?.buttons?.cachepj1 || false
 
         const home = new ButtonBuilder()
         .setCustomId(`pjmodal1-${interaction.user.id}`)
