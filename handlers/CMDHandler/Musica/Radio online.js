@@ -6,6 +6,7 @@ const clientdb = require("../../../Server")
 const db = clientdb.db("MusicDB")
 const { exec, spawn } = require("child_process")
 const https = require("https")
+const transaccionCache = require("../../../utils/cache")
 
 
     /**
@@ -16,13 +17,15 @@ const https = require("https")
 
 module.exports = async(client, interaction) => {
 
+    const cacheget = transaccionCache.get("ShuciikaMusic")
+
 
     const optionselect = interaction.options.getString("categoria")
     console.log("Version", 1.0)
     var select = optionselect
     var resource2;
-    var player;
-    var message;
+    var player = cacheget?.player || "";
+    var message = cacheget?.message || "";
     var title = ""
     var author = ""
     var album = ""
@@ -30,11 +33,13 @@ module.exports = async(client, interaction) => {
     var time = ""
     var url = ""
     var oldurl;
-    var ffmpeg;
+    var ffmpeg = cacheget?.ffmpeg || "";
     var tiempoactual = 0;
-    var interval;
+    var interval = cacheget?.interval || "";
     var canciones_tocadas = 0;
     const TimeTotal = Math.floor(Date.now() / 1000)
+
+
 
     if(optionselect === "RND") {
         const options = ["A1", "AN1", "KPOP1", "A2", "PSK1"]
@@ -69,7 +74,17 @@ module.exports = async(client, interaction) => {
 
 
 
-
+    if(cacheget) {
+        await player.stop()
+        await clearInterval(interval)
+        await ffmpeg?.kill()
+        console.log(cacheget)
+        console.log("Eligiendo nuevamente...")
+        interval = false
+        ffmpeg = ""
+        resource2 = ""
+        nextsong()
+    }
 
 
     await playMusic()
@@ -100,18 +115,40 @@ module.exports = async(client, interaction) => {
             inputType: StreamType.Raw
         })
         const connect = await getVoiceConnection(channel.guild.id)
-         player = createAudioPlayer()
         const connection = joinVoiceChannel({ 
             channelId: channel.id,
             guildId: interaction.guildId,
             adapterCreator: interaction.guild.voiceAdapterCreator,
         });
 
+        player = connection.state.subscription?.player || createAudioPlayer();
+
         resource.volume.setVolume(0.7)
         resource2 = url
 
         player.play(resource)
         connection.subscribe(player)
+        if(connect) {
+            if(pauseoption == "destroypy") {
+                connect.destroy()
+                clearInterval(interval)
+                ffmpeg.kill()
+                player.stop()
+                transaccionCache.delete("ShuciikaMusic")
+                return interaction.editReply({content: "Conexion Destruida", ephemeral: true})
+            }
+
+            if(pauseoption == "pausepy") {
+                player.pause()
+                return interaction.editReply({ content: "Reproductor Pausado", ephemeral: true})
+            }
+            if(pauseoption == "unpausepy") {
+                player.unpause
+                return interaction.editReply({ content: "Reproductor Resumido", ephemeral: true})
+            }
+
+        }
+
         await interaction.editReply({content: `Reproduciendo desde: <t:${TimeTotal}:R>`})
         sendEmbed()
 
@@ -119,22 +156,7 @@ module.exports = async(client, interaction) => {
         
 
 
-        if(connect) {
-            if(pauseoption == "destroypy") {
-                connect.destroy()
-                return interaction.reply({content: "Conexion Destruida", ephemeral: true})
-            }
 
-            if(pauseoption == "pausepy") {
-                player.pause()
-                return interaction.reply({ content: "Reproductor Pausado", ephemeral: true})
-            }
-            if(pauseoption == "unpausepy") {
-                player.unpause
-                return interaction.reply({ content: "Reproductor Resumido", ephemeral: true})
-            }
-
-        }
 
         player.on(AudioPlayerStatus.Playing, () => {
             console.log("Reproduciendo", title)
@@ -284,31 +306,52 @@ module.exports = async(client, interaction) => {
 
 
 
-     interval = setInterval(async () => {
-        tiempoactual += 7;
-
-        if(tiempoactual > time) tiempoactual = time;
-
-
-        const embed = new EmbedBuilder()
-        .setTitle("Sintonizando / Radio Shuciika")
-        .setDescription("🌌 *Bajo el cielo estrellado de Tobeya. La música es nuestra guía*\n\n`Album:` " + album + "\n`Nombre:` " + 
-            title + "\n`Autor:` " + author + "\n"
-        )
-        .addFields(
-            {name: "Duración", value: `${await formatTime(tiempoactual)} / ${await formatTime(time)}\n${await barra(tiempoactual, time)}`},
-        )
-        .setColor("Purple")
-        .setThumbnail(imagen)
-        .setFooter({text: " Canciones reproducidas:" + ` ${canciones_tocadas}` })
-       message.edit({embeds: [embed]})
-
-        if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
-            player.removeAllListeners()
-                await clearInterval(interval)
-                await nextsong()          
+        if(!interval) {
+            interval = setInterval(async () => {
+                tiempoactual += 7;
+        
+                if(tiempoactual > time) tiempoactual = time;
+        
+        
+                const embed = new EmbedBuilder()
+                .setTitle("Sintonizando / Radio Shuciika")
+                .setDescription("🌌 *Bajo el cielo estrellado de Tobeya. La música es nuestra guía*\n\n`Album:` " + album + "\n`Nombre:` " + 
+                    title + "\n`Autor:` " + author + "\n"
+                )
+                .addFields(
+                    {name: "Duración", value: `${await formatTime(tiempoactual)} / ${await formatTime(time)}\n${await barra(tiempoactual, time)}`},
+                )
+                .setColor("Purple")
+                .setThumbnail(imagen)
+                .setFooter({text: " Canciones reproducidas:" + ` ${canciones_tocadas}` })
+                
+               message.edit({embeds: [embed]}).catch(e => {
+                console.log(`Parece ser que borraron el mensaje, ${e}`)
+                interaction.followUp({content: "El mensaje fue borrado!", ephemeral: true})
+                clearInterval(interval)
+                ffmpeg.kill()
+                player.stop()
+                transaccionCache.delete("ShuciikaMusic")
+               })
+        
+                if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
+                    player.removeAllListeners()
+                        await clearInterval(interval)
+                        interval;
+                        await nextsong()          
+                }
+            }, 7000)
         }
-    }, 7000)
+
+
+    const obj = {
+        player: player,
+        message: message,
+        ffmpeg: ffmpeg,
+        interval: interval,
+    }
+
+    transaccionCache.set("ShuciikaMusic", obj)
 
 } catch (error) {
     if(error.code === 50027) {
