@@ -78,12 +78,10 @@ module.exports = async(client, interaction) => {
         await player.stop()
         await clearInterval(interval)
         await ffmpeg?.kill()
-        console.log(cacheget)
         console.log("Eligiendo nuevamente...")
         interval = false
         ffmpeg = ""
         resource2 = ""
-        nextsong()
     }
 
 
@@ -329,6 +327,7 @@ module.exports = async(client, interaction) => {
                 console.log(`Parece ser que borraron el mensaje, ${e}`)
                 interaction.followUp({content: "El mensaje fue borrado!", ephemeral: true})
                 clearInterval(interval)
+                interval = false
                 ffmpeg.kill()
                 player.stop()
                 transaccionCache.delete("ShuciikaMusic")
@@ -338,11 +337,11 @@ module.exports = async(client, interaction) => {
                     player.removeAllListeners()
                         await clearInterval(interval)
                         interval;
-                        await nextsong()          
+                        await nextsong()
+                        transaccionCache.delete("ShuciikaMusic")          
                 }
             }, 7000)
         }
-
 
     const obj = {
         player: player,
