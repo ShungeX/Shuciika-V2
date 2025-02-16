@@ -21,7 +21,7 @@ module.exports = async(client, interaction) => {
 
 
     const optionselect = interaction.options.getString("categoria")
-    console.log("Version", 1.0)
+    console.log("Version", 1.5)
     var select = optionselect
     var resource2;
     var player = cacheget?.player || "";
@@ -166,10 +166,14 @@ module.exports = async(client, interaction) => {
 
         connection.on("stateChange", async (oldState, newState) => {
             if(newState.status === VoiceConnectionStatus.Disconnected) {
-                clearInterval(interval)
-                console.log("Se ha desconectado del canal de voz. Volviendo a Reconectar...")
-                await new Promise((resolve) => setTimeout(resolve, 5000))
-                reconnect()
+
+                if(player) {
+                    clearInterval(interval)
+                    interval = null
+                    console.log("Se ha desconectado del canal de voz. Volviendo a Reconectar...")
+                    await new Promise((resolve) => setTimeout(resolve, 5000))
+                    reconnect()
+                }
             }
         })
 
@@ -325,11 +329,13 @@ module.exports = async(client, interaction) => {
                 
                message.edit({embeds: [embed]}).catch(e => {
                 console.log(`Parece ser que borraron el mensaje, ${e}`)
-                interaction.followUp({content: "El mensaje fue borrado!", ephemeral: true})
+                interaction.followUp({content: "He detenido la reproduccion de la radio porque se ha borrado el mensaje. Vuelve a usar el comando ＞﹏＜", ephemeral: true})
+                player.removeAllListeners()
                 clearInterval(interval)
                 interval = false
                 ffmpeg.kill()
                 player.stop()
+                player = null
                 transaccionCache.delete("ShuciikaMusic")
                })
         
