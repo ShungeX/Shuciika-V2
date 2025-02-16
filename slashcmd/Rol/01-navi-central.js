@@ -7,7 +7,13 @@ const subcommands = {
     perfil: require("../../handlers/CMDHandler/Rol/Perfil"),
     relacion: require("../../handlers/CMDHandler/Rol/Relacion personajes"),
     configpj: require("../../handlers/CMDHandler/Rol/Configurar personaje"),
-    mochila: require("../../handlers/CMDHandler/Rol/Mochila")
+    mochila: require("../../handlers/CMDHandler/Rol/Mochila"),
+    despertar: require("../../handlers/CMDHandler/Rol/Despertar"),
+    tienda: require("../../handlers/CMDHandler/Rol/Tienda"),
+    dailyrecompensa: require("../../handlers/CMDHandler/Rol/recompensa_diaria"),
+    Usar_item: require("../../handlers/CMDHandler/Rol/Usar_item"),
+    comprar: require("../../handlers/CMDHandler/Rol/comprar"),
+    trabajar: require("../../handlers/CMDHandler/Rol/chamba")
 }
 
 module.exports = {
@@ -55,7 +61,25 @@ module.exports = {
             break;
             case "verificar_ficha":
                 subcommands.verificarficha(client, interaction)
-                break;
+            break;
+            case "despertar":
+                subcommands.despertar(client, interaction)
+            break;
+            case "tienda": 
+                subcommands.tienda(client, interaction)
+            break;
+            case "recompensa_diaria":
+                subcommands.dailyrecompensa(client, interaction)
+            break;
+            case "usar_objeto":
+                subcommands.Usar_item(client, interaction)
+            break;
+            case "comprar":
+                subcommands.comprar(client, interaction)
+            break;
+            case "trabajar":
+                subcommands.trabajar(client, interaction)
+
         }
 
     },
@@ -165,6 +189,67 @@ module.exports = {
         sub
         .setName("enviar_ficha")
         .setDescription("Envia tu ficha para que sea verificada")
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("despertar")
+        .setDescription("Inicia la historia de tu personaje / Desbloqueable en rol")
+        .addNumberOption(o => 
+            o
+            .setName("omitir_dialogo")
+            .setDescription("Omite el dialogo de introducción")
+            .setRequired(false)
+            .setMaxValue(1)
+            .setMinValue(0)
+
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("tienda")
+        .setDescription("Muestra la tienda de objetos")
+    )
+    .addSubcommand(sub =>
+        sub
+        .setName("recompensa_diaria")
+        .setDescription("Reclama tu recompensa diaria")
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("usar_objeto")
+        .setDescription("Usa un objeto de tu inventario.")
+        .addStringOption(o => 
+            o
+            .setName("objeto_id")
+            .setDescription("Ingresa la ID del objeto a usar")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("comprar")
+        .setDescription("Compra un objeto de la tienda.")
+        .addStringOption(o => 
+            o
+            .setName("objeto")
+            .setDescription("Ingresa la ID del objeto a comprar / Puedes filtrarlo por el nombre o ID.")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addNumberOption(o => 
+            o
+            .setName("cantidad")
+            .setDescription("Ingresa la cantidad a comprar / Algunos objetos tienen limite de compra")
+            .setRequired(true)
+            .setMaxValue(20)
+            .setMinValue(1)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("trabajar")
+        .setDescription("Trabaja para obtener algunos lumens [Beta]")
     ),
 
 

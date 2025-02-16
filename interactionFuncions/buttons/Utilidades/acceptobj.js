@@ -42,6 +42,7 @@ module.exports = {
                 $push: {
                     Inventario: {
                         ID: objinfo.objId,
+                        Region: objinfo.Region,
                         Nombre: `${objinfo.objname}`,
                         Cantidad: objinfo.cantidad,
                         Fecha: objinfo.fecha

@@ -19,6 +19,7 @@ ejecutar: async(client, interaction) => {
         const messageId = userfind.messageTemp
         const channel = await client.channels.fetch(userfind.channelTemp)
         const msg = await channel.messages.fetch(messageId)
+        const avatar = characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1738637289/Rol/Assets/snhze7wiigf85hsq1ikc.jpg"
 
         const characterCache = await Cachedb.findOne({_id: interaction.user.id})
         const mdOpen = userfind.statusMd
@@ -26,7 +27,7 @@ ejecutar: async(client, interaction) => {
         const embed = new EmbedBuilder()
         .setTitle("¡Se ha creado correctamente tu Ficha!")
         .setAuthor({ name: `${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true })})
-        .setThumbnail(`${characterCache.avatarURL}`)
+        .setThumbnail(`${characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png"}`)
         .setDescription(` **Nombre:** ${characterCache.name} \n **Apodo:** ${characterCache.apodo || "No establecido"}` +
          "\n\n`🎎 Sexo:`" + ` *${characterCache.sexo}*` +
          "\n\n`🍭 Edad:`" + ` *${characterCache.edad}*` + 
@@ -37,7 +38,7 @@ ejecutar: async(client, interaction) => {
          "\n\n`⚽ Especialidad:`" + ` *${characterCache.especialidad}*`
         )
         .setColor("Random")
-        .setFooter({ text: `Para enviar tu ficha y sea verificada por un staff usa el comando "/rol send-ficha"`})
+        .setFooter({ text: `Para enviar tu ficha y sea verificada por un staff usa el comando "/rol enviar_ficha"`})
         .setTimestamp()
 
         try {

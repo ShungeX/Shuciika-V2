@@ -5,8 +5,10 @@ const subcommands = {
     darObjeto: require("../../handlers/CMDHandler/Utilidad/Dar objeto"),
     climaHora: require("../../handlers//CMDHandler/Utilidad/Hora rol"),
     staffinfo: require("../../handlers/CMDHandler/Utilidad/Crear Embed"),
-    foropost: require("../../handlers/CMDHandler/Utilidad/create_post")
+    foropost: require("../../handlers/CMDHandler/Utilidad/create_post"),
+    confesion: require("../../handlers/CMDHandler/Utilidad/Confesion"),
 }
+
 
 module.exports = {
     /**
@@ -14,7 +16,7 @@ module.exports = {
      * @param {*} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
-    devOnly: true,
+     
 
 
     ejecutar: async(client, interaction) => {
@@ -39,13 +41,17 @@ module.exports = {
             case "staff":
                 subcommands.staffinfo(client, interaction)
                 break;
+            case "confesar":
+                subcommands.confesion(client, interaction)
+                break;
+
         }
 
     },
 
     data: new SlashCommandBuilder()
     .setName("utilidad")
-    .setDescription("Comandos de utilidad")
+    .setDescription("Comandos de utilidad.")
     .setContexts(['Guild'])
     .addSubcommand(sub => 
         sub
@@ -201,6 +207,24 @@ module.exports = {
         sub
         .setName("staff")
         .setDescription("Los miembros del staff en embed")
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("confesar")
+        .setDescription("Envia una confesión al buzon de un personaje o al canal de confesion.")
+        .addStringOption(mensaje => 
+            mensaje
+            .setName("mensaje")
+            .setDescription("Escribe el mensaje de la confesión")
+            .setRequired(true)
+        )
+        .addNumberOption(personaje => 
+            personaje
+            .setName("personaje")
+            .setDescription("[Opcional] Envia la confesión / carta a un personaje del rol")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
     ),
 
     deleted: false

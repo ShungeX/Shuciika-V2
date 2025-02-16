@@ -43,7 +43,7 @@ module.exports = {
 
         if(imgURL) {
             if(await isValidImage() === false) {
-              return interaction.reply({ content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1065148731164475413>", ephemeral: true})
+              return interaction.reply({ content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1330769969428041822>", ephemeral: true})
             }else {
              await uploadCloudinarys()
             }

@@ -75,7 +75,7 @@ if(Idfind || user) {
         const row = new ActionRowBuilder()
 
         const histbutton = new ButtonBuilder()
-        .setCustomId(`historia-${interaction.user.id}-${pjuser.ID}`)
+        .setCustomId(`perfil_options-${interaction.user.id}-${pjuser.ID}-1`)
         .setStyle(ButtonStyle.Primary)
         .setEmoji(`➡️`)
 

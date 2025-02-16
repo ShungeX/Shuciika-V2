@@ -21,8 +21,7 @@ module.exports = async(client, interaction) => {
     const cachepj = await Cachedb.findOne({name: userverif})
     const rol = interaction.guild.roles.cache.find((r) => r.id === "745503889297637478")
     const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584"]
-    var waiting = cachepj.waiting === true
-    const apodo = cachepj.apodo??"Sin apodo"
+    
     
 
     const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
@@ -34,6 +33,10 @@ module.exports = async(client, interaction) => {
     if(!cachepj) {
         return interaction.reply({content: "El usuario mencionado no tiene un personaje registrado. ＞﹏＜"})
     }
+
+    var waiting = cachepj.waiting === true
+    const apodo = cachepj.apodo??"Sin apodo"
+
 
     if(waiting) {
         waiting = "En espera"

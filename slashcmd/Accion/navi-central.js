@@ -8,7 +8,7 @@ const subcommands = {
 module.exports = {
     data: new SlashCommandBuilder()
     .setName("act")
-    .setDescription("Haz una acción.")
+    .setDescription("Haz una acción")
     .setContexts(['Guild'])
     .addSubcommand((sub) => 
         sub.setName("dance")

@@ -1,7 +1,8 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, InteractionContextType, Client} = require(`discord.js`)
 const {SlashCommandBuilder} = require("@discordjs/builders");
 const subcommands = {
-    musicaonline: require("../../handlers/CMDHandler/Musica/Radio online")
+    musicaonline: require("../../handlers/CMDHandler/Musica/Radio online"),
+    musicaupload: require("../../handlers/CMDHandler/Musica/upload_song"),
 }
 
 module.exports = {
@@ -22,7 +23,7 @@ module.exports = {
             break;
 
             case "subir_musica":
-                interaction.reply({content: "Comando en desarolllo", ephemeral: true})
+                subcommands.musicaupload(client, interaction)
                 break;
         }
 

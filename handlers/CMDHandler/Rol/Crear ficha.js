@@ -92,7 +92,7 @@ module.exports = async(client, interaction) => {
         }, {
             name: "Dudas", value: "Cualquier otra duda puedes crear una publicacion en <#1064054917662265404>"
         }, {
-            name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar."
+            name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar <#1339103959855661096>."
         }
     
     ])

@@ -26,7 +26,7 @@ module.exports = async(client, interaction) => {
         .setStyle(TextInputStyle.Paragraph)
         .setMaxLength(1999)
         .setMinLength(1)
-        .setRequired(true)
+        .setRequired(false)
 
         const imag = new TextInputBuilder()
         .setCustomId("imagen")

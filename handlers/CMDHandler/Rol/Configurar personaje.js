@@ -52,6 +52,7 @@ module.exports = async(client, interaction) => {
     }
 
 
+
     if(userdb?.Permissions?.especial) {
         options.push (
             {

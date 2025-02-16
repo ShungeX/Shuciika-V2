@@ -472,7 +472,7 @@ async function eventscanal() {
 const everuser = interaction.guild.roles.cache.find(aus => aus.name === '@everyone');
 const audiochannel = interaction.guild.channels.cache.get("976719553943965726")
 const sendcerrado = interaction.guild.channels.cache.get("717140034834268162")
-const entradas = ["1197248829288894495", "1197248899467976884"] //Pasillo y canal de entrada
+const entradas = ["1197248829288894495", "1197248899467976884", "1340430809710203012"] //Pasillo y canal de entrada
 const ciudadAC = client.channels.cache.get("976971589109309450")
 
 
@@ -523,10 +523,10 @@ const channel = await interaction.guild.channels.cache.get(canalId)
 }
 const EMabierto = new EmbedBuilder() 
 .setTitle("🚪 Las puertas de la escuela se han abierto")
-.setDescription(`Puedes escribir ahora en los siguientes canales: \n <#1197248829288894495> -- <#1197248899467976884> \n \n **¡Espera mientras llegan los profesores para entrar a demas areas!**`)
+.setDescription(`Puedes escribir ahora en los siguientes canales: \n <#1197248829288894495> -- <#1197248899467976884> -- <#1340430809710203012> \n \n **¡Espera mientras llegan los profesores para entrar a demas areas!**`)
 .setColor("Green")
 .setFooter({text: "La entrada a la escuela cierra a las 7:30"})
-sendcerrado.send({embeds: [EMabierto]}).then(m => setTimeout(() => m.delete(), 60000))
+sendcerrado.send({content: `<@&727341415582924812>`,embeds: [EMabierto]}).then(m => setTimeout(() => m.delete(), 60000))
 audiochannel.edit({name: "[🔓] Escuela Abierta"})
 }
 
@@ -564,7 +564,7 @@ const embedC = new EmbedBuilder()
 "- La Biblioteca se ha abierto. Si necesitas un libro accede a ella.")
 .setColor("Green")
 .setFooter({text: "El receso comienza a las 10:00"})
-sendcerrado.send({embeds: [embedC]}).then(m => setTimeout(() => m.delete(), 60000))
+sendcerrado.send({content: "<@&727341415582924812>", embeds: [embedC]}).then(m => setTimeout(() => m.delete(), 60000))
 }
 
 //Inicia el receso (10:00)
@@ -600,7 +600,7 @@ const recesoemb = new EmbedBuilder()
 .setDescription("- Aprovecha para respirar y consumir tus alimentos 🍚\n- Todos los `salones` se han cerrado por seguridad")
 .setFooter({text: "El receso acaba a las 11:00am"})
 .setColor("Green")
-sendcerrado.send({embeds: [recesoemb]}).then(m => setTimeout(() => m.delete(), 60000))
+sendcerrado.send({content: `<@&727341415582924812>`, embeds: [recesoemb]}).then(m => setTimeout(() => m.delete(), 60000))
 }
 
 //Acaba el receso (11:00)
@@ -636,7 +636,7 @@ const recesoend = new EmbedBuilder()
 .setDescription("- Todos los alumnos deberan regresar a sus salones correspondientes. \n- Recuerden no ingresar con alimentos a los salones")
 .setFooter({text: "La hora de salida es a las 1:00pm"})
 .setColor("Red")
-sendcerrado.send({embeds: [recesoend]}).then(m => setTimeout(() => m.delete(), 60000))
+sendcerrado.send({content: `<@&727341415582924812>`, embeds: [recesoend]}).then(m => setTimeout(() => m.delete(), 60000))
 }
 
 //Acaban las clases (13:00)
@@ -672,7 +672,7 @@ const escuelalock = new EmbedBuilder()
 .setDescription("- Se han acabado las clases\n- La ciudad se ha abierto.")
 .setFooter({text: "..."})
 .setColor("Green")
-sendcerrado.send({embeds: [escuelalock]}).then(m => setTimeout(() => m.delete(), 60000))
+sendcerrado.send({content: `<@&727341415582924812>`, embeds: [escuelalock]}).then(m => setTimeout(() => m.delete(), 60000))
 
 audiochannel.edit({
 name: "[🔐] Escuela Cerrada"

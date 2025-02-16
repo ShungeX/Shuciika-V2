@@ -59,8 +59,8 @@ ejecutar: async(client, interaction) => {
 
  data: new SlashCommandBuilder()
  .setName("interact")
- .setDescription("Interactua con algun miembro.")
- .setContexts([0])
+ .setDescription("Interactua con algun miembro")
+ .setContexts(["Guild"])
  .addSubcommand((sub) => 
      sub
      .setName("slap")

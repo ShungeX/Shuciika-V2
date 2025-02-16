@@ -9,7 +9,7 @@ module.exports = (client) => {
       activities: [{name: `¡Hola! (✿ •̀ ω •́ )✧`, type: ActivityType.Listening}],
       });
     setInterval(() => {
-             console.log(`[Memoria] ${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)} MB Usado`)
+             console.log(`[Memoria] RSS=${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)} MB Usado`)
   
             const status2 = [
   "Aprendiendo nuevas cosas ヾ(•ω•`✿)o" + `${configV.version}`, 

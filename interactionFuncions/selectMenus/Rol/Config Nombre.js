@@ -21,6 +21,11 @@ module.exports = {
             return interaction.reply({ content: "¡Oye!, no hay más autocorrector para cambiar tu nombre... quizás debas obtener más con un `permiso especial` (￣へ￣)", ephemeral: true})
         }
 
+        if(!character) {
+            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+        }
+    
+
         const modal = new ModalBuilder()
         .setCustomId("nombremodal")
         .setTitle("Nombre del personaje")

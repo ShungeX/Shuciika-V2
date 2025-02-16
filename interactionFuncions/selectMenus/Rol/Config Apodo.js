@@ -17,6 +17,10 @@ module.exports = {
      ejecutar: async(client, interaction, character) => {
         const userf = await userdb.findOne({_id: interaction.user.id})
         const time =  (3600000*24) - (Date.now() - userf?.time?.pjApodo) 
+    
+    if(!character) {
+        return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+    }
 
     if((Date.now() - userf?.time?.pjApodo) < (3600000 * 24) ) {
             return interaction.reply({ content: "¡Oye!, Acabo de decirle a mis amigos de tu nuevo apodo... (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["h", "m", "s"], round: true, conjunction: " y "})}` + "`** para establecer un nuevo apodo (⇀‸↼‶)", ephemeral: true})

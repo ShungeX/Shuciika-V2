@@ -1,4 +1,5 @@
 const {Client, EmbedBuilder} = require('discord.js')
+require('dotenv').config();
     /**
      * 
      * @param {Client} client 
@@ -6,6 +7,10 @@ const {Client, EmbedBuilder} = require('discord.js')
      */
 
 module.exports = async(client, member) => {
+
+
+  if(client.user.id === "857050098831065088") return;
+
     let guild = client.guilds.cache.get("716342375303217285")
     let channel = client.channels.cache.get("716342375743488052")
     let contador = guild.memberCount

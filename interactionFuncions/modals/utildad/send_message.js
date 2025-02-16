@@ -12,27 +12,27 @@ module.exports = {
      */
 
     ejecutar: async(client, interaction) => {
-
-        const mensaje = interaction.fields.getTextInputValue("mensaje_send")
+        const intoptions = interaction.fields.fields.toJSON()
+        const findoptions = await intoptions.find(e => e.customId === "mensaje_send")
         const imagen = interaction.fields.getTextInputValue("imagen")
 
 
 
-        if(mensaje) {
+        if(findoptions) {
+            const mensaje = interaction.fields.getTextInputValue("mensaje_send")
             interaction.channel.send({content: mensaje})
             if(imagen) {
                 interaction.channel.send({files: [imagen]})
             }
 
         }else {
-            
-            if(!channel || channel.type !== 15) return interaction.reply({content: "La id no es un canal de Foro", ephemeral: true})
-
         try {
             const mensaje2 = interaction.fields.getTextInputValue("mensaje")
             const titulo = interaction.fields.getTextInputValue("titulo")
             const id = interaction.fields.getTextInputValue("id")
             const channel = client.channels.cache.get(id)
+
+            if(!channel || channel.type !== 15) return interaction.reply({content: "La id no es un canal de Foro", ephemeral: true})
             if(!mensaje2) {
                 const post = await channel.threads.create({
                     name: titulo,

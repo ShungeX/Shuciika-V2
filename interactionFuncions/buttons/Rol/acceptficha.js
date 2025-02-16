@@ -169,7 +169,7 @@ module.exports = {
 
     async function createChannel(embed2) {
         await interaction.guild.channels.create({
-            name: `${user.nickname}_TempChannel`,
+            name: `${user.displayName}_TempChannel`,
             type: 0,
             permissionOverwrites: [
               {
@@ -185,7 +185,7 @@ module.exports = {
             await userdb.updateOne({_id: user.id}, {
               $set: {channelTID: channel.id, channelName: channel.name}
             }) 
-            await channel.send({embeds: [embed2]})
+            await channel.send({content: `${user}`,embeds: [embed2]})
             if(comentario) {
               await channel.send({content: `${interaction.user} Ha dejado un comentario sobre tu ficha.ヾ(•ω•)o\n` + "`" + `${comentario}` + "`"})
              }

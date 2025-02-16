@@ -22,6 +22,11 @@ module.exports = {
             return interaction.reply({ content: "¡Oye!, Acabo de escribir mucho... estoy cansada (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra historia(⇀‸↼‶)", ephemeral: true})
         }
 
+        if(!character) {
+            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+        }
+    
+
         const modal = new ModalBuilder()
         .setCustomId("historiamodal")
         .setTitle("Historia del personaje")

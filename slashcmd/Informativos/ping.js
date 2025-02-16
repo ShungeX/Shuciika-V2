@@ -28,7 +28,7 @@ module.exports = {
         .setStyle(ButtonStyle.Primary)
         .setLabel("Click")
 
-        const row = new ActionRowBuilder().addComponents(button, button2);
+        const row = new ActionRowBuilder().addComponents(button);
 
         const embed = new EmbedBuilder()
         .setTitle("Comando Ping")
@@ -40,5 +40,5 @@ module.exports = {
        interaction.editReply({embeds: [embed], components: [row]})
     },
 
-    deleted: false,
+    deleted: true,
 }

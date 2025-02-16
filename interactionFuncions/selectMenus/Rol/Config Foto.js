@@ -23,6 +23,11 @@ module.exports = {
             return interaction.reply({ content: "¡Oye!, Acabo de pegar tu foto... Bueno, es lo de menos (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra foto nueva (⇀‸↼‶)", ephemeral: true})
         }
 
+        if(!character) {
+            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+        }
+    
+
         const modal = new ModalBuilder()
         .setCustomId("fotomodal")
         .setTitle("Foto de personaje")
