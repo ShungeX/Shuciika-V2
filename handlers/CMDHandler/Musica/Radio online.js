@@ -336,7 +336,7 @@ module.exports = async(client, interaction) => {
                 if(tiempoactual >= time || player.state.status === AudioPlayerStatus.Idle) {
                     player.removeAllListeners()
                         await clearInterval(interval)
-                        interval;
+                        interval = false;
                         await nextsong()
                         transaccionCache.delete("ShuciikaMusic")          
                 }
