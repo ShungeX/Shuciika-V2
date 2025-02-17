@@ -19,10 +19,10 @@ ejecutar: async(client, interaction) => {
         const messageId = userfind.messageTemp
         const channel = await client.channels.fetch(userfind.channelTemp)
         const msg = await channel.messages.fetch(messageId)
-        const avatar = characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1738637289/Rol/Assets/snhze7wiigf85hsq1ikc.jpg"
-
         const characterCache = await Cachedb.findOne({_id: interaction.user.id})
         const mdOpen = userfind.statusMd
+
+        const avatar = characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1738637289/Rol/Assets/snhze7wiigf85hsq1ikc.jpg"
 
         const embed = new EmbedBuilder()
         .setTitle("¡Se ha creado correctamente tu Ficha!")
