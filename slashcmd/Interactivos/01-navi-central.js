@@ -1,7 +1,8 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType} = require(`discord.js`)
 const {SlashCommandBuilder} = require("@discordjs/builders")
 const subcommands = {
-    dance: require("../../handlers/CMDHandler/Interactions/DanceInteract")
+    dance: require("../../handlers/CMDHandler/Interactions/DanceInteract"),
+    hug: require("../../handlers/CMDHandler/Interactions/Hug")
 }
 
 module.exports = {
@@ -19,7 +20,7 @@ ejecutar: async(client, interaction) => {
     switch(subcommand) {
 
         case "hug":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true})
+            subcommands.hug(client, interaction)
             break;
         case "slap":
             interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
@@ -98,7 +99,7 @@ ejecutar: async(client, interaction) => {
  .addSubcommand((sub) => 
     sub
     .setName("hug")
-    .setDescription("[🫂] Abraza a un usuario o personaje")
+    .setDescription("[🫂] Abraza a un usuario o personaje.")
     .addUserOption(user => 
        user.setName("usuario")
        .setDescription("Selecciona a la persona (Usuario)")
@@ -110,6 +111,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 

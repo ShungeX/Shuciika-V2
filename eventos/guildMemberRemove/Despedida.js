@@ -6,6 +6,7 @@ const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
 const character = db2.collection("Personajes")
 const soul = db2.collection("Soul")
+const cloudinary = require("cloudinary").v2
     /**
      * 
      * @param {Client} client 
@@ -35,21 +36,51 @@ module.exports = async(client, member) => {
 
     try {
 
+        const profile = await userdb.findOne({_id: user.id})
+        const incache = await Cachedb.findOne({_id: user.id})
+
+        if(profile) {
+            const avatarURL = profile?.avatarURL
+
+            if(avatarURL !== "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png") {
+                const parts = avatarURL.split("/upload/")[1].split(".");
+                const publicId = parts.slice(0, parts.length - 1).join(".");
+
+                await cloudinary.uploader.destroy(publicId)
+                console.log("Avatar eliminado", publicId)
+            }
+        
+
+
+            await character.deleteOne({_id: user}).catch(e => {
+                console.log("El usuario no tenia un personaje inscrito", e)
+            })
+    
+            await soul.deleteOne({_id: user}).catch(e => {
+                console.log("El personaje del usuario aun no despertaba", e)
+            })
+    
+        }
+
+        if(incache) {
+            const avatarURL = profile?.avatarURL
+            if(avatarURL !== "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png") {
+                const parts = avatarURL.split("/upload/")[1].split(".");
+                const publicId = parts.slice(0, parts.length - 1).join(".");
+
+                await cloudinary.uploader.destroy(publicId)
+                console.log("Avatar eliminado", publicId)
+            }
+            await Cachedb.deleteOne({_id: user}).catch(e => {
+                console.log("El usuario no tenia un personaje en cache", e)
+            })
+        }
         await userdb.deleteOne({_id: user}).catch(e => {
             console.log("El usuario no contaba con una base de datos (usuarios_server)", e)
         })
 
-        await Cachedb.deleteOne({_id: user}).catch(e => {
-            console.log("El usuario no tenia un personaje en cache", e)
-        })
 
-        await character.deleteOne({_id: user}).catch(e => {
-            console.log("El usuario no tenia un personaje inscrito", e)
-        })
-
-        await soul.deleteOne({_id: user}).catch(e => {
-            console.log("El personaje del usuario aun no despertaba", e)
-        })
+        console.log()
 
         
 
@@ -58,7 +89,7 @@ module.exports = async(client, member) => {
     } catch (e) {
         const logschannel = client.channels.cache.get("716518718947065868")
         const errorembed = new EmbedBuilder()
-        .setTitle("Ha ocurrido un error / Revisar la consola")
+        .setTitle("Ha ocurrido un error / Revisa la consola")
         .setDescription("```" + e + "```")
         .setColor("Random")
         logschannel.send({embeds: [errorembed]})

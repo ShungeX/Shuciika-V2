@@ -112,7 +112,7 @@ module.exports = {
             .setThumbnail(interaction.user.displayAvatarURL({dynamic: true}))
             .setDescription(`**${interaction.user}**` + " Fue quien verifico esta ficha♡\n\n __¿No sabes por donde empezar?. Te dare una mini guia para ayudarte.__")
             .addFields( 
-              {name: "Comandos", value: "Ahora puedes usar los comandos del rol. Estos comandos van marcados por una **`r`**. Puedes empezar por usar `/r-configuracion_personaje`", inline: true},
+              {name: "Comandos", value: "Ahora puedes usar los comandos del rol. Estos comandos van marcados por **`rol`**. Puedes empezar por usar `/rol perfil`", inline: true},
               {name: "Canales", value: "Una vez tengas todo puedes empezar hablando en los canales de Rol, cualquier duda pregunta a un ayudande o moderador", inline: true},
               {name: "Reglas", value: "Te invito a que leas las normas del rol <#716865470648680448> antes de empezar a rolear", inline: true},
               {name: "Tambien...", value: "Se te han asignado roles especiales que te identifican como un verdadero estudiante de este instituto.", inline: false},

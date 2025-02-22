@@ -91,11 +91,13 @@ module.exports = async(client, interaction) => {
 
     async function playMusic() {
 
+       url = url.replace('/upload/', '/upload/q_auto:low,br_96k/')
+
         ffmpeg = spawn('ffmpeg', [
             '-re', // Asegura que se procese en tiempo real
             '-i', url, // URL o archivo de entrada
             '-ac', '2', // Fuerza el audio estéreo
-            '-b:a', '128k', // Establece una tasa de bits razonable
+            '-b:a', '96k', // Establece una tasa de bits razonable
             '-f', 's16le', // Formato de salida
             '-ar', '48000', // Frecuencia de muestreo compatible con Discord
             '-' // Envía el audio directamente a stdout
@@ -214,8 +216,6 @@ module.exports = async(client, interaction) => {
         url = randomSong.song_url;
 
 
-        console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
-
 
 
         if(!url) {
@@ -225,12 +225,15 @@ module.exports = async(client, interaction) => {
         }else {
             sendEmbed()
             oldurl = url
+
+            url = url.replace('/upload/', '/upload/q_auto:low,br_96k/')
+
             console.log("Cancion seleccionada:", `${title} - ${author} - ${album} - ${url}`)
             ffmpeg = spawn('ffmpeg', [
                 '-re', // Asegura que se procese en tiempo real
                 '-i', url, // URL o archivo de entrada
                 '-ac', '2', // Fuerza el audio estéreo
-                '-b:a', '128k', // Establece una tasa de bits razonable
+                '-b:a', '96k', // Establece una tasa de bits razonable
                 '-f', 's16le', // Formato de salida
                 '-ar', '48000', // Frecuencia de muestreo compatible con Discord
                 '-' // Envía el audio directamente a stdout

@@ -22,6 +22,10 @@ module.exports = {
         const channel = await interaction.channel.messages.fetch(msg.Temp.fichatemp)
         var messageFicha = ""
 
+        if(!characterCache.isFinish) {
+            return interaction.reply({content: "No puedo enviar tu ficha si aun no esta terminada! .·´¯`(>▂<)´¯`·. , verifica que hayas completado los dos primeros formularios."})
+        }
+
          channel.delete()
 
         channelfichas.send({content: 
@@ -29,7 +33,7 @@ module.exports = {
             + "\n**✧ Genero.** " + characterCache.sexo + "\n**✧ Personalidad.** " 
             + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + characterCache.familia + "\n**✧ Aptitud.** " 
             + characterCache.especialidad + `\n**✧ Historia:** ` + `${characterCache?.historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${interaction.user}`, 
-            files: [characterCache.avatarURL || "https://cdn.discordapp.com/attachments/665423320765693982/905282026133938206/unknown.png"]
+            files: [characterCache.avatarURL]
         })
         await Cachedb.updateOne({_id: interaction.user.id}, 
             {$set: {waiting: true}}

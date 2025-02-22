@@ -7,6 +7,7 @@ const subcommands = {
     staffinfo: require("../../handlers/CMDHandler/Utilidad/Crear Embed"),
     foropost: require("../../handlers/CMDHandler/Utilidad/create_post"),
     confesion: require("../../handlers/CMDHandler/Utilidad/Confesion"),
+    config_channels: require("../../handlers/CMDHandler/Utilidad/Canales_rol")
 }
 
 
@@ -43,6 +44,9 @@ module.exports = {
                 break;
             case "confesar":
                 subcommands.confesion(client, interaction)
+                break;
+            case "canales_rol":
+                subcommands.config_channels(client, interaction)
                 break;
 
         }
@@ -224,6 +228,28 @@ module.exports = {
             .setDescription("[Opcional] Envia la confesión / carta a un personaje del rol")
             .setRequired(false)
             .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("canales_rol")
+        .setDescription("Desbloquea categorias especificas del Rol. [Administracion]")
+        .addNumberOption(options => 
+            options
+            .setName("categoria")
+            .setDescription("La categoria a desbloquear o bloquear")
+            .setChoices(
+              {name: "[🏫] Instituto", value: 1},
+              {name: "[🏙️] Ciudad", value: 2},
+              {name: "[⁉️] Todos los canales", value: 3}
+            )
+            .setRequired(true)
+        )
+        .addBooleanOption(sub => 
+            sub
+            .setName("accion")
+            .setDescription("La accion a realizar sobre estos canales [Desbloquear/Bloquear]")
+            .setRequired(true)
         )
     ),
 

@@ -18,9 +18,7 @@ const objetosdb = db1.collection("Objetos_globales")
 
 module.exports = async (client, interaction) => {
 
-    if(!interaction.guild) {
-        return interaction.reply({content: "No puedes usar comandos en MD", ephemeral: true})
-    }
+
     
 
 
@@ -228,6 +226,10 @@ module.exports = async (client, interaction) => {
     }else if(!interaction.isChatInputCommand()) return;
 
     const localCommands = getLocalCommands();
+
+    if(!interaction.guild) {
+        return interaction.reply({content: "No puedes usar comandos en MD", ephemeral: true})
+    }
 
     try {
 

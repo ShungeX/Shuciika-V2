@@ -33,13 +33,21 @@ module.exports = async(client, interaction) => {
     if(!cachepj) {
         return interaction.reply({content: "El usuario mencionado no tiene un personaje registrado. ＞﹏＜"})
     }
+    const isFinish = cachepj?.isFinish ?? false
 
-    var waiting = cachepj.waiting === true
+    if(!isFinish) {
+        return interaction.reply({content: "El usuario aun no termina su ficha. Debes esperar a que minimo el usuario complete las dos partes obligatorias antes de verificar ( •̀ ω •́ )✧", ephemeral: true})
+    }
+
+
+    var waiting = cachepj.waiting
     const apodo = cachepj.apodo??"Sin apodo"
 
 
     if(waiting) {
         waiting = "En espera"
+    }else {
+        waiting = "No enviada"
     }
 
     const button1 = 

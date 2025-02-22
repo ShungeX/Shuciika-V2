@@ -42,8 +42,8 @@ module.exports = {
   
     const familia = new TextInputBuilder()
     .setCustomId("familiapj")
-    .setLabel("¿Tu personaje pertenece a alguna familia?")
-    .setPlaceholder("Dejar en blanco si no pertenece a ninguna familia")
+    .setLabel("¿Tu personaje tiene apellido (Familia)?")
+    .setPlaceholder("Dejar en blanco si no tiene ningun apellido o linaje familiar")
     .setStyle(TextInputStyle.Short)
     .setMaxLength(10)
     .setRequired(false)

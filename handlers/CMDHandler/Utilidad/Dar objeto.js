@@ -26,6 +26,14 @@ module.exports = async(client, interaction) => {
     const uniqueID = interaction.options.getInteger("objeto")
     const pj = await personaje.findOne({ID: Idfind}) 
 
+    const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584"]
+    const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
+
+
+    if(!verifRoles) {
+        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+    }
+
     const objeto = await bdobjeto.findOne({"Objetos.ID": uniqueID},
         {projection: {"Objetos": {$elemMatch: {ID: uniqueID}}}}
     )

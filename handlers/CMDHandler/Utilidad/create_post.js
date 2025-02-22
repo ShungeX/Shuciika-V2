@@ -15,6 +15,14 @@ module.exports = async(client, interaction) => {
     const isMessage = interaction.options.getInteger("is_mensaje")
     console.log(isMessage)
 
+    const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584"]
+    const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
+
+
+    if(!verifRoles) {
+        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+    }
+
     if(isMessage === 1) {
         const modal = new ModalBuilder()
         .setTitle("Creacion de mensaje")

@@ -84,7 +84,7 @@ module.exports = async(client, interaction) => {
         .setTitle("Guia rapida")
         .setDescription("`🔮` "+`*Bienvenido nuevo aprendiz.* Estas a punto de crear tu **ficha de personaje.** \n\n Para comenzar tu viaje, presiona el botón *Iniciar*. Sigue las instrucciones y apareceran otros botones`)
         .addFields([ {
-            name: "Boton actualizar", value: "Si después de enviar ambos formularios y la opcion **terminar** aun no se desbloquea, presiona el ultimo boton para actualizar el mensaje"
+            name: "Obligatorio", value: "Debes enviar minimo los dos primeros formularios para poder enviar tu ficha `Iniciar` y `Continuar`"
         }, {
             name: "Problemas", value: "Si llegas a tener algun problema al enviar tus formularios, envia un mensaje a <@!665421882694041630>"
         }, {
@@ -103,7 +103,7 @@ module.exports = async(client, interaction) => {
         const msg = await interaction.reply({embeds: [embed], components: [Row], fetchReply: true})
     
     
-          const result = await userdb.updateOne({_id: interaction.user.id}, 
+          await userdb.updateOne({_id: interaction.user.id}, 
             {
                 $setOnInsert: {
                     created: Date.now(), buttons: {

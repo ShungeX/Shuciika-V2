@@ -31,7 +31,7 @@ module.exports = async(client, interaction) => {
     const lumensRand = Math.floor(Math.random() * (50 - 30 + 1) + 40)
 
     const embed = new EmbedBuilder()
-    .setTitle("Has trabajado arduamente")
+    .setTitle("Has trabajado arduamente en papeleria")
     .setDescription("Te han pagado un total de **`" + lumensRand + "`** <a:Lumens:1335709991130103910> por tu arduo trabajo")
     .setColor("Random")
     .setFooter({text: `Sistema de economia: ${versionEcon.versionEc}`})

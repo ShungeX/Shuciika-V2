@@ -41,6 +41,10 @@ if(Idfind || user) {
         }else {
             estado = "No enviada"
         }
+
+        if(fichasf.isFinish) {
+            return interaction.reply({content: "Aun no puedes usar este comando. Debes terminar los dos formularios de tu ficha .·´¯`(>▂<)´¯`·. ", ephemeral: true})
+        }
         
         const noverif = new EmbedBuilder()
         .setAuthor({name: interaction.member.displayName, iconURL: interaction.user.displayAvatarURL({dynamic: true})})
@@ -48,7 +52,7 @@ if(Idfind || user) {
         .setDescription(fichasf.historia ? fichasf.historia: "Sin Historia (¿In rol?)")
         .addFields(
           {name: "Informacion", value: "`📑` **Apodo: ** " + fichasf.apodo + "\n`🎎` **Sexo: **" + fichasf.sexo + "\n`🍭` **Edad: **" + fichasf.edad + "\n`🛫` **C/Org: **" + fichasf.ciudadOrg, inline: true},
-          {name: "Extra", value: "`🎂` **Cumple **" + fichasf.cumpleaños + "\n`👑` **Origen **" + fichasf.familia + "\n`❔`** Estado:** " + estado, inline: true},
+          {name: "Extra", value: "`🎂` **Cumple **" + fichasf.cumpleaños + "\n`👑` **Linaje Familiar **" + fichasf.familia + "\n`❔`** Estado:** " + estado, inline: true},
           {name: "🎭 Personalidad", value: fichasf.personalidad, inline: false},
           {name: "🎮 Especialidad", value: fichasf.especialidad, inline: false}
         )
@@ -91,6 +95,10 @@ if(Idfind || user) {
         const reputacion = pjuser?.Reputacion ? pjuser.Reputacion: "0"
         const grado = pjuser?.DesmpAcademico?.Grado ? pjuser.DesmpAcademico.Grado: "Aun no calculado"
 
+        const urlavatar = pjuser.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
+
+        console.log(urlavatar)
+
         
         const embed = new EmbedBuilder()
         .setTitle(pjuser.Nombre + ` [${pjuser.Apodo}]`)
@@ -98,10 +106,10 @@ if(Idfind || user) {
         .setAuthor({name: user?.displayName || interaction.member.displayName, iconURL: user?.displayAvatarURL({dynamic: true}) || interaction.member.displayAvatarURL({dynamic: true})})
         .addFields(
           {name: "Informacion 1/2", value: "`🎎` **Sexo: **" + pjuser.Sexo + "\n`🍭` **Edad: **" + pjuser.Edad + "\n`🎂` **Cumple: **" + pjuser.Cumpleaños + "\n`🛫` **C/Org: **" + pjuser.CiudadOrg, inline: true},
-          {name: "Informacion 2/2", value: "`👑` **Origen: **" + pjuser.Familia +"\n`🎭` **Personalidad: **" + pjuser.Personalidad + "\n `🏈` **Especialidad: **" + pjuser.Especialidad, inline: true},
+          {name: "Informacion 2/2", value: "`👑` **Linaje familiar: **" + pjuser.Familia +"\n`🎭` **Personalidad: **" + pjuser.Personalidad + "\n `🏈` **Especialidad: **" + pjuser.Especialidad, inline: true},
           {name: "Extra", value: "`🔮` **Rol: **" + pjuser.Rol + "\n`💳` **ID: **" + pjuser.ID + "\n `🎉` **Fecha de creacion: **" + pjuser.FechaS, inline: false}
         )
-        .setThumbnail(pjuser.avatarURL)
+        .setThumbnail(urlavatar)
         .setColor(`Random`)
         .setFooter({ text: `Sistema de perfil  /  Version: ${version.versionRol}`});
         await interaction.reply({embeds: [embed], components: [row], fetchReply: true})

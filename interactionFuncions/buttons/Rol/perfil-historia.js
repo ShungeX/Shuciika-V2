@@ -115,7 +115,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
             .setTitle("Alma de " + pjuser.Nombre)
-            .setDescription("<a:Lumens:1335709991130103910>" + pjuser.Dinero + "`Lumens`\n\n`[💜] HP:` " + soul.HP + "\n`[✨] Nivel:` " + soul.nivelMagico + "\n`[🍪] XP:` " + soul.XP 
+            .setDescription("<a:Lumens:1335709991130103910> " + pjuser.Dinero + " `Lumens`\n\n`[💜] HP:` " + soul.HP + "\n`[✨] Nivel:` " + soul.nivelMagico + "\n`[🍪] XP:` " + soul.XP 
                 + "\n`[🌱] Elemento:` " + soul.Elemento + "\n`[💧] Max Mana:` " + soul?.stats?.manaMax  
             )
             .setFields(

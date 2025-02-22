@@ -22,7 +22,15 @@ ejecutar: async(client, interaction) => {
         const characterCache = await Cachedb.findOne({_id: interaction.user.id})
         const mdOpen = userfind.statusMd
 
-        const avatar = characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1738637289/Rol/Assets/snhze7wiigf85hsq1ikc.jpg"
+        const avatar = characterCache.avatarURL
+
+        if(!avatar) {
+            Cachedb.updateOne({_id: interaction.user.id}, {
+                $set: {
+                    avatarURL: "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png"
+                }
+            })
+        }
 
         const embed = new EmbedBuilder()
         .setTitle("¡Se ha creado correctamente tu Ficha!")
@@ -34,7 +42,7 @@ ejecutar: async(client, interaction) => {
          "\n\n`🎂 Cumpleaños:`" + ` *${characterCache.cumpleaños}*` +
          "\n\n`🏙 Ciudad Origen:`" + ` *${characterCache.ciudadOrg}*` +
          "\n\n`🤸🏻‍♀️ Personalidad:`" + ` *${characterCache.personalidad}*` +
-         "\n\n`👨‍👩‍👧‍👦 Familia:`" + ` *${characterCache.familia}*` + 
+         "\n\n`👨‍👩‍👧‍👦 Apellido:`" + ` *${characterCache.familia}*` + 
          "\n\n`⚽ Especialidad:`" + ` *${characterCache.especialidad}*`
         )
         .setColor("Random")

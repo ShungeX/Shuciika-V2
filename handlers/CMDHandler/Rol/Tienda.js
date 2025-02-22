@@ -47,7 +47,7 @@ module.exports = async(client, interaction) => {
     .addFields(
         {name: "Objetos disponibles", value: `\n${lista}`}
     )
-    .setThumbnail("https://res.cloudinary.com/dn1cubayf/image/upload/v1737944861/gvdOEEvE_nqgkr7.jpg")
+    .setThumbnail("https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/gvdOEEvE_nqgkr7")
     .setColor("Yellow")
     .setFooter({text: `Pagina 1`})
 

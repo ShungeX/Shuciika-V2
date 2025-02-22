@@ -94,7 +94,7 @@ module.exports = {
             .setTitle("Guia rapida")
             .setDescription("`🔮` "+`*Bienvenido nuevo aprendiz.* Estas a punto de crear tu **ficha de personaje.** \n\n Para comenzar tu viaje, presiona el botón <:uno:804234149967167498> *Inicio*. Sigue las instrucciones y apareceran otros botones`)
             .addFields([ {
-                name: "Boton actualizar", value: "Si después de enviar ambos formularios y la opcion **terminar** aun no se desbloquea, presiona el ultimo boton para actualizar el mensaje"
+            name: "Obligatorio", value: "Debes enviar minimo los dos primeros formularios para poder enviar tu ficha `Iniciar` y `Continuar`"
             }, {
                 name: "Problemas", value: "Si llegas a tener algun problema al enviar tus formularios, envia un mensaje a <@!665421882694041630>"
             }, {
