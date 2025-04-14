@@ -2,7 +2,12 @@ const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCom
 const {SlashCommandBuilder} = require("@discordjs/builders")
 const subcommands = {
     dance: require("../../handlers/CMDHandler/Interactions/DanceInteract"),
-    hug: require("../../handlers/CMDHandler/Interactions/Hug")
+    hug: require("../../handlers/CMDHandler/Interactions/Hug"),
+    kiss: require("../../handlers/CMDHandler/Interactions/Kiss"),
+    Pat: require("../../handlers/CMDHandler/Interactions/Pat"),
+    Slap: require("../../handlers/CMDHandler/Interactions/Slap"),
+    Bite: require("../../handlers/CMDHandler/Interactions/Bite"),
+    bang: require("../../handlers/CMDHandler/Interactions/bang")
 }
 
 module.exports = {
@@ -23,19 +28,19 @@ ejecutar: async(client, interaction) => {
             subcommands.hug(client, interaction)
             break;
         case "slap":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            subcommands.Slap(client, interaction)
             break;
         case "kiss":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            subcommands.kiss(client, interaction)
             break;
         case "pat":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            subcommands.Pat(client, interaction)
             break;
         case "bang":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            subcommands.bang(client, interaction)
             break;
         case "bite":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            subcommands.Bite(client, interaction)
             break;
         case "cheeks":
             interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
@@ -60,7 +65,7 @@ ejecutar: async(client, interaction) => {
 
  data: new SlashCommandBuilder()
  .setName("interact")
- .setDescription("Interactua con algun miembro")
+ .setDescription("Interactua con algun miembro.")
  .setContexts(["Guild"])
  .addSubcommand((sub) => 
      sub
@@ -75,6 +80,7 @@ ejecutar: async(client, interaction) => {
          character
          .setName("personaje")
          .setDescription("ingresa la ID del Alumno [Personaje]")
+         .setAutocomplete(true)
          .setMinValue(1)
          .setMaxValue(1000)
      )
@@ -92,6 +98,7 @@ ejecutar: async(client, interaction) => {
         character
         .setName("personaje")
         .setDescription("ingresa la ID del Alumno [Personaje]")
+        .setAutocomplete(true)
         .setMinValue(1)
         .setMaxValue(1000)
     )
@@ -129,6 +136,8 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
+       
    )
 )
 .addSubcommand((sub) => 
@@ -146,6 +155,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -163,6 +173,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -180,6 +191,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -197,6 +209,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -214,6 +227,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -231,6 +245,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 )
 .addSubcommand((sub) => 
@@ -248,6 +263,7 @@ ejecutar: async(client, interaction) => {
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
        .setMaxValue(1000)
+       .setAutocomplete(true)
    )
 ),
  deleted: false,

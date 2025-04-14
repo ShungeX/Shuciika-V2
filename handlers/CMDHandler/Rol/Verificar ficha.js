@@ -4,18 +4,31 @@ const db = clientdb.db("Server_db")
 const userdb = db.collection("usuarios_server")
 const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
-const characterPj = db2.collection("Personajes")
-const { DateTime } = require('luxon')
-const timeMXF = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATETIME_HUGE_WITH_SECONDS)
-const timeMXS = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATE_SHORT)
-
 
      /**
      * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction
      */
 
-module.exports = async(client, interaction) => {
+module.exports =  {
+    requireCharacter: false,
+    requireSoul: false,
+    requireCharacterCache: false,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: false,
+        Character: false,
+        Cachepj: false
+    },
+
+    /**
+     * 
+     * @param {Client} client 
+     * @param {ChatInputCommandInteraction} interaction 
+     */
+
+    ejecutar: async(client, interaction) => {
     const userverif = interaction.options.getString("personaje_cache")
     const comentario = interaction.options.getString("comentario")
     const cachepj = await Cachedb.findOne({name: userverif})
@@ -33,7 +46,7 @@ module.exports = async(client, interaction) => {
     if(!cachepj) {
         return interaction.reply({content: "El usuario mencionado no tiene un personaje registrado. ＞﹏＜"})
     }
-    const isFinish = cachepj?.isFinish ?? false
+    const isFinish = cachepj?.isFinish || false
 
     if(!isFinish) {
         return interaction.reply({content: "El usuario aun no termina su ficha. Debes esperar a que minimo el usuario complete las dos partes obligatorias antes de verificar ( •̀ ω •́ )✧", ephemeral: true})
@@ -92,4 +105,5 @@ userdb.updateOne({_id: interaction.user.id}, {
     $setOnInsert: {_id: interaction.user.id},
     $set: {fichaverif: cachepj._id}
 }, {upsert: true})
+    }
 }

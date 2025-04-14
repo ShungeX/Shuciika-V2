@@ -1,12 +1,12 @@
-const Discord = require("discord.js");
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, Client, StringSelectMenuBuilder, } = require(`discord.js`)
 const clientdb = require("../Server")
 const db2 = clientdb.db("Rol_db")
 const rel = db2.collection("Relaciones_pj")
 const personajes = db2.collection("Personajes")
             /**
              * 
-             * @param {Discord.client} client
-             * @param {Discord.CommandInteraction} interaction
+             * @param {Client} client
+             * @param {ChatInputCommandInteraction} interaction
              * 
              * 
              */
@@ -16,6 +16,8 @@ const personajes = db2.collection("Personajes")
 "InteractionCouple": 2,
 "InteractionFriendly": 3,
 "InteractionNeutral": 4
+"InteractionNegative": 5
+"InteractionNegativeX2": 6
 //** */
 
 
@@ -47,7 +49,7 @@ module.exports = async(interaction, mentionId, Id1, Id2, interactionType) => {
                 logros: [""],
                 recuerdos: [""],
                 regalos: [""],
-                lastinteraction: Date.now,
+                lastinteraction: Date.now(),
                 timeoutinteraction: 10000
             }
     
@@ -67,28 +69,45 @@ module.exports = async(interaction, mentionId, Id1, Id2, interactionType) => {
    
 
     async function addXP(){
-        const newXP = existingRelation.xp  + result.xp
+
+        if(interactionType >= 5) {
+            const newXP = existingRelation.xpnegative  + result.xp
+                    
+            let updateData = {
+                lastinteraction: Date.now(), 
+                xp: newXP,
+                xptoLv: existingRelation.xptoLv
+            }
+
+            await rel.updateOne({_id: relationId}, {$set: {lastinteraction: updateData.lastinteraction}, $inc: {xpnegative: result.xp}})
+
+        }else {
+            const newXP = existingRelation.xp  + result.xp
         
-        let levelUp = false
+            let levelUp = false
+    
+            if((newXP - existingRelation.xpnegative) >= existingRelation.xptoLv) {
+                levelUp = true
+                result.levelUp = true
+            }
+    
+            let updateData = {
+                lastinteraction: Date.now(), 
+                xp: newXP,
+                xptoLv: existingRelation.xptoLv
+            }
+    
+            if(levelUp) {
+                updateData.xptoLv = ((existingRelation.lv + 1) ** 2) + ((existingRelation.lv + 1)* 40)
+                result.lv = 1
+            }
+    
+            await rel.updateOne({_id: relationId}, {$set: {lastinteraction: updateData.lastinteraction, xptoLv: updateData.xptoLv}, $inc: {xp: result.xp, lv: result.lv}})
+            console.log(levelUp ? "Subio de nivel":"Gano XP")
 
-        if(newXP >= existingRelation.xptoLv) {
-            levelUp = true
-            result.levelUp = true
         }
 
-        let updateData = {
-            lastinteraction: Date.now(), 
-            xp: newXP,
-            xptoLv: existingRelation.xptoLv
-        }
 
-        if(levelUp) {
-            updateData.xptoLv = ((existingRelation.lv + 1) ** 2) + ((existingRelation.lv + 1)* 40)
-            result.lv = 1
-        }
-
-        await rel.updateOne({_id: relationId}, {$set: {lastinteraction: updateData.lastinteraction, xptoLv: updateData.xptoLv}, $inc: {xp: result.xp, lv: result.lv}})
-        console.log(levelUp ? "Subio de nivel":"Gano XP")
     }
 
     async function calculateXPGain(baseXP = 5) {
@@ -96,7 +115,9 @@ module.exports = async(interaction, mentionId, Id1, Id2, interactionType) => {
             1: 2,
             2: 5,
             3: 1.5,
-            4: 1
+            4: 1,
+            5: 2,
+            6: 5,
         }
        result.xp = Math.round(baseXP * (multiplicador[interactionType] || 1))
        console.log(baseXP * (multiplicador[interactionType] || 1))

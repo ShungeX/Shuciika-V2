@@ -50,10 +50,10 @@ module.exports = {
   
     const especialidad = new TextInputBuilder()
     .setCustomId("especialidadpj")
-    .setLabel("¿En que es especial tu personaje?")
-    .setPlaceholder("Respuesta libre (Deportes, cocina, videojuegos o cosas mas especificas)")
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(16)
+    .setLabel("¿En que es bueno tu personaje?")
+    .setPlaceholder("Respuesta libre [Maximo 2 cosas] - (Deportes, cocina, videojuegos o cosas mas especificas)")
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(30)
     .setRequired(false)
     
 

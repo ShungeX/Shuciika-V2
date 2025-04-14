@@ -4,6 +4,7 @@ const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCom
 const db = clientdb.db("Interaccion")
 const db2 = clientdb.db("Rol_db")
 const getXp = require("../../../functions/getXP")
+const newGetXP = require("../../../functions/newGetXP")
 
 
      /**
@@ -83,7 +84,7 @@ module.exports = async(client, interaction) => {
         }
     
     
-async function member() {
+        async function member() {
             
         const incInteractions = require("../../../functions/incInteractions")
 
@@ -115,7 +116,7 @@ async function member() {
 
 
 
-            const result = await getXp(interaction, user.id, pjuser.ID, pjfind.ID, interactionRolType)
+            const result = await newGetXP(client, interaction, interaction.user, pjuser.ID, pjfind.ID, interactionRolType)
     
             
             if(result.xp) {
@@ -123,7 +124,7 @@ async function member() {
                
             }
             if(result.levelUp) {
-                characterInEmbed.setFooter({ text:`Han subido de nivel:  +${result.lv}`})
+                characterInEmbed.setFooter({ text:`Han subido al nivel:  +${result.lv}`})
             }
 
             await interaction.reply({embeds: [characterInEmbed]})

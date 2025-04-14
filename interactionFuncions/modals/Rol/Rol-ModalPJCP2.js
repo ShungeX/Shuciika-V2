@@ -27,8 +27,7 @@ module.exports = {
         const personalidad = interaction.fields.getTextInputValue("personalpj") || "Desconocido"
         const personalidades = ["INTJ", "INTP", "ENTJ", "ENTP", "INFJ", "INFP", "ENFJ", 
       "ENFP", "ISTJ", "ISFJ", "ESTJ", "ESFJ", "ISTP", "ISFP", "ESTP", "ESFP"]
-        const fechaRegex =  /^(\d{1,2})[\/\-](\d{1,2})$/;
-
+        const fechaRegex = /^(\d{1,2})[\/\-](\d{1,2})$/;
 
 
 
@@ -36,32 +35,59 @@ module.exports = {
           return interaction.reply({ content: "Recuerda que solo se admiten las personalidades del canal <#926688416433860638>.\ **[Tambien recuerda que todo es en Mayus]**", ephemeral: true})
         }
 
+        function validarYformatearFecha(input) {
+            const diasPorMes = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // indice 0,  valor (0) dummy
+
+            if (!fechaRegex.test(input)) {
+                return { error: "Formato inválido. Usa DD/MM ＞﹏＜" };
+            }
+
+            let [_, diaStr, mesStr] = fechaRegex.exec(input);
+            let dia = parseInt(diaStr);
+            let mes = parseInt(mesStr);
+
+            let posiblesFechas = [
+                { dia: dia, mes: mes }, // Interpretación original
+                { dia: mes, mes: dia }  // Interpretación intercambiada
+            ];
+
+            let fechaValida = posiblesFechas.find(f => 
+                f.mes >= 1 && f.mes <= 12 && f.dia >= 1 && f.dia <= 31
+              );
+
+            if (!fechaValida) {
+                return { error: "Fecha inválida. ¿Intentaste día/mes?" };
+            }
+
+            dia = fechaValida.dia;
+            mes = fechaValida.mes;
         
 
-        function validarFecha() {
-            console.log(fechaRegex.test(cumplepj))
-            return fechaRegex.test(cumplepj)
+            const maxDias = diasPorMes[mes];
+            if (dia > maxDias) {
+                const mensajeFeb = mes === 2 ? "\n¡Recuerda! Febrero tiene máximo 28 días (29 en año bisiesto) ＞﹏＜" : "";
+                return { error: `Día inválido para ${nombreMes(mes)} (1-${maxDias})${mensajeFeb}` };
+              }
+        
+            return `${diaStr.padStart(2, '0')}/${mesStr.padStart(2, '0')}`
         }
 
-        function formatearFecha() {
-            let [dia, mes] = cumplepj.split("/")
-
-            dia = dia.padStart(2, '0')
-            mes = mes.padStart(2, '0')
-            cumplepj = `${dia}/${mes}`
-            return `${dia}/${mes}`
+        function nombreMes(mes) {
+            const meses = [
+                "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+            ];
+            return meses[mes - 1];
         }
 
-        function Fechavalida() {
-            if(validarFecha()) {
-                return formatearFecha()
-            }
-        }
 
+        const validarFecha = validarYformatearFecha(cumplepj)
 
     
-        if(!await Fechavalida()) {
-            return interaction.reply({ content: "Algo anda mal en el cumpleaños. \n `[Recuerda seguir el orden xx/xx (Día / Mes)]`", ephemeral: true})
+        if(validarFecha?.error) {
+            return interaction.reply({ content: validarFecha.error, flags: "Ephemeral"})
+        }else {
+            cumplepj = validarFecha
         }
 
          
@@ -91,18 +117,20 @@ module.exports = {
 
           async function sendMessage() {
             const embed = new EmbedBuilder()
-            .setTitle("Guia rapida")
-            .setDescription("`🔮` "+`*Bienvenido nuevo aprendiz.* Estas a punto de crear tu **ficha de personaje.** \n\n Para comenzar tu viaje, presiona el botón <:uno:804234149967167498> *Inicio*. Sigue las instrucciones y apareceran otros botones`)
+            .setTitle("Guia de creacion de personaje")
+            .setDescription("`🔮` "+`*Bienvenido nuevo aprendiz. Estas a punto de crear tu **ficha de personaje.*** \n\n*Para comenzar tu viaje, presiona el boton **Iniciar***.`)
             .addFields([ {
-            name: "Obligatorio", value: "Debes enviar minimo los dos primeros formularios para poder enviar tu ficha `Iniciar` y `Continuar`"
+                name: "Obligatorio", value: "Debes enviar minimo los dos primeros formularios para poder enviar tu ficha:  **`Iniciar`** y **`Continuar`**"
             }, {
-                name: "Problemas", value: "Si llegas a tener algun problema al enviar tus formularios, envia un mensaje a <@!665421882694041630>"
+                name: "Problemas", value: "Si tienes problemas para enviar tus formularios, envia un mensaje al privado de <@!665421882694041630>"
             }, {
-                name: "Foto de perfil", value: "Antes de colocar una foto de perfil, revisa el foro: <#1330769969428041822>."
+                name: "Foto de perfil", value: "Para colocar una foto de perfil a tu ficha, REVISA EL FORO: <#1330769969428041822>."
             }, {
-                name: "Dudas", value: "Cualquier otra duda puedes crear una publicacion en <#1064054917662265404>"
+                name: "Dudas", value: "Cualquier duda crea una publicacion en <#1064054917662265404> con tu duda"
             }, {
-                name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar <#1339103959855661096>."
+                name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar: <#1339103959855661096>.\n\n" + 
+                '-# Es posible que algunos canales te aparezcan como `#Desconocida`, presiona el canal y funcionara de manera normal (Esto es problema de discord)\n\n' + 
+                '-# Puedes cerrar los formularios si necesitas verificar algo, la informacion se guarda automaticamente (por bastante rato)'
             }
         
         ])

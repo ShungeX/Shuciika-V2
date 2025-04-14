@@ -20,7 +20,7 @@ module.exports = {
     .setLabel("Cuentame más de tu personaje... (Historia)")
     .setPlaceholder("[Opcional] Respuesta libre. ")
     .setStyle(TextInputStyle.Paragraph)
-    .setMaxLength(1000)
+    .setMaxLength(2000)
     .setMinLength(20)
     .setRequired(false)
   
@@ -29,7 +29,7 @@ module.exports = {
     .setLabel("¿Te gustaria dejar tu opinion?")
     .setPlaceholder("[Opcional] Opinion sobre el metodo para crear personajes.")
     .setStyle(TextInputStyle.Paragraph)
-    .setMaxLength(900)
+    .setMaxLength(1000)
     .setMinLength(20)
     .setRequired(false)
   
@@ -38,6 +38,7 @@ module.exports = {
     .setLabel("¿Agregaras una foto de perfil?")
     .setPlaceholder("[Opcional] Puedes agregarla despues. Antes de enviar el link de tu imagen recuerda revisar la guia.")
     .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(500)
     .setMinLength(20)
     .setRequired(false)
     

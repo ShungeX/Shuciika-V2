@@ -8,6 +8,7 @@ const soul = db2.collection("Soul")
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 const version = require("../../../config")
+const magicSpell = db2.collection("Hechizos_globales")
 
     /**
      * 
@@ -24,14 +25,19 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction
      */
 
-    ejecutar: async(client, interaction, character, extras) => {
+    ejecutar: async(client, interaction, character, nan, nan2, nan3, extras) => {
         const userf = await Cachedb.findOne({_id: interaction.user.id})
         const souls = await soul.findOne({_id: interaction.user.id})
         const [pregunta, respuesta] = extras.split("*")
 
-        console.log(respuesta)
+        console.log(pregunta)
 
         const respuestas = {
+            A: {valor: 0, corrupcion: 0, pecado: 5},
+            B: {valor: 0, corrupcion: 5, pecado: 0},
+            C: {valor: 5, corrupcion: 0, pecado: 0},
+            
+
             A1: {valor: 0, corrupcion: 0, pecado: 5},
             B1: {valor: 0, corrupcion: 5, pecado: 0},
             C1: {valor: 5, corrupcion: 0, pecado: 0},
@@ -105,7 +111,7 @@ module.exports = {
                 })
             }else if(pregunta === "Rf") {
 
-                if(respuesta === "C") {
+                if(respuesta === "Crf") {
                     const random = Math.floor(Math.random() * 100)
                     
                     if(random <= 49) {
@@ -127,7 +133,7 @@ module.exports = {
                     }
                 }
 
-                if(respuesta === "A") {
+                if(respuesta === "Arf") {
                     await soul.updateOne({_id: interaction.user.id}, 
                         {
                             $set: {
@@ -137,7 +143,7 @@ module.exports = {
                     )
                 }
 
-                if(respuesta === "B") {
+                if(respuesta === "Brf") {
                     await soul.updateOne({_id: interaction.user.id}, 
                         {
                             $set: {
@@ -163,11 +169,11 @@ module.exports = {
                 const resultados = {
                     'Valor': {
                         title: "Tu personaje tiene algo especial, quizás es su bondad o valentia.",
-                        description: "-# Tu personaje es `Virtuoso`",
+                        description: "-# Tu personaje es un `Virtuoso`",
                     },
                     'Pecado': {
-                        title: "Tu personaje tiene algo especial, sea la fuerza de cargar con sus pecados",
-                        description: "-# Tu personaje es `Pecador`"
+                        title: "Tu personaje tiene algo especial, quizás es la fuerza de cargar con sus pecados",
+                        description: "-# Tu personaje es un `Pecador`"
                     },
                     'Corrupcion': {
                         title: "Dicen que los personajes son el reflejo de sus creadores. Quizás esto sea un reflejo de ti...",
@@ -180,7 +186,6 @@ module.exports = {
 
                 const ties = Object.entries(valores).filter(([key, value]) => value === maxValue);
 
-                console.log(messages.title, messages.description)
 
                 if(ties.length > 1) { 
                     interaction.reply({content: "Tu personaje esta en equilibrio\n-# No obtuviste ninguna bendición o maldición"}).then(m => setTimeout(() => m.delete(), 10000))
@@ -192,7 +197,7 @@ module.exports = {
             }else if(pregunta === "Rf2") {
 
                 const element = {
-                    Pyro: "Pyrós",
+                    Pyro: "Pyró",
                     Aqua: "Aqua",
                     Lapis: "Lapis",
                     Rakau: "Rakau",
@@ -237,23 +242,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Purifico las raíces con Lux, aunque me debilite",
-                        value: `despertarOptions-${interaction.user.id}-R2*A2`,
+                        value: `R2*A2`,
     
                     },
                     {
                         label: "B) Dejo que el árbol crezca. El poder nuevo merece existir",
-                        value: `despertarOptions-${interaction.user.id}-R2*B2`,
+                        value: `R2*B2`,
                         
                     },
                     {
                         label: "C) Negocio con los seres kurayami para equilibrarlo",
-                        value: `despertarOptions-${interaction.user.id}-R2*C2`,
+                        value: `R2*C2`,
                         
                     },
             ])
@@ -273,23 +278,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Extendere mi mano para proteger la luz",
-                        value: `despertarOptions-${interaction.user.id}-R3*A3`,
+                        value: `R3*A3`,
     
                     },
                     {
                         label: "B) La oscuridad realizara su trabajo. No todo necesita salvacion",
-                        value: `despertarOptions-${interaction.user.id}-R3*B3`,
+                        value: `R3*B3`,
                         
                     },
                     {
                         label: "C) No me importa solo quiero poder",
-                        value: `despertarOptions-${interaction.user.id}-R3*C3`,
+                        value: `R3*C3`,
                         
                     },
             ])
@@ -308,23 +313,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Lo tomo. El conocimiento es poder",
-                        value: `despertarOptions-${interaction.user.id}-R4*A4`,
+                        value: `R4*A4`,
     
                     },
                     {
                         label: "B) Lo dejo, mi esencia es mi fortaleza",
-                        value: `despertarOptions-${interaction.user.id}-R4*B4`,
+                        value: `R4*B4`,
                         
                     },
                     {
                         label: "C) Ansío el conocimiento a como de lugar",
-                        value: `despertarOptions-${interaction.user.id}-R4*C4`,
+                        value: `R4*C4`,
                         
                     },
             ])
@@ -343,23 +348,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Mis recuerdos. El pasado no me define",
-                        value: `despertarOptions-${interaction.user.id}-R5*A5`,
+                        value: `R5*A5`,
     
                     },
                     {
                         label: "B) Mis emociones. La razón es mi guía",
-                        value: `despertarOptions-${interaction.user.id}-R5*B5`,
+                        value: `R5*B5`,
                         
                     },
                     {
                         label: "C) Mis amistades. La soledad es mi aliada",
-                        value: `despertarOptions-${interaction.user.id}-R5*C5`,
+                        value: `R5*C5`,
                         
                     },
             ])
@@ -378,23 +383,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Si, mis sueños son mi unica razón de existir",
-                        value: `despertarOptions-${interaction.user.id}-R6*A6`,
+                        value: `R6*A6`,
     
                     },
                     {
                         label: "B) No, lo que he construido es más valioso",
-                        value: `despertarOptions-${interaction.user.id}-R6*B6`,
+                        value: `R6*B6`,
                         
                     },
                     {
                         label: "C) Destruire todo lo que me rodee para alcanzarlo",
-                        value: `despertarOptions-${interaction.user.id}-R6*C6`,
+                        value: `R6*C6`,
                         
                     },
             ])
@@ -413,28 +418,28 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Me gusta mi creacion",
-                        value: `despertarOptions-${interaction.user.id}-R7*A7`,
+                        value: `R7*A7`,
     
                     },
                     {
                         label: "B) No me agrada, pero tampoco me desagrada",
-                        value: `despertarOptions-${interaction.user.id}-R7*B7`,
+                        value: `R7*B7`,
                         
                     },
                     {
                         label: "C) No me agrada mi creacion",
-                        value: `despertarOptions-${interaction.user.id}-R7*C7`,
+                        value: `R7*C7`,
                         
                     },
                     {
                         label: "D) Odio a mi creacion",
-                        value: `despertarOptions-${interaction.user.id}-R7*D7`,
+                        value: `R7*D7`,
                         
                     },
             ])
@@ -453,48 +458,48 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Ē̸͉s̴̭͂t̸̑ͅą̷́ ̶̱͝e̶̟̽s̵͍̏ ̸̨͂ṱ̷̌ů̷̹ ̶͔̽r̴̓ͅẹ̷̈́s̵̛̩p̶̲͋ù̷̯é̸̺s̸̢͒t̷̫͝ȧ̶̻")
                 .addOptions([
                     {
                         label: "A) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*A8`,
+                        value: `R8*A8`,
     
                     },
                     {
                         label: "B) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*B8`,
+                        value: `R8*B8`,
                         
                     },
                     {
                         label: "C) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*C8`,
+                        value: `R8*C8`,
                         
                     },
                     {
                         label: "D) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*D8`,
+                        value: `R8*D8`,
                         
                     },
                     {
                         label: "E) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*E8`,
+                        value: `R8*E8`,
                         
                     },
                     {
                         label: "F) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*F8`,
+                        value: `R8*F8`,
                         
                     },
                     {
                         label: "G) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*G8`,
+                        value: `R8*G8`,
                         
                     },
                     {
                         label: "H) Acepto. La oscuridad es parte de mi",
-                        value: `despertarOptions-${interaction.user.id}-R8*H8`,
+                        value: `R8*H8`,
                         
                     },
             ])
@@ -516,23 +521,23 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "A) Mi personaje sera bendecido por el éon de la creacion.",
-                        value: `despertarOptions-${interaction.user.id}-Rf*A`,
+                        value: `Rf*Arf`,
     
                     },
                     {
                         label: "B) Mi personaje necesitara un contenedor elemental para usar la magia",
-                        value: `despertarOptions-${interaction.user.id}-Rf*B`,
+                        value: `Rf*Brf`,
                         
                     },
                     {
                         label: "C) Que el destino lo decida (aleatorio)",
-                        value: `despertarOptions-${interaction.user.id}-Rf*C`,
+                        value: `Rf*Crf`,
                         
                     },
             ])
@@ -560,56 +565,56 @@ module.exports = {
                 .setColor("NotQuiteBlack")
     
                 const select = new StringSelectMenuBuilder()
-                .setCustomId(`despertar_01-${interaction.user.id}`)
+                .setCustomId(`despertarOptions-${interaction.user.id}`)
                 .setMaxValues(1)
                 .setPlaceholder("Elige tu respuesta...")
                 .addOptions([
                     {
                         label: "Pyrós",
                         description: "La fuerza y esperanza",
-                        value: `despertarOptions-${interaction.user.id}-Rf2*Pyro`,
+                        value: `Rf2*Pyro`,
                         emoji: "🔥",
                     }, 
                     {
                         label: "Aqua", 
                         description: "Las esperanzas ahogadas",
-                        value: `despertarOptions-${interaction.user.id}-Rf2*Aqua`,
+                        value: `Rf2*Aqua`,
                         emoji: "💧"
                     }, 
                     {
                         label: "Lapis",
                         description: "El lavantamiento de tierras antiguas",
-                        value: `despertarOptions-${interaction.user.id}-Rf2*Lapis`,
+                        value: `Rf2*Lapis`,
                         emoji: "🌑"
                     }, 
                     {
                         label: "Rakau", 
                         description: "El nacimiento de nuevas estrellas",
-                        value: `despertarOptions-${interaction.user.id}-Rf2*Rakau`,
+                        value: `Rf2*Rakau`,
                         emoji: "🌳"
                     },
                     {
                       label: "Electro",
                       description: "El parpadeo de la vida",
-                      value: `despertarOptions-${interaction.user.id}-Rf2*Electro`,
+                      value: `Rf2*Electro`,
                       emoji: "⚡"
                     },
                     {
                       label: "Krýo",
                       description: "El frio eterno de los recuerdos",
-                      value: `despertarOptions-${interaction.user.id}-Rf2*Kryo`,
+                      value: `Rf2*Kryo`,
                       emoji: "❄"
                     },
                     {
                       label: "Wind",
                       description: "Los deseos perdidos en el viento",
-                      value: `despertarOptions-${interaction.user.id}-Rf2*Wind`,
+                      value: `Rf2*Wind`,
                       emoji: "🌪"
                     },
                     {
                         label: "Lux",
                         description: "El resplandor de las promesas",
-                        value: `despertarOptions-${interaction.user.id}-Rf2*Lux`,
+                        value: `Rf2*Lux`,
                         emoji: "✨"
                     }
 
@@ -692,6 +697,25 @@ module.exports = {
 
             message.edit({content: "Pero recuerda. ||Te estamos observando||"})
 
+            let SpellId;
+
+
+
+            const soulsactual = await soul.findOne({_id: interaction.user.id})
+
+            const spellsSelect = {
+                Pyró: "Pyro-001",
+                Aqua: "Aqua-001",
+                Lapis: "Lapis-001",
+                Rakau: "Rakau-001",
+                Electro: "Electro-001",
+                Krýo: "Kryo-001",
+                Wind: "Wind-001",
+                Lux: "Lux-001",
+            }
+
+           SpellId = spellsSelect[soulsactual.Elemento]
+
             soul.updateOne({_id: interaction.user.id}, {
                 $set: {
                         Despertado: Date.now(), 
@@ -702,6 +726,12 @@ module.exports = {
                                 "Region": "TOB-01",
                                 "Type": 1
                               }
+                        ],
+                        hechizos: [
+                            {
+                                "ID": SpellId,
+                                "InCombat": true
+                            }
                         ]
 
                 },
@@ -714,7 +744,7 @@ module.exports = {
 
             const typemagia = souls.Artefacto === true ? "Artefacto" : "Magia Natural"
 
-            const soulsactual = await soul.findOne({_id: interaction.user.id})
+            
 
 
             const embed = new EmbedBuilder()

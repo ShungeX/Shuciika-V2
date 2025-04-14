@@ -2,9 +2,23 @@ const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCom
 const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
-const character = db2.collection("Personajes")
+const characters = db2.collection("Personajes")
 const userdb = db.collection("usuarios_server")
 const updateInventario = require("../../../functions/updateInventario")
+
+
+module.exports = { 
+    requireCharacter: true,
+    requireSoul: false,
+    requireCharacterCache: false,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: false,
+        Character: true,
+        Cachepj: false
+    },
+
 
     /**
      * 
@@ -12,8 +26,7 @@ const updateInventario = require("../../../functions/updateInventario")
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-module.exports = async(client, interaction, cache) => {
-    const personaje = await character.findOne({_id: interaction.user.id})
+    ejecutar: async(client, interaction, { character }) => {
     const usuario = await userdb.findOne({_id: interaction.user.id}) 
     const getTime = Math.floor(Date.now() / 1000) + (24 * 60 * 60)
     const timeActual = usuario?.Recompensa_diaria?.Fecha || 0
@@ -23,11 +36,8 @@ module.exports = async(client, interaction, cache) => {
     const bonus = Math.floor((racha / 7) * 16) 
     const verifracha = timeDay - timeReal
     var message;
+    var messageFooter;
 
-    
-    if(!personaje) {
-        return interaction.reply({content: "Necesitas un personaje para reclamar la recompensa diaria. /(ㄒoㄒ)/~~ -# Usa el comando /rol crear_ficha", ephemeral: true})
-    }
 
     if(getTime - timeActual < 86400) {
         return interaction.reply({content: "Ya has reclamado tu recompensa diaria. Vuelve " + `<t:${timeActual}:R>`, ephemeral: true})
@@ -37,6 +47,7 @@ module.exports = async(client, interaction, cache) => {
 
     if((verifracha >= (176400)) && (racha > 1)) {
         message = "Has recibido un `[320] Cofre del Aprendiz`\n-# Has perdido tu racha de recompensas diarias. ＞﹏＜"
+        messageFooter = "No te preocupes, puedes volver a iniciar otra racha"
         await userdb.updateOne({_id: interaction.user.id}, {
             $set: {
                 "Recompensa_diaria.Racha": 0
@@ -45,11 +56,12 @@ module.exports = async(client, interaction, cache) => {
     } else {
         message = racha > 1 ? "Has recibido un `[320] Cofre del Aprendiz`\nAdemas por tu perseverancia has obtenido un extra de`" + bonus + "` lumens"  
         : "Has recibido un `[320] Cofre del Aprendiz`" 
+        messageFooter = "¡Sigue asi! (✿◡‿◡)"
     }
 
 
     if(racha > 1) {
-        character.updateOne({_id: interaction.user.id}, {
+        characters.updateOne({_id: interaction.user.id}, {
             $inc: {
                 Dinero: bonus
             }
@@ -66,15 +78,21 @@ module.exports = async(client, interaction, cache) => {
         {name: "Proxima recompensa", value: `<t:${getTime}:R>`, inline: true}
     )
     .setThumbnail("https://res.cloudinary.com/dn1cubayf/image/upload/v1738637289/Rol/Assets/snhze7wiigf85hsq1ikc.jpg")
-    .setFooter({text: "¡Sigue asi! (✿◡‿◡)"})
+    .setFooter({text: messageFooter})
     .setColor("DarkPurple")
 
 
     try {
-        await updateInventario(interaction, interaction.user.id, personaje.ID, 320, "TOB-01", 1)
+        const objData = {
+            ID: 320,
+            Region: "TOB-01",
+            cantidad: 1,
+            isItem: true
+        }
 
-        await userdb
-        .updateOne({_id: interaction.user.id}, {
+        await updateInventario(client, interaction, interaction.user.id, objData)
+
+        await userdb.updateOne({_id: interaction.user.id}, {
             $set: {
                 "Recompensa_diaria.Fecha": getTime,
                 "Recompensa_diaria.LastInteraction": timeDay
@@ -92,4 +110,5 @@ module.exports = async(client, interaction, cache) => {
     
 
 
+    }
 }

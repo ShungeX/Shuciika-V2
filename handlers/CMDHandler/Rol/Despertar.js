@@ -3,13 +3,26 @@ const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
-const character = db2.collection("Personajes")
-const soul = db2.collection("Soul")
+const souls = db2.collection("Soul")
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 const version = require("../../../config")
 const { v4: uuidv4} = require('uuid')
 const transaccionCache = require("../../../utils/cache")
+
+
+module.exports = {
+    requireCharacter: true,
+    requireSoul: true,
+    requireCharacterCache: false,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: false,
+        Character: true,
+        Cachepj: false
+    },
+
 
     /**
      * 
@@ -17,11 +30,7 @@ const transaccionCache = require("../../../utils/cache")
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-
-module.exports = async(client, interaction) => {
-    const personaje = await character.findOne({_id: interaction.user.id})
-    const soulfind = await soul.findOne({_id: interaction.user.id})
-    const pjcache = await Cachedb.findOne({_id: interaction.user.id})
+    ejecutar: async(client, interaction, { character, soul }) => {
     const options = interaction.options.getNumber("omitir_dialogo") || 0
     const md = await interaction.user.createDM()
     const cacheId = transaccionCache.get(`${interaction.user.id}-despertar`)
@@ -30,20 +39,14 @@ module.exports = async(client, interaction) => {
     console.log(cacheId)
 
 
-    if(pjcache) {
-        return interaction.reply({content: "Tu ficha aún no ha sido enviada, por favor espera a que un moderador la revise (╥﹏╥)", ephemeral: true})
-    }else if(!personaje) {
-        return interaction.reply({content: "No tienes un personaje registrado (╥﹏╥)\n-# Para despertar tu poder interior debes crear primero uno... /rol crear_ficha", ephemeral: true})
-    }
-
-    if(soulfind) {
-        if(soulfind?.isFinish) {
+    if(soul) {
+        if(soul?.isFinish) {
             return interaction.reply({content: "Una estrella guarda aquello que resuena en tu alma.", ephemeral: true})
         }
 
 
 
-        const message = await md.messages.cache.get(soulfind.messageTemp)
+        const message = await md.messages.cache.get(soul.messageTemp)
 
         console.log(message)
 
@@ -127,7 +130,7 @@ module.exports = async(client, interaction) => {
 
         const embed1 = new EmbedBuilder()
         .setAuthor({name: "Guardiana de las estrellas", iconURL: "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp"})
-        .setDescription("He estado esperando a que llegara este momento, " + `** ${personaje.Nombre} **` + ".")
+        .setDescription("He estado esperando a que llegara este momento, " + `** ${character.Nombre} **` + ".")
         .setColor("DarkPurple")
         message.edit({embeds: [embed1], content: ""})
         await sleep(8000)
@@ -199,7 +202,7 @@ module.exports = async(client, interaction) => {
 
         const embed9 = new EmbedBuilder()
         .setAuthor({name: "Astralea | Guardiana de las estrellas ", iconURL: "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp"})
-        .setDescription(`${personaje.Nombre}, ¿Estás preparado para comenzar a forjar tu destino y ganarte tu lugar en este firmamento eterno?"`)
+        .setDescription(`${character.Nombre}, ¿Estás preparado para comenzar a forjar tu destino y ganarte tu lugar en este firmamento eterno?"`)
         .setColor("DarkPurple")
         message.edit({embeds: [embed9], components: [row]})
 
@@ -344,23 +347,23 @@ module.exports = async(client, interaction) => {
         const row2 = new ActionRowBuilder()
         .addComponents(
             new StringSelectMenuBuilder()
-            .setCustomId(`despertar_01-${interaction.user.id}`)
+            .setCustomId(`despertarOptions-${interaction.user.id}`)
             .setMaxValues(1)
             .setPlaceholder("Elige tu respuesta...")
             .addOptions([
                 {
                     label: "A) El heroe que salva a todos con Luz",
-                    value: `despertarOptions-${interaction.user.id}-R1*A`,
+                    value: `R1*A`,
 
                 },
                 {
                     label: "B) El gobernante que impone su voluntad con Oscuridad",
-                    value: `despertarOptions-${interaction.user.id}-R1*B`,
+                    value: `R1*B`,
                     
                 },
                 {
                     label: "C) Rompo el espejo. Mi futuro lo escribo yo",
-                    value: `despertarOptions-${interaction.user.id}-R1*C`,
+                    value: `R1*C`,
                     
                 },
 
@@ -371,11 +374,13 @@ module.exports = async(client, interaction) => {
         const preguntas = await interaction.user.send({embeds: [embedfirmamento18], components: [row2]})
         transaccionCache?.delete(`${interaction.user.id}-despertar`)
 
-        if(!soulfind) {
-            await soul.insertOne({
+        const soulfind2 = await souls.findOne({_id: interaction.user.id})
+
+        if(!soulfind2) {
+            await souls.insertOne({
                 _id: interaction.user.id,
                 messageTemp: preguntas.id,
-                ID: 85,
+                ID: character.ID,
                 HP: 100,
                 Mana: 50,
                 nivelMagico: 1,
@@ -391,6 +396,7 @@ module.exports = async(client, interaction) => {
                 firmamento: {},
                 hechizos: {},   
                 stats: {
+                  hpMax: 100,
                   manaMax: 50,
                   fuerza: 1,
                   resistenciaFisica: 1,
@@ -409,11 +415,10 @@ module.exports = async(client, interaction) => {
                 isFinish: false,
             })
         }else {
-            await soul.updateOne({_id: interaction.user.id}, {$set: {messageTemp: preguntas.id, Valor: 0, Corrupcion: 0, Pecado: 0, isFinish: false}})
+            await souls.updateOne({_id: interaction.user.id}, {$set: {messageTemp: preguntas.id, Valor: 0, Corrupcion: 0, Pecado: 0, isFinish: false}})
         }
     }
 
-
-
+    }
 
 }

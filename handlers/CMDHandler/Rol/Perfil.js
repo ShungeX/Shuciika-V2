@@ -1,80 +1,92 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client} = require(`discord.js`)
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client, StringSelectMenuBuilder} = require(`discord.js`)
 const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
-const character = db2.collection("Personajes")
+const characters = db2.collection("Personajes")
 const version = require("../../../config")
+
+
+module.exports = {
+    requireCharacter: true,
+    requireSoul: true,
+    requireCharacterCache: true,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: false,
+        Character: false,
+        Cachepj: false
+    },
+
+
     /**
      * 
      * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-module.exports = async(client, interaction) => {
-    const Idfind = interaction.options.getInteger("personaje")
-    var user = interaction.options.getUser("usuario") 
-    const fichasf = await Cachedb.findOne({_id: interaction.user.id})
-    var estado = ""
+    ejecutar: async(client, interaction, { character, soul, cachepj}) => {
+            const Idfind = interaction.options.getInteger("personaje")
+            var user = interaction.options.getUser("usuario") 
+            var estado = ""
 
 
 
 
 
-if(Idfind || user) {
-    const personaje = await character.findOne({$or: [
+            if(Idfind || user) {
+            const personaje = await characters.findOne({$or: [
         {ID: Idfind},
         {_id: user?.id},
-    ]})
+            ]})
 
 
 
-    if(!personaje) {
-        return interaction.reply({content: "El usuario que mencionaste no tiene un personaje registrado (╥﹏╥)\n-# ¿O quizás fue la ID?", ephemeral: true})
+            if(!personaje) {
+            return interaction.reply({content: "El usuario que mencionaste no tiene un personaje registrado (╥﹏╥)\n-# ¿O quizás fue la ID?", ephemeral: true})
         
-    }
-    user = interaction.guild.members.resolve(personaje._id)
-    perfil(personaje)
-    }else if(fichasf) {
-        if(fichasf.waiting) {
+             }
+            user = interaction.guild.members.resolve(personaje._id)
+            perfil(personaje)
+            }else if(cachepj) {
+        if(cachepj.waiting) {
             estado = "En espera"
         }else {
             estado = "No enviada"
         }
 
-        if(fichasf.isFinish) {
-            return interaction.reply({content: "Aun no puedes usar este comando. Debes terminar los dos formularios de tu ficha .·´¯`(>▂<)´¯`·. ", ephemeral: true})
+        if(!cachepj.isFinish) {
+            return interaction.reply({content: "Aun no puedes usar este comando. Debes terminar los dos formularios de tu ficha ＞﹏＜ ", ephemeral: true})
         }
         
         const noverif = new EmbedBuilder()
         .setAuthor({name: interaction.member.displayName, iconURL: interaction.user.displayAvatarURL({dynamic: true})})
-        .setTitle(fichasf.name)
-        .setDescription(fichasf.historia ? fichasf.historia: "Sin Historia (¿In rol?)")
+        .setTitle(`${cachepj.name} ${cachepj?.apodo ? `[${cachepj.apodo}]` : ''}`)
+        .setDescription(cachepj.historia ? cachepj.historia: "Sin Historia (¿In rol?)")
         .addFields(
-          {name: "Informacion", value: "`📑` **Apodo: ** " + fichasf.apodo + "\n`🎎` **Sexo: **" + fichasf.sexo + "\n`🍭` **Edad: **" + fichasf.edad + "\n`🛫` **C/Org: **" + fichasf.ciudadOrg, inline: true},
-          {name: "Extra", value: "`🎂` **Cumple **" + fichasf.cumpleaños + "\n`👑` **Linaje Familiar **" + fichasf.familia + "\n`❔`** Estado:** " + estado, inline: true},
-          {name: "🎭 Personalidad", value: fichasf.personalidad, inline: false},
-          {name: "🎮 Especialidad", value: fichasf.especialidad, inline: false}
+          {name: "Informacion", value: "`📑` **Apodo: ** " + cachepj.apodo + "\n`🎎` **Sexo: **" + cachepj.sexo + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true},
+          {name: "Extra", value: "`🎂` **Cumple **" + cachepj.cumpleaños + "\n`👑` **Linaje Familiar **" + cachepj.familia + "\n`❔`** Estado:** " + estado, inline: true},
+          {name: "🎭 Personalidad", value: cachepj.personalidad, inline: false},
+          {name: "🎮 Especialidad", value: cachepj.especialidad, inline: false}
         )
-        .setThumbnail(`${fichasf.avatarURL ? fichasf.avatarURL: "https://cdn.discordapp.com/attachments/665423320765693982/905282026133938206/unknown.png"}`)
+        .setThumbnail(`${cachepj.avatarURL ? cachepj.avatarURL: "https://cdn.discordapp.com/attachments/665423320765693982/905282026133938206/unknown.png"}`)
         .setColor(`Red`)
         return interaction.reply({content: '**Vista previa de tu personaje.** Para enviar tu ficha debes usar el comando: `' + `/rol enviar_ficha` + "`", embeds: [noverif]})
-    }else {
-        const ownpj = await character.findOne({_id: interaction.user.id})
-
-        if(!ownpj) {
+            }else {
+        if(!character) {
             interaction.reply({content: `No tienes un **personaje** o **ficha** para usar esto. ╮(￣～￣)╭ \n
                 Puedes usar el comando **/Rol crear_ficha para crear una ficha
                 \nTambien puedes mencionar a un usuario o buscar su **ID** de personaje (⌒‿⌒)`})
             return;
         }
 
-        perfil(ownpj)
+        perfil(character)
 
 
-    }
+            }
 
-    async function perfil(pjuser) {
+        async function perfil(pjuser) {
 
         const row = new ActionRowBuilder()
 
@@ -112,8 +124,43 @@ if(Idfind || user) {
         .setThumbnail(urlavatar)
         .setColor(`Random`)
         .setFooter({ text: `Sistema de perfil  /  Version: ${version.versionRol}`});
-        await interaction.reply({embeds: [embed], components: [row], fetchReply: true})
+        await interaction.reply({embeds: [embed], components: [createSelectMenu(pjuser)], fetchReply: true})
 
         return pjuser
+            }
+
+         function createSelectMenu(personaje) {
+                let components = new StringSelectMenuBuilder()
+                .setCustomId(`selectPerfil-${interaction.user.id}-${personaje.ID}`)
+                .setPlaceholder("¿Que quieres revisar? ( •̀ ω •́ )✧")
+                .setMaxValues(1)
+
+                components.addOptions(
+                    {
+                        label: `Perfil principal`,
+                        value: `perfil`,
+                        emoji: `<:d9056043c1e148e38efd10e4515e33d2:1356111301859868823>`,
+                        default: true
+                    },
+                    {
+                        label: `Historia [Lore]`,
+                        value: `historia`,
+                        emoji: "<a:BunnyBook:1356111194997395496>"
+                    },
+                    {
+                        label: `Alma [Nucleo arcano]`,
+                        value: `alma`,
+                        emoji: "<a:KrisJojos:1350664814414004395>"
+                    },
+                    {
+                        label: `Mascota [Pets]`,
+                        value: `mascota`,
+                        emoji: "<:pets:1356111134758932510>"
+                    },
+                    
+                )    
+                
+                return new ActionRowBuilder().addComponents(components)                           
+    }
     }
 }

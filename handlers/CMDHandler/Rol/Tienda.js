@@ -1,21 +1,32 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client} = require(`discord.js`)
 
 const clientdb = require("../../../Server")
-const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
-const Cachedb = db2.collection("CachePJ")
-const character = db2.collection("Personajes")
 const version = require("../../../config")
 
 const bdobjeto = db2.collection("Objetos_globales")
 
-    /**
-     * 
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction 
-     */
 
-module.exports = async(client, interaction) => {
+module.exports =  {
+  requireCharacter: false,
+  requireSoul: false,
+  requireCharacterCache: false,
+  isDevOnly: false,
+  enMantenimiento: false,
+  requireEstrict: {
+      Soul: false,
+      Character: false,
+      Cachepj: false
+  },
+
+  /**
+   * 
+   * @param {Client} client 
+   * @param {ChatInputCommandInteraction} interaction 
+   */
+
+
+    ejecutar: async(client, interaction) => {
     const limite = 15;
     const objetos = await bdobjeto.aggregate([
         { $unwind: "$Objetos" },
@@ -54,4 +65,5 @@ module.exports = async(client, interaction) => {
     interaction.reply({embeds: [tienda]})
 
     
+    }
 }

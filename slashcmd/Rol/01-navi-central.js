@@ -1,33 +1,121 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, InteractionContextType} = require(`discord.js`)
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, InteractionContextType, Client} = require(`discord.js`)
 const {SlashCommandBuilder} = require("@discordjs/builders");
+const clientdb = require("../../Server")
+const {devs, guild, } = require("../../configslash.json");
+const db = clientdb.db("Server_db")
+const db2 = clientdb.db("Rol_db")
+const Cachedb = db2.collection("CachePJ")
+const Character = db2.collection("Personajes")
+const souls = db2.collection("Soul")
 const subcommands = {
-    crearficha: require("../../handlers/CMDHandler/Rol/Crear ficha"),
-    sendficha: require("../../handlers/CMDHandler/Rol/Send fcha"),
-    verificarficha: require("../../handlers/CMDHandler/Rol/Verificar ficha"),
+    crear_ficha: require("../../handlers/CMDHandler/Rol/Crear ficha"),
+    enviar_ficha: require("../../handlers/CMDHandler/Rol/Send fcha"),
+    verificar_ficha: require("../../handlers/CMDHandler/Rol/Verificar ficha"),
     perfil: require("../../handlers/CMDHandler/Rol/Perfil"),
     relacion: require("../../handlers/CMDHandler/Rol/Relacion personajes"),
-    configpj: require("../../handlers/CMDHandler/Rol/Configurar personaje"),
+    configurar_personaje: require("../../handlers/CMDHandler/Rol/Configurar personaje"),
     mochila: require("../../handlers/CMDHandler/Rol/Mochila"),
     despertar: require("../../handlers/CMDHandler/Rol/Despertar"),
     tienda: require("../../handlers/CMDHandler/Rol/Tienda"),
-    dailyrecompensa: require("../../handlers/CMDHandler/Rol/recompensa_diaria"),
-    Usar_item: require("../../handlers/CMDHandler/Rol/Usar_item"),
+    recompensa_diaria: require("../../handlers/CMDHandler/Rol/recompensa_diaria"),
+    usar: require("../../handlers/CMDHandler/Rol/Usar_item"),
     comprar: require("../../handlers/CMDHandler/Rol/comprar"),
-    trabajar: require("../../handlers/CMDHandler/Rol/chamba")
+    trabajar: require("../../handlers/CMDHandler/Rol/chamba"),
+    duelo: require("../../handlers/CMDHandler/Rol/duelo"),
+    explorar: require("../../handlers/CMDHandler/Rol/explorar"),
+    regalar: require("../../handlers/CMDHandler/Rol/regalar"),
+    buzon: require("../../handlers/CMDHandler/Rol/buzon"),
+    craftear: require("../../handlers/CMDHandler/Rol/craftear")
 }
 
 module.exports = {
     /**
      * 
-     * @param {*} client 
+     * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
      
 
 
     ejecutar: async(client, interaction) => {
-        const subcommand = interaction.options.getSubcommand()
+        const subcommandName = interaction.options.getSubcommand();
+        const subcommand = subcommands[subcommandName];
+        console.log(subcommandName)
 
+        if(!subcommand || subcommand?.enMantenimiento) return interaction.reply({content: "Este comando esta en mantenimiento. Se paciente （︶^︶)", ephemeral: true})
+
+        const {requireCharacter, requireCharacterCache, requireSoul, isDevOnly, requireEstrict} = subcommand;
+        
+        let character, soul, cachepj; 
+
+        try {
+            if(isDevOnly && !devs.includes(interaction.member.id)) return interaction.reply({content: "Este comando solo esta disponible para el Staff 〒▽〒", ephemeral: true})
+
+            if(requireCharacter ||  requireSoul) {
+                const [charData, soulData] = await Promise.all([
+                    requireCharacter ? Character.findOne({_id: interaction.user.id}) : null,
+                    requireSoul ? souls.findOne({_id: interaction.user.id}) : null
+                ]);
+
+                character = charData;
+                soul = soulData;
+            }
+            
+
+            if(requireCharacterCache || requireEstrict.Cachepj) {
+                cachepj = await Cachedb.findOne({_id: interaction.user.id})
+            }
+
+            if((requireCharacter && !character) && requireEstrict.Character) {
+                if(cachepj) {
+                    return interaction.reply({content: "No puedes usar este comando porque necesitas que tu ficha primero se verifique 〒▽〒\n-# Se paciente y espera a alguien del staff lo haga", flags: "Ephemeral"})
+                }
+                return interaction.reply({content: "No puedes usar este comando porque necesitas un personaje＞﹏＜\n-# Porque no intentas crear uno usando el comando /rol crear_ficha", flags: "Ephemeral"})
+            }
+
+            if((requireCharacterCache && !cachepj && requireEstrict.Cachepj) && requireEstrict.Character ) {
+                return interaction.reply({content: "Necesitas tener un personaje en proceso de registro 〒▽〒\n-# Porque no intentas crear uno usando el comando /rol crear_ficha", flags: "Ephemeral"})
+            }
+
+            if((requireSoul && !soul) && requireEstrict.Soul) {
+                return interaction.reply({content: "Tu personaje necesita despertar su poder para usar este comando 〒▽〒-# Debes esperar a que algun profesor o el propio owner realice el evento", flags: "Ephemeral"})
+            }
+
+            await subcommand.ejecutar(client, interaction, {
+                character,
+                soul,
+                cachepj,
+            })
+
+        } catch (error) {
+            const stackTrace = await import('stack-trace').then(m => m.default || m)
+
+            const channel = client.channels.cache.get("716518718947065868")
+            const frame = stackTrace.parse(error)[0]
+            const archivo = frame.getFileName().replace(process.cwd(), '')
+            const metodo = frame.getFunctionName()
+            console.error(error);
+
+            if(interaction.deferred || interaction.replied) {
+                interaction.editReply({content: "Ocurrio un error al ejecutar este comando... 〒▽〒\n-# envia esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true});
+            }else {
+                interaction.reply({content: "Ocurrio un error al ejecutar este comando... 〒▽〒\n-# envia esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true});
+            }
+
+
+            const embed = new EmbedBuilder()
+            .setTitle("Ocurrio un error al ejecutar el comando")
+            .setDescription("```" + error + "```")
+            .addFields(
+                {name: "📁 Archivo/funcion", value: `${archivo}:${frame.getLineNumber() || "Anonimo"}`},
+                {name: "🤺 Metodo", value: `${metodo}`},
+                {name: "⚡ Comando", value: `${interaction.commandName}/${subcommandName}`}
+            )
+
+            channel.send({embeds: [embed]})
+        }
+
+        return;
         switch (subcommand) {
            case "configurar_personaje":
             subcommands.configpj(client, interaction)
@@ -52,33 +140,42 @@ module.exports = {
             case "listado_inscritos":
                 interaction.reply({content: "Este comando esta en desarollo", ephemeral: true})
                 break;
-
             case "crear_ficha":
                 subcommands.crearficha(client, interaction)
                 break;
             case "enviar_ficha": 
                 subcommands.sendficha(client, interaction)
-            break;
+                break;
             case "verificar_ficha":
                 subcommands.verificarficha(client, interaction)
-            break;
+                break;
             case "despertar":
                 subcommands.despertar(client, interaction)
-            break;
+                break;
             case "tienda": 
                 subcommands.tienda(client, interaction)
-            break;
+                break;
             case "recompensa_diaria":
                 subcommands.dailyrecompensa(client, interaction)
-            break;
-            case "usar_objeto":
+                break;
+            case "usar":
                 subcommands.Usar_item(client, interaction)
-            break;
+                break;
             case "comprar":
                 subcommands.comprar(client, interaction)
-            break;
+                break;
             case "trabajar":
                 subcommands.trabajar(client, interaction)
+                break;
+            case "duelo":
+                subcommands.duelo(client, interaction)
+                break;
+            case "explorar":
+                subcommands.explorar(client, interaction)
+                break;
+            case "regalar": 
+
+            break;
 
         }
 
@@ -86,12 +183,17 @@ module.exports = {
 
     data: new SlashCommandBuilder()
     .setName("rol")
-    .setDescription("Comandos de Rol.")
+    .setDescription("Comandos de Rol")
     .setContexts(['Guild'])
     .addSubcommand(sub => 
         sub
         .setName("configurar_personaje")
         .setDescription("Establece o cambia información de tu presonaje: Foto, Apodo, Lore, etc.")
+        .addAttachmentOption(img => 
+            img
+            .setName("foto")
+            .setDescription("[Solo si quieres cambiar la foto de perfil de tu personaje]")
+        )
     )
     .addSubcommand(sub => 
         sub
@@ -216,11 +318,11 @@ module.exports = {
     )
     .addSubcommand(sub => 
         sub
-        .setName("usar_objeto")
+        .setName("usar")
         .setDescription("Usa un objeto de tu inventario.")
         .addStringOption(o => 
             o
-            .setName("objeto_id")
+            .setName("item")
             .setDescription("Ingresa la ID del objeto a usar")
             .setRequired(true)
             .setAutocomplete(true)
@@ -250,8 +352,115 @@ module.exports = {
         sub
         .setName("trabajar")
         .setDescription("Trabaja para obtener algunos lumens [Beta]")
-    ),
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("duelo")
+        .setDescription("Invita a un personaje a un duelo.")
+    .addIntegerOption(o => 
+        o
+        .setName("personaje")
+        .setDescription("Ingresa la ID del personaje a retar")
+        .setAutocomplete(true)
+        .setRequired(true)
+    )
+    )
+    .addSubcommand(sub => 
+        sub.setName("explorar")
+        .setDescription("Explora una region para obtener recompensas")
+        .addNumberOption(num => 
+            num.setName("region")
+            .setDescription("Selecciona la region a explorar")
+            .addChoices(
+                {name: "[🏫] Tobeya", value: 1}
+            )
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("regalar")
+        .setDescription("Regala un objeto a otro personaje del Rol")
+        .addNumberOption(o => 
+            o
+            .setName("personaje")
+            .setDescription("Selecciona o ingresa la ID del personaje a regalar el objeto")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(o => 
+            o
+            .setName("item")
+            .setDescription("Ingresa la ID del objeto a regalar")
+            .setRequired(true)
+            .setAutocomplete(true)
 
+        )
+        .addNumberOption(o => 
+            o
+            .setName("cantidad")
+            .setDescription("Ingresa la cantidad de objetos que vas a regalar")
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("buzon")
+        .setDescription("Mira los correos de tu buzón. Si no seleccionas ninguna opcion se manda la lista completa.")
+        .addStringOption(o => 
+            o.setName("correo")
+            .setDescription("Mira un correo en especifico")
+            .setAutocomplete(true)
+        )
+        .addStringOption(o => 
+            o
+            .setName("tipo")
+            .setDescription("Filtra los correos por tipo especifico")
+            .addChoices(
+                {name: "[💌] Cartas", value: "Cartas"},
+                {name: "[📦] Paquetes", value: "Paquete"},
+                {name: "[🤖] Sistema", value: "Sistema"},
+            )
+        )
+        .addBooleanOption(o => 
+            o
+            .setName("leidos")
+            .setDescription("Mostrar los correos leidos")
+        )
+        .addNumberOption(o => 
+            o
+            .setName("remitente")
+            .setDescription("Mostrar los correos de un remitente especifico")
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("craftear")
+        .setDescription("Agrega contenido a objetos disponibles o crea nuevos objetos [experimental]")
+        .addStringOption(o => 
+            o
+            .setName("item_principal")
+            .setDescription("ID del Item principal que se usara en la receta")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(o => 
+            o
+            .setName("item")
+            .setDescription("ID del item a mezclar")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addNumberOption(o => 
+            o
+            .setName("cantidad")
+            .setDescription("Cantidad del item secundario que se usara en la receta")
+            .setMaxValue(10)
+            .setMinValue(1)
+            .setRequired(true)
+        )
+    ),
 
     deleted: false
 }

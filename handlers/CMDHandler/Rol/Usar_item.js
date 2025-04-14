@@ -1,14 +1,27 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client} = require(`discord.js`)
 
 const clientdb = require("../../../Server")
-
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
+const souls = db2.collection("Soul")
 const Cachedb = db2.collection("CachePJ")
-const character = db2.collection("Personajes")
+const characters = db2.collection("Personajes")
 const version = require("../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
 
+const { duelSystem, duelEmitter } = require("../../../functions/duelManager")
+
+module.exports = {
+    requireCharacter: true,
+    requireSoul: true,
+    requireCharacterCache: false,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: true,
+        Character: true,
+        Cachepj: false
+    },
 
 
     /**
@@ -17,25 +30,29 @@ const dbobjetos = db2.collection("Objetos_globales")
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-module.exports = async(client, interaction) => {
-    const value = interaction.options.getString("objeto_id")
+    ejecutar: async(client, interaction, { character, soul }) => {
+    const value = interaction.options.getString("item")
     const [Region, idstring] = value.split("_")
-    const idObjeto = Number(idstring) || value
+    let idObjeto = Number(idstring) || idstring
+    let objfind;
 
-    const personaje = await character.findOne({_id: interaction.user.id})
-    const objinfoa = await dbobjetos.findOne({_id: Region, "Objetos.ID": idObjeto}, {projection: {_id: 0,"Objetos.$": 1}})
+    if(isNaN(idObjeto)) {
+        objfind = character.Inventario.find(i => i.instanciaID === idObjeto)
 
-
-    if(!personaje){
-        return interaction.reply({content: "No tienes un personaje registrado (╥﹏╥).\n-# Puedes crear una ficha usando el comando `/rol crear_ficha`", ephemeral: true})
+        if(objfind) idObjeto = objfind.ID
     }
+
+
+    const objinfoa = await dbobjetos.findOne({_id: Region, "Objetos.ID": idObjeto}, {projection: {_id: 0,"Objetos.$": 1}})
 
     if(!objinfoa){
         return interaction.reply({content: `El objeto con la ID **${idObjeto}** no existe (╥﹏╥)`, ephemeral: true})
     }
     const objinfo = objinfoa.Objetos[0]
 
-    const objfind = personaje.Inventario.find(obj => obj.ID === objinfo.ID)
+    if(!objfind) {
+        objfind = character.Inventario.find(obj => obj.ID === objinfo.ID)
+    }
 
 
     if(!objfind) {
@@ -67,6 +84,23 @@ module.exports = async(client, interaction) => {
     }
 
     async function consumirObjeto() {
+
+
+        if(objinfo.isBag){
+            if(objfind?.Metadata?.cache?.isFinish === false) return interaction.reply({content: "Este objeto esta en proceso de crafteo. Para poder usarlo debes terminarlo (╥﹏╥)", flags: "Ephemeral"})
+
+            await interaction.deferReply()
+            return manejarContenido()
+        }else if(Object.keys(objinfo?.atributos).length > 0) {
+            if(!soul) return interaction.reply({content: "Este objeto requiere de Stats especificos que solamente se pueden obtener al despertar tu alma.\n" + 
+                "-# Debes esperar a que el Director realice la ceremonia de iniciación", flags: "Ephemeral"
+            })
+
+            const result = await duelSystem.useItem(false, soul, null, objinfo)
+
+            return interaction.reply({content: result.message, ephemeral: true})
+        }
+
         if(objinfo.ID === 320) {
             const objetos = [
                 {id: 2, probabilidad: 80},
@@ -94,10 +128,10 @@ module.exports = async(client, interaction) => {
 
 
 
-                const objinventario = personaje.Inventario.find(obj => obj.ID === objeto.ID)
+                const objinventario = character.Inventario.find(obj => obj.ID === objeto.ID)
 
                 if(objinventario) {
-                    await character.updateOne({
+                    await characters.updateOne({
                         _id: interaction.user.id,
                     }, {
                         $inc: {
@@ -112,7 +146,7 @@ module.exports = async(client, interaction) => {
                         ]
                     })
                 }else {
-                    await character.updateOne({_id: interaction.user.id}, {
+                    await characters.updateOne({_id: interaction.user.id}, {
                         $push: {
                             Inventario: {
                                 ID: objeto.ID,
@@ -124,7 +158,7 @@ module.exports = async(client, interaction) => {
                         }
                     })
 
-                    await character.updateOne({_id: interaction.user.id}, {
+                    await characters.updateOne({_id: interaction.user.id}, {
                         $inc: {
                             "Inventario.$[lootbox].Cantidad": -1,
                         }
@@ -136,7 +170,7 @@ module.exports = async(client, interaction) => {
                 }
 
 
-                await character.updateOne(
+                await characters.updateOne(
                     { _id: interaction.user.id },
                     { $pull: { Inventario: { Cantidad: { $lte: 0 } } } }
                 );
@@ -169,5 +203,92 @@ module.exports = async(client, interaction) => {
             }
         }
     return null;
+    }
+
+    async function manejarContenido() {
+
+        const session = clientdb.startSession()
+
+        try {
+            await session.withTransaction(async ()=> {
+                const itemBag = character.Inventario.find(i => i.ID === objfind.ID && i.instanciaID === objfind.instanciaID)
+                const contenedor = itemBag?.Metadata
+
+                const itemsObtenidos = []
+
+                if(!contenedor?.items?.length) {
+                    throw new Error("El contenedor esta vacío o no existe")
+                }
+
+                for(const item of contenedor.items) {
+                    const objetoGlobal = await duelSystem.getObjetInfo(item.Region, item.ID)
+
+                    if(!objetoGlobal) {
+                        itemsObtenidos.push("`[❌]` Objeto desconocido" + `(${item.Nombre} - ${item.ID})`)
+                        continue;
+                    }
+
+
+                    itemsObtenidos.push("- `[🎁]`" + `${item.Nombre} x${item.Cantidad}`)
+
+                    const itemExist = character.Inventario.find(i => i.ID === item.ID && i.Region === item.Region && !i.instanciaID);
+                    console.log("Item:", item)
+
+                    if(itemExist) {
+                        await characters.updateOne({_id: interaction.user.id, Inventario: {$elemMatch: {ID: item.ID, Region: item.Region, instanciaID:  { $exists: false }}} }, 
+                            { $inc: { "Inventario.$.Cantidad": item.Cantidad}},
+                            { session }
+                        );
+                    }else {
+                        await characters.updateOne({_id: interaction.user.id}, 
+                            { $push: {
+                                Inventario: {
+                                    ID: objetoGlobal.ID,
+                                    Region: objetoGlobal.Region,
+                                    Nombre: objetoGlobal.Nombre,
+                                    Cantidad: item.Cantidad,
+                                    Fecha: new Date().toISOString()
+                                }
+                            }},
+                            { session }
+                        );
+                    }
+
+                    console.log("Objetos agregados" + ` ${item.ID} - ${item.Nombre}`)
+                };
+
+                console.log("Termine de Iterar")
+
+                await characters.updateOne({_id: interaction.user.id},
+                    {
+                        $pull: {
+                            Inventario: {
+                                instanciaID: itemBag.instanciaID
+                            }
+                        }
+                    },
+                    { session }
+                );
+
+                console.log("Termine de eliminar el objeto")
+
+                const embed = new EmbedBuilder()
+                .setTitle("Contenido de la bolsa")
+                .setDescription([
+                    "**Has obtenido:**\n",
+                    ...itemsObtenidos
+                ].join("\n"))
+                .setColor("Random")
+
+                console.log("Voy a enviar la respuesta")
+                await interaction.editReply({embeds: [embed]})
+            })
+        } catch (error) {
+            console.error("Error al intentar extraer el contenido de la Bolsa:", error)
+            await interaction.editReply({content: "Ocurrio un error al intentar extraer el contenido de la Bolsa:\n" + "```" + error + "```"})
+        } finally {
+            session.endSession();
+        }
+    }
     }
 }

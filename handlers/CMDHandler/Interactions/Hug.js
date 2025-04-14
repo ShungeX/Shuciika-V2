@@ -3,7 +3,7 @@ const clientdb = require("../../../Server")
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType} = require(`discord.js`)
 const db = clientdb.db("Interaccion")
 const db2 = clientdb.db("Rol_db")
-const getXp = require("../../../functions/getXP")
+const newGetXP = require("../../../functions/newGetXP")
 
 
      /**
@@ -83,7 +83,7 @@ module.exports = async(client, interaction) => {
         }
     
     
-async function member() {
+        async function member() {
             
         const incInteractions = require("../../../functions/incInteractions")
 
@@ -113,17 +113,16 @@ async function member() {
             .setImage(randomgif)
             .setColor("Random")
 
+            const result = await newGetXP(client, interaction, interaction.user, pjuser.ID, pjfind.ID, interactionRolType)
 
-
-            const result = await getXp(interaction, user.id, pjuser.ID, pjfind.ID, interactionRolType)
+            console.log("resultado", result)
     
             
             if(result.xp) {
-                characterInEmbed.setDescription("**" + pjuser.Nombre + "**" + `${randomtexte}` + "**" + pjfind.Nombre + "**" + `${randomcarita}` + `\n-# Puntos de Amistad ganados: + ${result.xp}`)
-               
+                characterInEmbed.setDescription("**" + pjuser.Nombre + "**" + `${randomtexte}` + "**" + pjfind.Nombre + "**" + `${randomcarita}` + `\n-# Puntos de Amistad ganados: + ${result.xp}`) 
             }
             if(result.levelUp) {
-                characterInEmbed.setFooter({ text:`Han subido de nivel:  +${result.lv}`})
+                characterInEmbed.setFooter({ text:`Han subido al nivel de amistad:  ${result.lv}`})
             }
 
             await interaction.reply({embeds: [characterInEmbed]})

@@ -4,11 +4,25 @@ const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
-const character = db2.collection("Personajes")
+const characters = db2.collection("Personajes")
 const version = require("../../../config")
 const updateInventario = require("../../../functions/updateInventario")
 
 const bdobjeto = db2.collection("Objetos_globales")
+
+
+module.exports = {
+    requireCharacter: true,
+    requireSoul: false,
+    requireCharacterCache: false,
+    isDevOnly: false,
+    enMantenimiento: false,
+    requireEstrict: {
+        Soul: false,
+        Character: true,
+        Cachepj: false
+    },
+
 
     /**
      * 
@@ -16,33 +30,29 @@ const bdobjeto = db2.collection("Objetos_globales")
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-module.exports = async(client, interaction) => {
+
+
+    ejecutar: async(client, interaction, { character }) => {
     const objetoSelect = interaction.options.getString("objeto")
     const cantidad = interaction.options.getNumber("cantidad")
     const [region, idob] = objetoSelect.split("_")
     const objetoID = Number(idob)
 
-    const personaje = await character.findOne({_id: interaction.user.id})    
     const objeto = await bdobjeto.findOne({_id: region, "Objetos.ID": objetoID}, {projection: {_id: 0,"Objetos.$": 1}}).then(obj => obj.Objetos[0])
 
-    if(!personaje) {
-        return interaction.reply({content: "No tienes un personaje registrado (╥﹏╥).\n-# Puedes crear una ficha usando el comando `/rol crear_ficha`", ephemeral: true})
-    }
 
     if(!objeto) {
         return interaction.reply({content: `El objeto con la ID: ${objetoSelect} no existe (╥﹏╥)`, ephemeral: true})
     }
-
-    console.log(objeto)
     const newLumens = (objeto.precio * cantidad)
 
     if(objeto?.inStore === false) {
         return interaction.reply({content: `El objeto **${objeto.Nombre}** no esta disponible para la compra`, ephemeral: true})
     } 
 
-    if(personaje.Dinero < (objeto.precio * cantidad)) {
+    if(character.Dinero < (objeto.precio * cantidad)) {
         return interaction.reply({content: "No tienes suficiente **`Lumens`** para comprar **``" + `${objeto.Nombre} x ${cantidad}` + "``** \n" +
-        "-# Te hacen falta **``" + `${Math.max(0, newLumens - personaje.Dinero)}` + " Lumens``** ", ephemeral: true})
+        "-# Te hacen falta **``" + `${Math.max(0, newLumens - character.Dinero)}` + " Lumens``** ", ephemeral: true})
     }
 
     if(objeto.Cantidad < cantidad && objeto.Cantidad !== null) {
@@ -59,7 +69,7 @@ module.exports = async(client, interaction) => {
     
 
     async function comprarObjeto() {
-        await character.updateOne({_id: interaction.user.id}, {
+        await characters.updateOne({_id: interaction.user.id}, {
             $inc: {
                 Dinero: -newLumens
             }
@@ -73,7 +83,14 @@ module.exports = async(client, interaction) => {
             })
         }
 
-        await updateInventario(interaction,interaction.user.id, personaje.ID, objetoID, region, cantidad)
+        const objdata = {
+            ID: objetoID,
+            Region: region,
+            cantidad: cantidad,
+            isItem: true,
+        }
+
+        await updateInventario(interaction,interaction.user.id, character.ID, objdata)
 
         const embed = new EmbedBuilder() 
         .setTitle("Muchas gracias por tu compra")
@@ -83,5 +100,7 @@ module.exports = async(client, interaction) => {
         interaction.reply({embeds: [embed]})
 
         
+        }
     }
+
 }

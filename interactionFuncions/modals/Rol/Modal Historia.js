@@ -24,7 +24,7 @@ module.exports = {
         if(cachepj) {
           await Cachedb.updateOne({_id: interaction.user.id}, {
             $set: {
-                Historia: historiaset,
+                historia: historiaset,
             }
           }, {upsert: true} )
 
