@@ -13,7 +13,7 @@ const users = db2.collection("usuarios_server")
 
 module.exports = async(client, message) => {
     const messages = message.content
-    if(message.channel.id !== "1000474954376163399" || message.author.bot || client.user.id === "857050098831065088") return;
+    if(message.channel.id !== "741735370986618952" || message.author.bot || client.user.id === "857050098831065088") return;
 
     const validLink = /(https?:\/\/)?(www\.)?(discord\.gg|discord\.com\/invite)\/[A-Za-z0-9]+/
     
@@ -71,7 +71,7 @@ module.exports = async(client, message) => {
 
         const embed = new EmbedBuilder()
         .setAuthor({name: message.author.displayName, iconURL: message.author.displayAvatarURL()})
-        .setTitle(invitacionesReg ? "Nueva alianza Registrada ( •̀ ω •́ )✧" : "Alianza actualizada ( •̀ ω •́ )✧")
+        .setTitle(invitacionesReg === null ? "Nueva alianza Registrada ( •̀ ω •́ )✧" : "Alianza actualizada ( •̀ ω •́ )✧")
         .setDescription("Nuestro servidor ha unido fuerzas con:" + `**${invite.guild.name}** `)
         .addFields(
             {name: "Información del servidor", value:
