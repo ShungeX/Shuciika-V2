@@ -1,0 +1,435 @@
+[
+    {
+    "id": "introduccion",
+    "requisitos": null,
+    "dialogos": [
+        {
+          "step": 0,
+          "type": "send",
+          "content": "-# ***Una chica aparece frente a ti entre chispas mágicas. Su cabello flota levemente, como si el aire mismo la reconociera. con una sonrisa te habla...***",
+          "delay": 0
+        },
+        {
+          "step": 1,
+          "type": "edit",
+          "content": "¿Eh? ¿Esto funciona?",
+          "delay": 9000
+        },
+        {
+          "step": 2,
+          "type": "edit",
+          "content": "¿Si? ¡Perfecto!",
+          "delay": 4000
+        },
+        {
+          "step": 3,
+          "type": "edit",
+          "content": "¡Hola! Soy Shuciika, tu guía en esta aventura.",
+          "delay": 4000
+        },
+        {
+          "step": 4,
+          "type": "edit",
+          "content": "Mmm... espera un momento...\n",
+          "delay": 6000
+        },
+        {
+          "step": 5,
+          "type": "edit",
+          "content": "Déjame buscar... ¿dónde lo dejé...?\n-# *Shuciika comienza a buscar entre montones de ¿pergaminos? digitales y partículas mágicas que flotan como si fueran datos físicos*",
+          "delay": 4000
+        },
+        {
+          "step": 6,
+          "type": "edit",
+          "content": "¡Ajá! ¡Lo encontré!",
+          "delay": 12000
+        },
+        {
+          "step": 7,
+          "type": "edit",
+          "content": "Antes de empezar con toda esa palabrería aburrida de ‘érase una vez’ ¿Te apeteceria que usaramos esta cajita magica?\n-# **Andale, di que si~**",
+          "delay": 6000,
+          "embeds": [
+            {
+              "title": "Cajita vacía",
+              "description": "Una cajita sin contenido... de momento.",
+              "color": "#171717"
+            }
+          ],
+          "components": [
+            {
+              "type": "BUTTON",
+              "customId": "dialogue_button-{user_id}-i-yes-0-{code}",
+              "label": "Si, hay que usarla",
+              "style": "SECONDARY",
+              "nextStep": 8 
+            },
+            {
+              "type": "BUTTON",
+              "customId": "dialogue_button-{user_id}-i-no-1-{code}",
+              "label": "No, paso de momento",
+              "style": "SECONDARY",
+              "nextStep": 9
+            }
+          ]
+        },
+        {
+          "step": 8,
+          "type": "edit",
+          "content": "¡Buena elección! Entonces... abre bien los ojos.",
+          "delay": 0,
+          "nextStep": 16,
+          "components": []
+        },
+        {
+          "step": 9,
+          "type": "edit",
+          "content": "Oh... ¿Así que eres de esos? Nada de efectos especiales, solo palabras.",
+          "delay": 0,
+          "embeds": [],
+          "components": []
+        },
+        {
+          "step": 10,
+          "type": "edit",
+          "content": "¡Qué anticuado! Pero bueno…\n-# *lanza un pergamino al aire que se despliega mágicamente*",
+          "delay": 9000
+        },
+        {
+          "step": 11,
+          "type": "edit",
+          "content": "*Resumen express:* Éon crea el mundo → mana divide a la sociedad →",
+          "delay": 6000
+        },
+        {
+          "step": 12,
+          "type": "edit",
+          "content": "*Resumen express:* Éon crea el mundo → mana divide a la sociedad → alguien descubre magia oscura → guerras catastróficas → ",
+          "delay": 5000
+        },
+        {
+          "step": 13,
+          "type": "edit",
+          "content": "*Resumen express:* Éon crea el mundo → mana divide a la sociedad → alguien descubre magia oscura → guerras catastróficas → héroes la encierran → y ahora hay gente mala queriendo revivirla.",
+          "delay": 4000
+        },
+        {
+          "step": 14,
+          "type": "edit",
+          "content": "...",
+          "delay": 9000
+        },
+        {
+          "step": 15,
+          "type": "edit",
+          "content": "¿Ves? Sin cajita, sin chiste. Pero al menos te ahorraste 5 minutos de tu vida\n-# *Shuciika ríe*",
+          "delay": 3000,
+          "nextStep": 38
+        },
+        {
+          "step": 16,
+          "type": "edit",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Hace eones, cuando ni el tiempo ni el espacio se habían organizado, existía una entidad conocida como el Éon de la Creación",
+              "thumbnail": "{client_avatar}",
+              "image": "https://cdn.discordapp.com/attachments/1335121313534316615/1335121313647431701/3919eebcf79d23a79404cd473bbc0c1a.jpg?ex=67ffea5e&is=67fe98de&hm=a86d49323aed26d8f572a4d54a1f8afd6ae18cd76bf60b74dd65a63ad75764e0&",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 17,
+          "type": "edit",
+          "content": "** **",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "En su infinita sabiduría, creó a los primeros seres capaces de modificar su entorno y les otorgó un regalo invaluable: el **mana**, la esencia misma de la magia.",
+              "thumbnail": "{client_avatar}",
+              "image": "https://i.pinimg.com/736x/38/ea/34/38ea345ee5925346286b9f1a15af4678.jpg",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 18,
+          "type": "edit",
+          "content": "",
+          "delay": 10000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Pero no todo fue color rosa. Los que no nacieron con ese don... comenzaron a odiar a los que sí.",
+              "thumbnail": "{client_avatar}",
+              "image": "https://i.pinimg.com/736x/f2/93/f3/f293f343a7e99638a2dd91a03c7b537f.jpg",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 19,
+          "type": "edit",
+          "content": "",
+          "delay": 10000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Y... ¡Boom!",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 20,
+          "type": "edit",
+          "content": "",
+          "delay": 4000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Y... ¡Boom! ¿Qué crees que pasó?",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 21,
+          "type": "edit",
+          "content": "",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Disputas y guerras. largas y crueles, todo por resentimiento",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 22,
+          "type": "edit",
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Sin embargo, siempre ganaban los que tenian el don de la magia",
+              "image": "",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 23,
+          "type": "edit",
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Hasta que los rumores se esparcieron y se habló de una magia muy muy poderosa",
+              "image": "https://i.pinimg.com/736x/76/d2/ea/76d2ea7be1656ad3b2bc1a1d46c00a9f.jpg",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 24,
+          "type": "edit",
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Una magia que podian usar incluso los que no tenian el *mana* que tanto anhelaban",
+              "image": "",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 25,
+          "type": "edit",
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Esa magia se conoció como **`Kurayami`**",
+              "image": "",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 26,
+          "type": "edit",
+          "content": "",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Aquella persona que lo descubrio, no sabia que eso traeria más destrucción y caos de la que el mundo podía soportar",
+              "image": "https://i.pinimg.com/736x/8b/cd/a4/8bcda4d1b017c14d35fa04e13918ab76.jpg",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 27,
+          "type": "edit",
+          "content": "",
+          "delay": 10000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Por fortuna, un grupo de valientes magos logró detener el caos y establecer lo que ahora conocemos como **Magia Blanca**. (Ademas de derrocar al reino de la oscuridad)",
+              "image": "https://i.pinimg.com/736x/41/2f/ef/412fef70ab867231f168273b9dd85089.jpg",
+              "thumbnail": "{client_avatar}",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 28,
+          "type": "edit",
+          "content": "",
+          "delay": 10000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Pero claro, como toda buena historia, el mal nunca desaparece por completo. 〒▽〒",
+              "thumbnail": "{client_avatar}",
+              "color": "#4b5557"
+            }
+          ]
+        },
+        {
+          "step": 29,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Sólo espera en las sombras.",
+              "image": "https://i.pinimg.com/736x/5a/c7/02/5ac7025646519346118c824e3fd4d230.jpg",
+              "thumbnail": "{client_avatar}",
+              "color": "DarkButNotBlack"
+            }
+          ]
+        },
+        {
+          "step": 30,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "Y es aquí donde nuestra historia comienza.",
+              "thumbnail": "{client_avatar}",
+              "color": "#8ee5f5"
+            }
+          ]
+        },
+        {
+          "step": 31,
+          "type": "edit",
+          "content": "Como verás, no soy una simple guía.",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "☆(>ᴗ•)",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 32,
+          "type": "edit",
+          "content": "Pero juntos descubriremos más de lo que podrías imaginar.",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "(｡•̀ᴗ-)✧",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 33,
+          "type": "edit",
+          "content": "Hmm, siempre me hago la misma pregunta cuando tengo que explicar esto",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "(´･ω･`)?",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 34,
+          "type": "edit",
+          "content": "¿Qué papel jugaras en esta historia?",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Shuciika"},
+              "description": "(∪｡∪)｡｡｡zzZ",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 35,
+          "type": "edit",
+          "content": "Pero eso el tiempo lo decidira...",
+          "delay": 6000,
+          "embeds": []
+        },
+        {
+          "step": 36,
+          "type": "edit",
+          "content": "Uff, todo esto si que fue algo agotador.",
+          "delay": 5000
+        },
+        {
+          "step": 37,
+          "type": "edit",
+          "content": "Espero haya quedado claro",
+          "delay": 5000
+        },
+        {
+          "step": 38,
+          "type": "edit",
+          "content": "Puedes volver a ver esta conversación cuando quieras. Siempre estaré aquí, sonriendo como si fuera la primera vez~\n-# Aunque en el fondo, sabré cuántas veces viniste... ☆(>ᴗ•)",
+          "delay": 7000
+        },
+        {
+          "step": 38,
+          "type": "delete",
+          "content": "...",
+          "delay": 9000
+        }
+        
+    ]
+    }
+]

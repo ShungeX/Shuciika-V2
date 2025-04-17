@@ -122,10 +122,10 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
                     created: Date.now(), buttons: {
                     cachepj1: userfind?.buttons?.cachepj1 || false,
                     cachepj2: userfind?.buttons?.cachepj2 || false,
-                    cachepj3: falseuserfind?.buttons?.cachepj3 || false,
-                    messageTemp: msg.id, 
-                    channelTemp: interaction.channelId
-                }
+                    cachepj3: userfind?.buttons?.cachepj3 || false,
+                },
+                messageTemp: msg.id, 
+                channelTemp: interaction.channelId
             }
             },
             {upsert: true}

@@ -66,9 +66,6 @@ module.exports = {
     const MD = await interaction.user.createDM()
     const rivalMD = await rivalUser.createDM()
 
-    if(!MD || !rivalMD) {
-        return interaction.reply("No se puede iniciar el duelo si alguno de los dos usuarios tiene bloqueado los MD =.=")
-    }
 
     const gifsDuelo = [
         "https://c.tenor.com/OFsN3R89BIEAAAAd/tenor.gif",

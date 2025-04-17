@@ -1,4 +1,4 @@
-const {Client, EmbedBuilder} = require('discord.js')
+const { Client, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, StringSelectMenuBuilder} = require(`discord.js`)
 require('dotenv').config();
     /**
      * 
@@ -7,9 +7,7 @@ require('dotenv').config();
      */
 
 module.exports = async(client, member) => {
-
-
-  if(client.user.id === "857050098831065088") return;
+    if(client.user.id === "857050098831065088") return;
 
     let guild = client.guilds.cache.get("716342375303217285")
     let channel = client.channels.cache.get("716342375743488052")
@@ -39,21 +37,49 @@ module.exports = async(client, member) => {
     .setTimestamp()
     channel.send({content: `${member.user} || <@&795804715476320256>`, embeds: [Bienvenida]})
 
+        const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`selectLobby-${member.user.id}`)
+        .setPlaceholder(`Selecciona una opción para ver...`)
+        .setMaxValues(1)
+
+        selectMenu.addOptions(
+          {
+            label: "Ver la introducción",
+            description: "Una pequeña introducción hecha con cariño (｡•̀ᴗ-)✧",
+            value: "introduccion",
+            emoji: "✨"
+          },
+          {
+            label: "Ver las normas",
+            description: "Siempre es importante conocerlas =.=",
+            value: "normas",
+            emoji: "🚓"
+          },
+          {
+            label: "Manual del estudiante",
+            description: "Un breve manual por los diferentes canales del servidor",
+            value: "manual",
+            emoji: "📖"
+          }
+        )
+
+      const selectRow = new ActionRowBuilder().addComponents(selectMenu)
+    
+
     
     const bienvenida = new EmbedBuilder()
     .setTitle(`Bienvenido/a al ${guild.name}`)
     .setThumbnail(`${member.user.displayAvatarURL({dynamic: true})}`)
-    .setDescription(` ¡Hola ${member.user}!. Soy Shuciika, tu compañera en este viaje. ✨ Estoy aquí como ayudante y estudiante experimentada de este instituto. Mi misión es guiarte y explicarte de qué trata el server además de algunas otras cositas interesantes. (｡•̀ᴗ-)✧`)
+    .setDescription(` ¡Hola ${member.user}!. Soy Shuciika, tu guía en este mundo mágico. (｡•̀ᴗ-)✧✨\n`)
     .addFields(
-      { name: "Tema del servidor. ✨", value: "Este servidor está centrado en el rol de fantasía mágica. Podrás crear un personaje único, embarcarte en aventuras y mejorarlo a lo largo del tiempo. Sin embargo, si lo prefieres, también puedes convivir con los demás usuarios sin necesidad de participar en el rol. ¡Lo importante es que disfrutes a tu manera y te diviertas con la comunidad! |･ω･)✿"},
-      { name: "Verificacion / Canales 🛡️", value: "Para acceder a todo el servidor, Discord te hará unas preguntas de bienvenida para personalizar tu experiencia. No olvides leer las normas del servidor, ¡son clave para una convivencia sana y divertida! ♡(◡‿◡✿)"}, 
-      { name: "Progreso del server", value: "El servidor sigue en desarollo y faltan muchas cosas por terminar. asi que ten paciencia. \n \n Owner: Gracias por ser tu la persona que decidio unirse a este servidor, juntos crearemos una comunidad grande y bonita .♡"}
+      { name: "Tema del servidor. ✨", value: "Este es un espacio de rol de fantasía mágica donde podrás crear un personaje único y vivir aventuras, aunque también puedes simplemente convivir con la comunidad sin participar en el rol.\n ¡Lo importante es que disfrutes a tu manera!|･ω･)✿"},
+      { name: "Progreso del server", value: "El servidor aún está en desarrollo, así que agradecemos tu paciencia.\n \n**Owner:** Gracias por unirte! Juntos haremos una comunidad grande y bonita. ♡"}
     )
-    .setFooter({ text: `Se libre de explorar y descubrir cada cosa del servidor.`})
+    .setFooter({ text: `Se libre de explorar y descubrir cada cosa del servidor. (Abajo de este mensaje hay un menu interactivo)`})
     .setTimestamp()
     .setColor("Random")
     try {
-      member.send({content: `${member.user}`, embeds: [bienvenida]}).catch(e => console.log(e))
+      member.send({content: `${member.user}`, embeds: [bienvenida], components: [selectRow]}).catch(e => console.log(e))
       member.send({content: "`Tambien te dejo la invitacion permanente al servidor:`||✿ ･ ω ･) ~ https://discord.gg/yxNehRsmgJ (Si no sirve, envia un mensaje al desarollador <@!665421882694041630>)"}).catch(e => console.log(e))
     }catch(e) {
       chsp.send({content: "```" + `${e}` + "```"})

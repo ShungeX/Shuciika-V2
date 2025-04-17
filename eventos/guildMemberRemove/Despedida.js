@@ -15,7 +15,7 @@ const rel = db2.collection("Relaciones_pj")
      */
 
 module.exports = async(client, member) => {
-
+    if(client.user.id === "857050098831065088") return;
     
 
     let guild = client.guilds.cache.get("716342375303217285")

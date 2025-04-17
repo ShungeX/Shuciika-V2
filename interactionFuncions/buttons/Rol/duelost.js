@@ -36,6 +36,31 @@ module.exports = {
 
          if(response === "accept") {
 
+            const errores = []
+
+            try {
+                await MdAuthor.send({content: "-# Mensaje de comprobación para verificar que se pueden enviar mensajes directos\n-# **Se borra automaticamente despues de un rato**", flags: "SuppressNotifications"})
+                .then(m => setTimeout(() => m.delete(), 3000))
+            } catch (error) {
+                console.error(error)
+                const author = await client.users.fetch(authorSoul._id)
+                errores.push("`"+ `${author.globalName} ` + "`" + ` Tiene deshabilitados los Mensajes Directos para este servidor.`)
+            }
+        
+            try {
+                await MdRival.send({content: "-# Mensaje de comprobación para verificar que se pueden enviar mensajes directos\n-# **Se borra automaticamente despues de un rato**", flags: "SuppressNotifications"})
+                .then(m => setTimeout(() => m.delete(), 3000))
+            } catch (error) {
+                console.error(error)
+                errores.push("`"+ `${interaction.user.globalName}` + "`" + `Tiene deshabilitados los Mensajes Directos para este servidor `)
+            }
+        
+            if(errores.length > 0) {
+                return interaction.reply("**No se puede iniciar el duelo porque los siguientes usuarios no cumplen un requisito:**" +
+                    `\n${errores.join("\n")}`
+                )
+            }
+
 
             if(await charactersinDuel(characterRival.ID)) {
                getCache.Message.edit({components: []})
