@@ -7,7 +7,8 @@ const subcommands = {
     staffinfo: require("../../handlers/CMDHandler/Utilidad/Crear Embed"),
     foropost: require("../../handlers/CMDHandler/Utilidad/create_post"),
     confesion: require("../../handlers/CMDHandler/Utilidad/Confesion"),
-    config_channels: require("../../handlers/CMDHandler/Utilidad/Canales_rol")
+    config_channels: require("../../handlers/CMDHandler/Utilidad/Canales_rol"),
+    simuladores: require("../../handlers/CMDHandler/Utilidad/Simuladores")
 }
 
 
@@ -47,6 +48,9 @@ module.exports = {
                 break;
             case "canales_rol":
                 subcommands.config_channels(client, interaction)
+                break;
+            case "simular_evento":
+                subcommands.simuladores(client, interaction)
                 break;
 
         }
@@ -251,7 +255,25 @@ module.exports = {
             .setDescription("La accion a realizar sobre estos canales [Desbloquear/Bloquear]")
             .setRequired(true)
         )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("simular_evento")
+        .setDescription("Simula un evento de Discord. [Administracion]")
+        .addStringOption(options => 
+            options
+            .setName("evento")
+            .setDescription("El evento a simular")
+            .setChoices(
+              {name: "[🏫] Bienvenida", value: "guildMemberAdd"},
+              {name: "[🏙️] Despedida", value: "guildMemberRemove"},
+              {name: "[⁉️] Boost", value: "guildmemberUpdate"}
+            )
+            .setRequired(true)
+        )
     ),
+    
+
 
     deleted: false
 }

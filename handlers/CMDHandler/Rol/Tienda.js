@@ -26,7 +26,9 @@ module.exports =  {
    */
 
 
-    ejecutar: async(client, interaction) => {
+    ejecutar: async(client, interaction) => {    
+
+
     const limite = 15;
     const objetos = await bdobjeto.aggregate([
         { $unwind: "$Objetos" },
