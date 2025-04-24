@@ -118,7 +118,7 @@ class Duels {
 
     
             if(porcentaje < 10 && filledBars > 0) {
-                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:YellowHeartGif:1345281989883723776>'
+                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:AttencionHeart:1345256576167968828>'
             }
             return `**(${current}/${max})** [${heartsCompletos}${heartsVacios}]`;
 
@@ -137,7 +137,7 @@ class Duels {
             const heartsVacios = '𖹭'.repeat(emptyBars)
     
             if(porcentaje < 10 && filledBars > 0) {
-                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:YellowHeartGif:1345281989883723776>'
+                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:AttencionHeart:1345256576167968828>'
             }
             return `[${heartsCompletos}${heartsVacios}] **(${current}/${max})**`;
         }
