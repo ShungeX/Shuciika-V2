@@ -99,11 +99,11 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
         }, {
             name: "Problemas", value: "Si tienes problemas para enviar tus formularios, envia un mensaje al privado de <@!665421882694041630>"
         }, {
-            name: "Foto de perfil", value: "Para colocar una foto de perfil a tu ficha, REVISA EL FORO: <#1330769969428041822>."
+            name: "Foto de perfil", value: "Para colocar una foto de perfil a tu ficha, REVISA EL FORO: [Foto de perfil de personaje](https://canary.discord.com/channels/716342375303217285/1330769969428041822)."
         }, {
             name: "Dudas", value: "Cualquier duda crea una publicacion en <#1064054917662265404> con tu duda"
         }, {
-            name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar: <#1339103959855661096>.\n\n" + 
+            name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar: [Creación de personaje](https://canary.discord.com/channels/716342375303217285/1339103959855661096).\n\n" + 
             '-# Es posible que algunos canales te aparezcan como `#Desconocida`, presiona el canal y funcionara de manera normal (Esto es problema de discord)\n\n' + 
             '-# Puedes cerrar los formularios si necesitas verificar algo, la informacion se guarda automaticamente (por bastante rato)'
         }

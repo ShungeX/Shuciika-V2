@@ -57,9 +57,6 @@ module.exports = {
         }, 
     ]
 
-     if(!cachepj.isFinish) {
-        return interaction.reply({ content: "No has terminado de crear tu ficha. ☆⌒(>。<)\n usa el comando `/rol crear_ficha para continuar` ", ephemeral: true})
-    }
 
     if(imgs) {
         const time =  300000 - (Date.now() - userdb?.time?.pjFoto) 

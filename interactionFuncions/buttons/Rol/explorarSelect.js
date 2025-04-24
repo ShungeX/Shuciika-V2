@@ -77,7 +77,7 @@ module.exports = {
 
                 embed
                 .setTitle("Has escapado con exito")
-                .setDescription("**El enemigo no pudo alcanzarte...**\nAl parecer tienes una buena velocidad (¿O quizás suerte?)\n-# " + `${getEnergy(soul.energy, (soul?.maxEnergy || 30))}`)
+                .setDescription("**El enemigo no pudo alcanzarte...**\nAl parecer tienes una buena velocidad (¿O quizás suerte?)\n-# " + `${getEnergy(soul.energy, (soul?.maxEnergy || 60))}`)
                 .setColor("Green")
                 .setTimestamp()
                 .setImage(gifSuccessSelect);

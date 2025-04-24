@@ -229,7 +229,7 @@ module.exports = {
             .setTitle("Estadisticas de " + pjuser.Nombre)
             .setDescription("<a:PurpleCrystalHeart:1356497588131729458> `Fragmentos estelares:` " + soul.StelarFragments + 
                 `\n-# **¡Una vez asignes los fragmentos no los podras cambiar a menos que compres el "item especial"!**
-                 \n-# No todos los stats se pueden mejorar mediante fragmentos estelares`
+                 \n-# No todos los stats se pueden mejorar mediante fragmentos estelares. Algunos aun no estan disponibles para mejorar`
             )
             .addFields(getst.fields)
             .setColor("DarkPurple")
@@ -394,8 +394,8 @@ module.exports = {
                 "poderElemental", "voluntad"
               ];
 
-              const clavesMejorar = ["fuerza", "inteligencia", "agilidad", "sabiduria", "inteligencia",
-                "poderElemental"
+              const clavesMejorar = ["fuerza", "inteligencia", "sabiduria", "inteligencia",
+                "poderElemental", "voluntad", "resistenciaFisica", "resistenciaMagica"
               ];
 
               const fields = Object.entries(stats)

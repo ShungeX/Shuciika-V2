@@ -43,7 +43,7 @@ module.exports = {
 
             const embedSurrend = new EmbedBuilder()
             .setTitle("¡Bien hecho!")
-            .setDescription(`${messageSelect}\n-# Energia restante: ${getEnergy(soul.energy, (soul?.maxEnergy || 30))}`)
+            .setDescription(`${messageSelect}\n-# Energia restante: ${getEnergy(soul.energy, (soul?.maxEnergy || 60))}`)
             .setImage(gifSelect.url)
             .setFooter({text: `Anime: ${gifSelect.anime_name}`})
             .setTimestamp();
@@ -166,7 +166,7 @@ module.exports = {
 
                     Embed = new EmbedBuilder()
                     .setTitle("Has encontrado recompensas...")
-                    .setDescription("Entre polvorientos estantes y una ardua busqueda, has encontrado cosas valiosas... ¿O quizás no?\n-# Energia restante:" + `${getEnergy((soul.energy - region.energiaNecesaria), (soul?.maxEnergy || 30))}`)
+                    .setDescription("Entre polvorientos estantes y una ardua busqueda, has encontrado cosas valiosas... ¿O quizás no?\n-# Energia restante:" + `${getEnergy((soul.energy - region.energiaNecesaria), (soul?.maxEnergy || 60))}`)
                     .addFields(
                         {name: "Has conseguido", value: `${recompensas}`}
                     )

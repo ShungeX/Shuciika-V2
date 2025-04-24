@@ -35,7 +35,7 @@ module.exports = {
     const personalidad = new TextInputBuilder()
     .setCustomId("personalpj")
     .setLabel("Personalidad")
-    .setPlaceholder("Ocupa las personalidades del canal #✦『🎭』personalidades")
+    .setPlaceholder("Ocupa las personalidades del foro")
     .setStyle(TextInputStyle.Short)
     .setMaxLength(4)
     .setRequired(true)

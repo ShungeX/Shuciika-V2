@@ -51,8 +51,6 @@ class DialogueSystem {
             datems: options.context?.code
         });
 
-        console.log(options.context.code)
-
         await this.processNextStep(interaction)
         return true;
     }
@@ -396,8 +394,8 @@ class DialogueSystem {
      * @param {Object} context - Contexto del diálogo
      */
     parseText(text, context) {
+
         if (!text) return '';
-        // Reemplazar variables con formato {variable}
         return text.replace(/\{(\w+)\}/g, (match, variable) => {
             return context[variable] !== undefined ? context[variable] : match;
         });

@@ -16,17 +16,18 @@ const getGifs = require("../functions/getGifs")
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 
+
 const { EventEmitter } = require('events');
+const dialogoManager = require("./dialogoManager")
 class DuelEmitter extends EventEmitter {}
 const duelEmitter = new DuelEmitter();
 
 class Duels {
     /**
      * 
-     * @param {*} client 
+     * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
-
 
      constructor() {
                     this.activeduels = new Map();
@@ -56,7 +57,8 @@ class Duels {
                        manaMax: Soul1.stats.manaMax,
                        avatarURL: Player1.avatarURL,
                        isTurn: false,
-                       ...Soul1
+                       ...Soul1,
+                       statusEffect: []
                    }
 
                    if(isNPC) {
@@ -65,7 +67,8 @@ class Duels {
                         manaMax: Rival.Mana,
                         avatarURL: Rival.avatarURL,
                         isTurn: false,
-                        ...Rival
+                        ...Rival,
+                        statusEffect: []
                     }
                    }else {
                     this.player2 = {
@@ -75,7 +78,8 @@ class Duels {
                         manaMax: SoulRival.stats.manaMax,
                         avatarURL: Rival.avatarURL,
                         isTurn: false,
-                        ...SoulRival
+                        ...SoulRival,
+                        statusEffect: []
                     }
                    }
 
@@ -97,8 +101,6 @@ class Duels {
     }
 
      barradeVida(current, max, mini) {
-
-
 
         if(mini) {
             const porcentaje = (current / max) * 100
@@ -154,6 +156,8 @@ class Duels {
         const duelId = `${this.player1.ID}${this.player2.ID}${Date.now()}`;
 
         let errorMD;
+        const MDAuthorOrg = this.MdAuthor
+        const MDRivalOrg = this.MdRival
     
 
         //Embed donde los miembros del servidor podran espectear
@@ -281,14 +285,17 @@ class Duels {
 
         this.player1Rest = {
             messageOrigin: this.authorMD,
+            MDOrigin: MDAuthorOrg,
             ...this.player1,
-
         }
 
         this.player2Rest = {
             messageOrigin: this.isNPC ? null : this.rivalMD,
+            MDOrigin: this.isNPC ? null : MDRivalOrg,
             ...this.player2,
         }
+
+        const mirrorAttack = this.player2.attacks.find(m => m.effects === "mirror")
 
         const duel = {
             id: duelId,
@@ -300,14 +307,21 @@ class Duels {
             historialAcciones: [],
             finalizado: false,
             tiempoInicio: Date.now(),
-            tiempoLimite: 30000, // 30 segundos
+            tiempoLimite: 45000, // 45 segundos
             timeoutId: null, // Para almacenar el ID del timeout
-            isNPC: this.isNPC
+            isNPC: this.isNPC,
+            mirror: {
+                esPosible: this.isNPC && mirrorAttack,
+                active: false,
+                countdown: 0,
+                recordedActions: []
+            }
         };
 
 
         this.activeduels.set(duelId, duel)
         duel.timeoutId = setTimeout(() => this.handleTimeout(duel), duel.tiempoLimite);
+        this.getDialogues(this.player1Rest, this.player2Rest, duel, null, null);
 
      }
 
@@ -316,17 +330,66 @@ class Duels {
             clearTimeout(duel.timeoutId)
         }
 
+
         duel.turnoActual = duel.personajes.find(p => p.ID !== duel.turnoActual.ID)
+
+        const result = await this.applyStatusEffect(duel.turnoActual)
+        const notTurn = duel.personajes.find(p => p.ID !== duel.turnoActual.ID)
+
+        const safeSend = async (player, content) => {
+            if (player?.MDOrigin) {
+              return player?.MDOrigin.send({ content }).then(m => setTimeout(() => m.delete(), 5000));
+            } else {
+              return notTurn.MDOrigin.send({ content }).then(m => setTimeout(() => m.delete(), 5000));
+            }
+          };
+
+
+        if(result.effects.length > 0 || result.finished) {
+            const text = `${result.effects.join("\n")}` +
+                `\n\n${result.finished  ? `\n${result.finished}` : ""}`
+
+            await safeSend(duel.turnoActual, text)
+
+            duel.historialAcciones.push(`${result.effects.join("\n-# ")}` + `${result.finished  ? `\n${result.finished}` : ""}`)
+        }
+
         duel.ronda++;
         duel.tiempoInicio = Date.now()
 
         duel.timeoutId = setTimeout(() => this.handleTimeout(duel), duel.tiempoLimite);
 
+        if(duel.turnoActual.HP <= 0) {
+            await this.endDuel(duel, "Victoria", notTurn)
+
+            const message = duel.turnoActual.statusEffect > 0 ?  `¡${duel.turnoActual.Nombre} se ha debilitado por los efectos negativos!` : `¡Has derrotado a ${duel.turnoActual.Nombre} `
+            return {
+                success: true,
+                message: message,
+                gameOver: true,
+                messageId: duel.channels
+            }
+        
+        }
+        
         await this.regenerator(duel.personajes)
 
+        const stun = duel.turnoActual.statusEffect?.find(e => e.type === "stun");
+        console.log("Efectos activos", duel.turnoActual.statusEffect)
 
+        if (stun) {
+          const roll = Math.random();
+          if (roll < stun.probabilidad) {
+            const text = duel.isNPC ? `-# El enemigo esta paralizado y no puede moverse...` : `💫 estás paralizado y no puedes moverte...`
+            await safeSend(duel.turnoActual, text)
+            await safeSend(notTurn, `${duel.turnoActual.Nombre} esta paralizado y no puede moverse`)
 
-        return duel
+            duel.turnoActual = notTurn
+            return {duel: duel, isNextTurn: false}
+          }
+        }
+
+        return {duel: duel, isNextTurn: true}
      }
 
      async handleTimeout(duel) {
@@ -361,7 +424,6 @@ class Duels {
             await this.selectEmbed(duel)
     
             if(duel.isNPC && duel.turnoActual.ID === duel.personajes[1].ID) {
-                console.log("Turno seleccionado por afk [NPC]")
                const results = await this.ejecutarAccionesNPC(duel)
 
                const result = results.duel
@@ -411,6 +473,7 @@ class Duels {
         if(!duel) return { success: false, message: "Duelo no encontrado"}
 
         let result = {success: false, message: "Accion no reconocida"}
+        let effects;
 
         const activeChar = duel.personajes.find(p => p.ID === playerId);
         const targetChar = duel.personajes.find(p => p.ID !== playerId);
@@ -420,9 +483,19 @@ class Duels {
         switch (action) {
             case 'attack':
                 result = await this.handleAttack(duel, activeChar, targetChar, actionParams);
+
+                if(duel.mirror.esPosible) {
+                    this.recordarAccionesJugador(duel, 1, null)
+                }
+
                 break;
             case 'defend':
                 result = this.handleDefend(duel, activeChar, actionParams);
+
+                if(duel.mirror.esPosible) {
+                    this.recordarAccionesJugador(duel, 2, null)
+                }
+
                 break;
             case 'spells':
                 result = await this.handleSpell(duel, activeChar);
@@ -436,21 +509,28 @@ class Duels {
         }
 
         if(result.success) {
-            this.nextTurn(duel)
+            effects = await this.nextTurn(duel)
+
+            if(effects.gameOver) {
+                return {...result, message: effects.message, gameOver: effects.gameOver, messageId: effects.messageId}
+            }
         }
 
-        return result;
+
+
+
+        return {...result, isNexturn: effects?.isNextTurn};
      }
 
      async handleAttack(duel, attacker, defender, parametros) {
         let equipamiento;
 
-        const dañoBase = Math.floor(Math.random() * (13 - 5) + 5)
+        const dañoBase = Math.floor(Math.random() * (7 - 4) + 3)
         const characterStrenght = attacker.stats.fuerza || 1;
-        const levelBonus = 1 + (attacker.nivelMagico * 0.5)  
+        const levelBonus = 1 + (attacker.nivelMagico * 0.3)  
         const chanceCritico = ((attacker.stats.sabiduria * 2) + (attacker.stats.agilidad * 2))  / 100
         const CritMultip = 1.5;
-        const enemyDefense = (1 + (defender.defenseActual || 1)) * (defender.stats.resistenciaFisica + (1) + (defender.nivelMagico * 0.5))
+        const enemyDefense = (1 + (defender.defenseActual || 1)) * ((defender.stats.resistenciaFisica + 1) + (defender.nivelMagico * 0.27))
         let weaponInfo;
         let messageAuthor
         let critico = false
@@ -494,6 +574,8 @@ class Duels {
                 messageId: duel.channels
             }
         }
+
+        await this.getDialogues(duel.personajes[0], duel.personajes[1], duel, null, null);
 
         return { success: true, message: `${messageAuthor}` };
      }
@@ -750,142 +832,6 @@ class Duels {
         }
      }
 
-     async selectEmbed(duel, action) {
-
-        const currentPlayer = duel.personajes.find(p => p.ID === duel.turnoActual.ID);
-        const waitingPlayer = duel.personajes.find(p => p.ID !== duel.turnoActual.ID);
-        const activeEmbed = await this.updateEmbed(currentPlayer, waitingPlayer, duel, true);
-        const waitingEmbed = await this.updateEmbed(waitingPlayer, currentPlayer, duel, false);
-
-        const actionButtons = this.createActionButtons(duel)
-        const gifAction = await this.actionGifSelect(action)
-
-
-
-        try {
-
-            let user = this.client.users?.cache.get(duel.turnoActual.userAuthor)
-
-            if(!user) {
-             user = `${duel.turnoActual.Nombre}`
-            }
-            
-
-            const embed = new EmbedBuilder()
-            .setTitle("El duelo esta en curso...")
-            .setDescription(user !== duel.turnoActual.Nombre ? `Es el turno de ${user} (${duel.turnoActual.Nombre})` : `Es el turno de ${user}`)
-            .addFields(
-                {name: currentPlayer.Nombre, value: "`HP:`" + ` ${this.barradeVida(currentPlayer.HP, currentPlayer.stats.hpMax)}`, inline: true},
-                {name: waitingPlayer.Nombre, value: "`HP:`" + ` ${this.barradeVida(waitingPlayer.HP, waitingPlayer.stats.hpMax)}`, inline: true}
-            )
-            .setThumbnail(currentPlayer.avatarURL)
-            .setFooter({text: "Esperando..."})
-            .setImage(gifAction)
-            if (duel.historialAcciones.length > 0) {
-                const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
-                const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
-                embed.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
-            }
-            duel.channels.edit({embeds: [embed]})
-
-
-            if(duel.isNPC) {
-                const player1 = duel.personajes.find(p => p.messageOrigin !== null);
-
-                if(duel.turnoActual.ID === player1.ID) {
-                    player1.messageOrigin.edit({embeds: [activeEmbed], components: [actionButtons]})
-                }else {
-                    player1.messageOrigin.edit({embeds: [waitingEmbed], components: []})
-                }
-            }else {
-                currentPlayer.messageOrigin.edit({embeds: [activeEmbed], components: [actionButtons]})
-                waitingPlayer.messageOrigin.edit({embeds: [waitingEmbed], components: []})
-            }
-
-
-        } catch (e) {
-         console.log(e)   
-        }
-     }
-
-     async updateEmbed(currentChar, enemyChar, duel, isActiveTurn, isEnd, isDefeat, extras) {
-
-        let EmbedAuthor;
-
- 
-
-        if(isEnd) {
-            if(isDefeat) {
-                    EmbedAuthor = new EmbedBuilder()
-                    .setTitle("Tu personaje ha sido derrotado (Game Over)")
-                    .setDescription(`${extras.selectMessage}\n` + "`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-                    .addFields(
-                        {name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}`+ "\n`Mana:`" +
-                        `${currentChar.Mana}/${currentChar.manaMax}`}
-                    )
-                    .setThumbnail(enemyChar.avatarURL)
-                    .setImage(extras.selectGif)
-                    .setColor("DarkRed");
-
-            }else {
-                EmbedAuthor = new EmbedBuilder()
-                .setTitle("¡Felicidades, has ganado! ( •̀ ω •́ )y")
-                .setDescription(`${extras.selectMessage}\n` + "`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-                .addFields(
-                    {name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}`+ "\n`Mana:`" +
-                    `${currentChar.Mana}/${currentChar.manaMax}`}
-                )
-                .setThumbnail(enemyChar.avatarURL)
-                .setImage(extras.selectGif)
-                .setColor("Green");
-            }
-
-        }else {
-            EmbedAuthor = new EmbedBuilder()
-            .setTitle(isActiveTurn ? `¡Es tu turno!` : `Esperando turno...`)
-            .setDescription("`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-            .addFields(
-                {name: "Tus Stats", value: "`HP:`" +`${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}` + "\n`Mana:`" +
-                `${currentChar.Mana}/${currentChar.manaMax}`, inline: true}
-            )
-            .setThumbnail(enemyChar.avatarURL)
-            
-            .setColor(isActiveTurn ? "Green" : "Red");
-
-            if (duel.historialAcciones.length > 0) {
-                const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
-                const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
-                EmbedAuthor.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
-            }
-        }
-
-        return EmbedAuthor
-     }
-
-     createActionButtons(duel) {
-        let attackDisable = false
-        let defendDisable = false
-        let bagDisable = false
-        let spellsDisable = false
-        let surrenderDisable = false
-
-        if(duel.isNPC) {
-            const npc = duel.personajes.find(p => p.messageOrigin === null)
-            attackDisable = npc.restrictions.Attack === true
-            defendDisable = npc.restrictions.Defend === true
-            bagDisable = npc.restrictions.Bag === true
-            spellsDisable = npc.restrictions.Spells === true
-            surrenderDisable = npc.restrictions.Surrender === true
-        }
-        
-        return new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-attack-${duel.id}`).setLabel('Atacar').setStyle(ButtonStyle.Secondary).setEmoji("🤺").setDisabled(attackDisable),
-            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-defend-${duel.id}`).setLabel('Defenderse').setStyle(ButtonStyle.Secondary).setEmoji("🛡️").setDisabled(defendDisable),
-            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-bag-${duel.id}`).setLabel('Bolsa').setStyle(ButtonStyle.Secondary).setEmoji("🎒").setDisabled(bagDisable),
-            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-spells-${duel.id}`).setLabel('Hechizos').setStyle(ButtonStyle.Secondary).setEmoji("🔮").setDisabled(spellsDisable),
-            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-surrender-${duel.id}`).setLabel('Rendirse').setStyle(ButtonStyle.Danger).setEmoji("🏳️").setDisabled(surrenderDisable)
-          );
-     }
 
      async endDuel(duel, reason, winner, parametros) {
 
@@ -1175,16 +1121,17 @@ class Duels {
 
 
      async useItem(duel, user, target, ItemParam) {
+        const isNPCActor = duel?.isNPC && user.ID === duel?.personajes[1].ID
         const atributosValidos = new Set(['HP', 'Mana', 'Stamina', 'Defensa'])
 
         try {
             const objetoExist = await this.getObjetInfo(ItemParam.Region, ItemParam.ID)
 
-            if(!objetoExist) {
+            if(!objetoExist && isNPCActor) {
                 return {success: false, message: "No se pudo encontrar el objeto seleccionado"}
             }
 
-            if(objetoExist.usableInCombat) {
+            if(objetoExist.usableInCombat && isNPCActor) {
                 return { success: false, message: "Este objeto no puede ser usado en combate"}
             }
 
@@ -1229,32 +1176,38 @@ class Duels {
                 default: effectsAp.push(`Usaste el objeto pero no tuvo ningun efecto especial`)
             }
 
-            await character.updateOne({ID: user.ID}, {
-                $inc: {
-                    "Inventario.$[objeto].Cantidad": -1
-                }
-            }, {
-                arrayFilters: [
-                    {"objeto.ID": objetoExist.ID}
-                ]
-            })
+            if(!isNPCActor) {
+                await character.updateOne({ID: user.ID}, {
+                    $inc: {
+                        "Inventario.$[objeto].Cantidad": -1
+                    }
+                }, {
+                    arrayFilters: [
+                        {"objeto.ID": objetoExist.ID}
+                    ]
+                })
+    
+                await character.updateOne(
+                    { ID: user.ID },
+                    { $pull: { Inventario: { Cantidad: { $lte: 0 } } } }
+                );
+            }
 
-            await character.updateOne(
-                { ID: user.ID },
-                { $pull: { Inventario: { Cantidad: { $lte: 0 } } } }
-            );
 
 
             if(!duel) {
                 return {success: true, message: `Has usado ${objetoExist.Nombre} y obtuviste ${effectsAp.join(", ")}`}
             }else {
+                if(duel.mirror.esPosible) {
+                    const dataItem = {
+                        itemID: objetoExist
+                    }
+    
+                    this.recordarAccionesJugador(duel, 3, dataItem)
+                }
+
                 duel.historialAcciones.push(`${user.Nombre} usó *${objetoExist.Nombre}*. [${effectsAp.join(", ")}]`)
             }
-
-            
-
-
-
 
             return {success: true, message: `Has usado ${objetoExist.Nombre} y obtuviste ${effectsAp.join(", ")}`}
 
@@ -1268,6 +1221,31 @@ class Duels {
      }
 
      async useSpell(duel, user, target, SpellParam) {
+        const isNPCActor = duel.isNPC && user.ID === duel.personajes[1].ID
+        if(isNPCActor) {
+
+            console.log("Data spell:", SpellParam, "Dataselect", SpellParam.spellID)
+            const spellNPC = await this.getSpellInfo(SpellParam.spellID)
+            const validTargets = await this.getAllTargets(spellNPC, user, target, null)
+
+            const result = await this.applyEffectsSpell(spellNPC, user, validTargets.targets, validTargets.targetsEffects, duel);
+
+            duel.historialAcciones.push(result.summaryMessage)
+
+            if(target.HP <= 0) {
+                await this.endDuel(duel, "Victoria", user)
+                return {
+                    success: true,
+                    message: `¡${user.Nombre} ha derrotado a ${target.Nombre}!`,
+                    gameOver: true,
+                    messageId: duel.channels
+                }
+            }
+
+            return {success: true, message: result.detailedMessage}
+
+        }
+
         const spellExist = await this.getSpellInfo(SpellParam)
 
         if(!spellExist) {
@@ -1285,9 +1263,15 @@ class Duels {
         } 
 
         try {
-            const probCast = Math.random() <= spellExist.Mecanicas.castProbabilidad
+            const baseProb = spellExist.Mecanicas.castProbabilidad
+            const bonusIntel = user.stats.inteligencia * 0.015
+            const probCast = Math.min(1, baseProb + bonusIntel)
+            const isCast = Math.random() <= probCast
 
-            if(!probCast) {
+            console.log("Proabilidad:", `${probCast * 100}%`)
+            console.log("Se casteó el hechizo?:", isCast)
+
+            if(!isCast) {
                 duel.historialAcciones.push(`${user.Nombre} intento conjurar un hechizo, pero falló en el intento`)
                 return { success: true, message: "Intentaste conjurar el hechizo, sin embargo fallaste", spellFailed: true}
             }
@@ -1296,10 +1280,18 @@ class Duels {
 
             const validTargets = await this.getAllTargets(spellExist, user, target, null)
 
-            const result = await this.applyEffectsSpell(spellExist, user, validTargets);
+            const result = await this.applyEffectsSpell(spellExist, user, validTargets.targets, validTargets.targetsEffects, duel);
 
             //Agregar aqui el cooldown
             duel.historialAcciones.push(result.summaryMessage)
+
+            if(duel.mirror.esPosible) {
+                const dataSpell = {
+                    spellID: spellExist._id
+                }
+
+                this.recordarAccionesJugador(duel, 4, dataSpell)
+            }
 
             if(target.HP <= 0) {
                 await this.endDuel(duel, "Victoria", user)
@@ -1321,32 +1313,10 @@ class Duels {
         }
      }
 
-     async getObjetInfo(region, id) {
-        const idAutocomplete  = `${region}${id}`
-
-        const documento = await objetos.findOne({_id: region, Objetos: { $elemMatch: { ID_Autocomplete: idAutocomplete}}}, 
-            { projection: {"Objetos.$": 1}}
-        )
-
-        if (documento && documento.Objetos && documento.Objetos.length > 0) {
-            return documento.Objetos[0];
-        }
-
-        return null
-     }
-
-     async getSpellInfo(id) {
-
-        const documento = await hechizos.findOne({_id: id})
-
-        if (documento) {
-            return documento;
-        }
-
-        return null
-     }
 
      async getTargetsForObjetive(objective, caster, selectedTarget, allies, enemies) {
+
+
         
         switch (objective) {
             case 1: // Enemigo
@@ -1370,72 +1340,44 @@ class Duels {
         const { allies = [], enemies = []} = battleState || {};
 
         const targets = {};
+        const targetsEffects = {};
 
-        for(const key of Object.keys(spell.Mecanicas)) {
-            const effect = spell.Mecanicas[key]
-            if(effect && typeof effect.objetivo !== "undefined") {
-                targets[key] = await this.getTargetsForObjetive(effect.objetivo, caster, selectedTarget, allies, enemies)
+        const resolve = async (objective) => {
+            if (Array.isArray(objective)) {
+              const arrays = await Promise.all(
+                objective.map(code =>
+                  this.getTargetsForObjetive(code, caster, selectedTarget, allies, enemies)
+                )
+              );
+              return arrays.flat();
+            } else {
+              const single = await this.getTargetsForObjetive(objective, caster, selectedTarget, allies, enemies);
+              return Array.isArray(single) ? single : [single];
             }
+          };
+
+
+          for (const key of Object.keys(spell.Mecanicas)) {
+            const block = spell.Mecanicas[key];
+            if (block && typeof block.objetivo !== 'undefined') {
+              targets[key] = await resolve(block.objetivo);
+            }
+          }
+        
+          // Y para los Efectos separados
+          if (spell.Mecanicas.Efectos) {
+            for (const key of Object.keys(spell.Mecanicas.Efectos)) {
+              const eff = spell.Mecanicas.Efectos[key];
+              if (eff && typeof eff.objetivo !== 'undefined') {
+                targetsEffects[key] = await resolve(eff.objetivo);
+              }
+            }
+          }
+        
+          return { targets, targetsEffects };
         }
 
-        return targets
-     }
-
-     async actionGifSelect(action) {
-        const actionGifs = {
-            "attack": await getGifs("punch"),
-            "defend": [
-                "https://c.tenor.com/TeLGX2pYe94AAAAd/tenor.gif",
-                "https://c.tenor.com/qkt_l6DMI6sAAAAd/tenor.gif",
-                "https://c.tenor.com/rkQm2lOfRa0AAAAd/tenor.gif",
-                "https://c.tenor.com/5iJ5pmSxVA4AAAAd/tenor.gif",
-                "https://c.tenor.com/dDmhCv5dnTMAAAAd/tenor.gif",
-                "https://c.tenor.com/B780LEn87eAAAAAd/tenor.gif",
-                "https://c.tenor.com/bDi6iF-AAuQAAAAd/tenor.gif",
-            ],
-            "spell": [
-                "https://c.tenor.com/-J0kOHQMBcYAAAAd/tenor.gif",
-                "https://c.tenor.com/06Qk37qmP1wAAAAd/tenor.gif",
-                "https://c.tenor.com/1ovlqNMdjsEAAAAd/tenor.gif",
-                "https://c.tenor.com/qjzML-7bLkwAAAAd/tenor.gif",
-                "https://c.tenor.com/u_SvcUXy2NwAAAAd/tenor.gif",
-                "https://c.tenor.com/fHVO05yKkEQAAAAd/tenor.gif",
-                "https://c.tenor.com/KuvSZ1kYPFAAAAAd/tenor.gif",
-                "https://c.tenor.com/TPLVfoIGoEwAAAAd/tenor.gif"
-            ], 
-            "spellFailed": [
-                "https://c.tenor.com/mSqEgKfI3uUAAAAd/tenor.gif",
-                "https://c.tenor.com/VQEadG8MqCMAAAAd/tenor.giff",
-                "https://c.tenor.com/gjBx2zbdJjAAAAAC/tenor.gif",
-                "https://c.tenor.com/W3jM5w2gvfoAAAAd/tenor.gif",
-                "https://c.tenor.com/kEVg4dod34sAAAAd/tenor.gif",
-                "https://c.tenor.com/pQ9jr5TqhUEAAAAd/tenor.gif",
-                "https://c.tenor.com/clPun4-Kdu0AAAAd/tenor.gif",
-            ],
-            "bag": [
-                "https://i.gifer.com/DXw.gif",
-                "https://c.tenor.com/wiEN5dcIkHcAAAAd/tenor.gif",
-                "https://nihonnoichigo.wordpress.com/wp-content/uploads/2017/07/t0qlw.gif",
-                "https://c.tenor.com/vLWDELtNl6wAAAAd/tenor.gif",
-                "https://c.tenor.com/0obmPDN7oeAAAAAd/tenor.gif",
-                "https://c.tenor.com/HI0UBctzeRoAAAAd/tenor.gif",
-                "https://c.tenor.com/E6l7l4t9ut4AAAAd/tenor.gif",
-            ],
-            "surrender": [
-                "https://c.tenor.com/5lvXZOwWSq0AAAAd/tenor.gif"
-            ]
-        }
-
-        if(action === "attack") {
-            const actionAtacar = actionGifs[action]
-            return actionAtacar.url
-        }
-
-        const gif = actionGifs[action]
-        return gif ? gif[Math.floor(Math.random() * gif.length)] : "https://c.tenor.com/4jSSY5iIH-MAAAAC/tenor.gif"
-     }
-
-     async applyEffectsSpell(spell, caster, targets) {
+     async applyEffectsSpell(spell, caster, targets, effectsTargets, duel) {
         const results = {
             damage: [],
             healing: [],
@@ -1480,85 +1422,116 @@ class Duels {
             },
         }
 
-
-
-
-        if(mechanics?.damage) {
-            let isElemental = { Bonus: false, message: ""}
-
-            let targetDamage = targets.damage
-
-            if (!Array.isArray(targetDamage)) {
-                targetDamage = [targetDamage];
-              }
-
-            for (const target of targetDamage) {
-                const efecto = efectividadElemental[spell.Elemento];
-        
-                if(efecto.fuerteContra.includes(target.Elemento)) {
-                    multipElement = 1.3 // 30% de daño adicional
-                    isElemental = { Bonus: true, message: "Bonificacion por Fuerte Elemental"}
-                }else if(efecto.debilContra.includes(target.Elemento)) {
-                    multipElement = 0.7 // -30% de daño adicional
-                    isElemental  = { Bonus: false, message: "Daño Reducido por Debilidad Elemental"}
-                }else {
-                    multipElement = 1
-                    isElemental = { Bonus: false, message: "Sin bonus elementales"}
-                }
-
-                // Calcular daño base + scaling
-                let damageAmount = this.calculateEffectAmount(mechanics.damage, caster, multipElement)
-
-            target.HP = Math.max(0, target.HP-damageAmount)
-
-            results.damage.push({
-                target: target,
-                effect: 'damage',
-                amount: damageAmount,
-                isElemental
-            });
-        }
-
-        }
-
-        if(mechanics?.healing) {
-
-            let isElemental = { Bonus: false, message: ""}
-
-
-            let healingTargets = targets.healing
-
-            if (!Array.isArray(healingTargets)) {
-                healingTargets = [healingTargets];
-              }
-            for (const target of healingTargets) {
-
-                const efecto = efectividadElemental[spell.Elemento];
-
-                if(efecto.fuerteContra.includes(target.Elemento)) {
-                    multipElement = 1.3 // 30% de daño adicional
-                    isElemental = { Bonus: true, message: "[Bonificacion por Fuerte Elemental]"}
-                }else if(efecto.debilContra.includes(target.Elemento)) {
-                    multipElement = 0.7 // -30% de daño adicional
-                    isElemental  = { Bonus: false, message: "[Daño Reducido por Debil Elemental]"}
-                }else {
-                    multipElement = 1
-                    isElemental = { Bonus: false, message: "[Sin bonus elementales]"}
-                }
-
-              const healAmount = this.calculateEffectAmount(mechanics.healing, caster, multipElement);
-              target.HP += healAmount;
-              if (target.HP > target.stats.hpMax) target.HP = target.stats.hpMax;
-
-              
-                results.healing.push({
-                  target: target,
-                  effect: 'healing',
-                  amount: healAmount,
-                  isElemental
+        if(!(Object.keys(targets).length === 0)) {
+            if(mechanics?.damage) {
+                let isElemental = { Bonus: false, message: ""}
+    
+                let targetDamage = targets.damage
+    
+                if (!Array.isArray(targetDamage)) {
+                    targetDamage = [targetDamage];
+                  }
+    
+                for (const target of targetDamage) {
+                    const efecto = efectividadElemental[spell.Elemento];
+            
+                    if(efecto.fuerteContra.includes(target.Elemento)) {
+                        multipElement = 1.3 // 30% de daño adicional
+                        isElemental = { Bonus: true, message: "Bonificacion por Fuerte Elemental"}
+                    }else if(efecto.debilContra.includes(target.Elemento)) {
+                        multipElement = 0.7 // -30% de daño adicional
+                        isElemental  = { Bonus: false, message: "Daño Reducido por Debilidad Elemental"}
+                    }else {
+                        multipElement = 1
+                        isElemental = { Bonus: false, message: "Sin bonus elementales"}
+                    }
+    
+                    // Calcular daño base + scaling
+                    let damageAmount = this.calculateEffectAmount(mechanics.damage, caster, multipElement)
+    
+                target.HP = Math.max(0, target.HP-damageAmount)
+    
+                results.damage.push({
+                    target: target,
+                    effect: 'damage',
+                    amount: damageAmount,
+                    isElemental
                 });
             }
+    
+            }
+    
+            if(mechanics?.healing) {
+    
+                let isElemental = { Bonus: false, message: ""}
+    
+    
+                let healingTargets = targets.healing
+    
+                if (!Array.isArray(healingTargets)) {
+                    healingTargets = [healingTargets];
+                  }
+                for (const target of healingTargets) {
+    
+                    const efecto = efectividadElemental[spell.Elemento];
+    
+                    if(efecto.fuerteContra.includes(target.Elemento)) {
+                        multipElement = 1.3 // 30% de daño adicional
+                        isElemental = { Bonus: true, message: "[Bonificacion por Fuerte Elemental]"}
+                    }else if(efecto.debilContra.includes(target.Elemento)) {
+                        multipElement = 0.7 // -30% de daño adicional
+                        isElemental  = { Bonus: false, message: "[Daño Reducido por Debil Elemental]"}
+                    }else {
+                        multipElement = 1
+                        isElemental = { Bonus: false, message: "[Sin bonus elementales]"}
+                    }
+    
+                  const healAmount = this.calculateEffectAmount(mechanics.healing, caster, multipElement);
+                  target.HP += healAmount;
+                  if (target.HP > target.stats.hpMax) target.HP = target.stats.hpMax;
+    
+                  
+                    results.healing.push({
+                      target: target,
+                      effect: 'healing',
+                      amount: healAmount,
+                      isElemental
+                    });
+                }
+            }
         }
+
+        if(!(Object.keys(effectsTargets).length === 0)) {
+            for (const key of Object.keys(mechanics.Efectos)) {
+                let effectTargets = effectsTargets[key]
+
+                if (!Array.isArray(effectTargets)) {
+                    effectTargets = [effectTargets];
+                }
+            
+                for(const target of effectTargets) {
+
+                    target.statusEffect.push({
+                            type: key,
+                            Nombre: mechanics.Efectos[key].Nombre,
+                            base: Math.round(mechanics.Efectos[key].base + (1 + (caster.stats.poderElemental * 2))),
+                            duracion: mechanics.Efectos[key].duracion,
+                            probabilidad: mechanics.Efectos[key].probabilidad || null
+                        })
+
+                    results.otherEffects.push({
+                        target: target,
+                        effect: key,
+                        nombreEfecto: mechanics.Efectos[key].Nombre,
+                        duracion: mechanics.Efectos[key].duracion
+                    });
+                }
+
+        }
+        }
+
+
+        await this.getDialogues(duel.personajes[0], duel.personajes[1], duel, null, null);
 
         const detailedMessage = this.generateDetailedMessage(spell, caster, results);
         const summaryMessage = this.generateSummaryMessage(spell, caster, results);
@@ -1568,6 +1541,76 @@ class Duels {
             detailedMessage: detailedMessage,
             summaryMessage: summaryMessage
         };
+     }
+
+     async applyStatusEffect(character) {
+        const effectAp = []
+
+
+        const finished = [];
+
+        for (let i = character.statusEffect.length - 1; i >= 0; i--) {
+          const effect = character.statusEffect[i];
+          effect.duracion--;
+
+          console.log("Duracion restante", effect.duracion)
+      
+          if (effect.duracion <= 0) {
+            finished.push(effect.Nombre);
+            character.statusEffect.splice(i, 1);
+          }
+        }
+
+
+        for (const effect of character.statusEffect) {
+            switch(effect.type) {
+                case "damage": 
+                    const damageBase = effect.base
+                    let total
+
+                    if(effect.reduct) {
+                        const resist = Math.min(character.stats.voluntad * 0.5, 70)
+
+                        total = Math.max(Math.round((damageBase) * (1 - resist / 100)), 1)
+                    }else {
+                        total = damageBase
+                    }
+
+                    if(isNaN(total)) total = 1
+
+
+                    character.HP = Math.max(0, character.HP-total)
+                    effectAp.push(`${character.Nombre} sufre **${total}** de daño por` + "`" + effect.Nombre + "`")
+                    break;
+                case "pasive": 
+                    const healBase = effect.base
+                    let totalHeal;
+
+                    const bonus = Math.max(character.stats.regeneracion * 0.03, 30) 
+
+                    totalHeal = Math.round(healBase * (1 - bonus / 100))
+
+                    character.HP -= totalHeal
+
+                    if(character.HP > character.stats.hpMax) {
+                        character.HP = character.stats.hpMax
+                    }
+                    effectAp.push(`${character.Nombre} ha regenerado **${total} HP** por ` + "`" + effect.nameEffect + "`")
+                    break;
+            }
+        }
+
+        let message;
+
+
+        if(finished.length > 0) {
+            const lista = finished
+              .map(name => `**${name}**`)
+              .join(', ');
+            message = `**Efectos terminados:** ${lista}.`;
+        }
+
+        return {finished: message, effects: effectAp}
      }
 
      calculateEffectAmount(effect, caster, multipler = 1) {
@@ -1627,6 +1670,332 @@ class Duels {
         }
     }
 
+
+    async executeSpecialAction(duel, npc, player, action) {
+        const finalAction = action.phase.finalAction
+
+        if(finalAction === "Espejear") {
+            const clonedPlayer = JSON.parse(JSON.stringify(player))
+
+
+            clonedPlayer.ID = npc.ID
+
+            clonedPlayer.originalData = {
+                stats: {...npc.stats},
+                avatarURL: npc.avatarURL,
+                attacks: [...npc.attacks],
+            };
+
+            clonedPlayer.messageOrigin   = null;
+            clonedPlayer.MDOrigin = null;
+            clonedPlayer.isNPC = true;
+            clonedPlayer.avatarURL = `${player.avatarURL}`;
+            clonedPlayer.restrictions = npc.restrictions
+            clonedPlayer.attacks = npc.attacks
+            clonedPlayer.mirrorMetadata = {
+                sourcePlayer: player.ID,
+                mirroredAt: new Date(),
+                turnsRemaining: Infinity // Permanente hasta el duelo
+            };
+
+            const npcIndex = duel.personajes.findIndex(p => p.ID === npc.ID);
+            duel.personajes[npcIndex] = clonedPlayer;
+
+            duel.historialAcciones.push(`**${npc.Nombre}** se ha convertido en el espejo de **${player.Nombre}**`)
+            npc.specialPhase.active = "success"
+            duel.mirror.active = true
+
+            duel.mirror.toReplay = [...duel.mirror.recordedActions];
+
+        }
+    }
+
+    recordarAccionesJugador(duel, action, data) {
+        const info = {
+            action: action,
+            data: data
+        }
+
+        duel.mirror.recordedActions.push(info)
+    }
+
+    async realizarAccionNPC(duel, npc, player, action, data){
+
+        let actions;
+        switch(action?.type || action) {
+            case 1: 
+                await this.handleAttack(duel, npc, player)
+                actions = "attack"
+            break;
+            case 2: 
+                await this.handleDefend(duel, npc)
+                actions = "defend"
+            break;
+            case 3:
+                await this.useItem(duel, npc, player, data)
+                actions = "bag"
+            break;
+            case 4: 
+                await this.useSpell(duel, npc, player, data)
+                actions = "spell"
+            break;
+            case 5:
+                await this.executeSpecialAction(duel, npc, player, action)
+                actions = "especial"
+            break;
+            default: 
+            actions = null;
+            return {success: false}
+        }
+
+        return actions
+    }
+
+    getRandomAttackNPC(attacks) {
+        const totalProbabily = attacks.reduce((sum, attack) => sum + attack.probability, 0)
+
+        let randomValue = Math.random() * totalProbabily
+
+        let selectedAttack = null;
+
+
+        for (const attack of attacks) {
+            randomValue -= attack.probability;
+            if (randomValue <= 0) {
+                selectedAttack = attack;
+                break;
+            }
+        }
+    
+        
+        if (!selectedAttack && npc.attacks.length > 0) {
+            selectedAttack = npc.attacks[0];
+        }
+
+        return selectedAttack
+    }
+
+
+    async ejecutarAccionesNPC(duel) {
+        const npc = duel.personajes[1];
+        const player = duel.personajes[0]
+        const specialAttack = npc?.attacks.find(t => t.type === 5)
+        const normalAttacks = specialAttack ? npc.attacks.filter(a => a.type !== specialAttack.type) : [...npc.attacks];  
+        let result;
+        let selectedAttack;;
+
+        await this.getDialogues(player, npc, duel, null, null);
+
+
+        if(duel.mirror?.active) {
+            console.log("Mirror activo")
+            if(duel.mirror.toReplay && duel.mirror.toReplay.length > 0) {
+                const next = duel.mirror.toReplay.shift();
+                console.log(next)
+                result = this.realizarAccionNPC(duel, npc, player, next.action, next?.data);
+            }else {
+                this.getRandomAttackNPC(normalAttacks)
+            }
+
+        }else if(!npc.specialPhase?.active) {
+            console.log("Fase no activa")
+            selectedAttack = this.getRandomAttackNPC(npc.attacks)
+        }else {
+            selectedAttack = specialAttack
+        }
+
+
+        if(selectedAttack?.type === specialAttack?.type) {
+
+            npc.specialPhase ??= {};                  
+            npc.specialPhase.turns ??= 0;             
+            npc.specialPhase.turns += 1; 
+
+            if(npc.specialPhase.turns < specialAttack.phase.preparationTurns) {
+                selectedAttack = this.getRandomAttackNPC(specialAttack.phase.behavior)
+                result = await this.realizarAccionNPC(duel, npc, player, selectedAttack) 
+                duel.historialAcciones.push(`**${npc.Nombre} se preparara para realizar una acción... (${npc.specialPhase.turns}/${specialAttack.phase.preparationTurns})**`)
+            }else {
+               result = await this.realizarAccionNPC(duel, npc, player, specialAttack)
+            }
+
+        }else {
+            result = this.realizarAccionNPC(duel, npc, player, selectedAttack)
+        }
+
+
+        await sleep(3000)
+        await this.nextTurn(duel)
+        return {duel: duel, action: result}
+    }
+
+
+    //Información:
+    async getObjetInfo(region, id) {
+        const idAutocomplete  = `${region}${id}`
+
+        const documento = await objetos.findOne({_id: region, Objetos: { $elemMatch: { ID_Autocomplete: idAutocomplete}}}, 
+            { projection: {"Objetos.$": 1}}
+        )
+
+        if (documento && documento.Objetos && documento.Objetos.length > 0) {
+            return documento.Objetos[0];
+        }
+
+        return null
+     }
+
+    async getSpellInfo(id) {
+
+        const documento = await hechizos.findOne({_id: id})
+
+        if (documento) {
+            return documento;
+        }
+
+        return null
+     }
+
+
+     //Generación de mensajes:
+
+    async selectEmbed(duel, action) {
+
+        const currentPlayer = duel.personajes.find(p => p.ID === duel.turnoActual.ID);
+        const waitingPlayer = duel.personajes.find(p => p.ID !== duel.turnoActual.ID);
+        const activeEmbed = await this.updateEmbed(currentPlayer, waitingPlayer, duel, true);
+        const waitingEmbed = await this.updateEmbed(waitingPlayer, currentPlayer, duel, false);
+
+        const actionButtons = this.createActionButtons(duel)
+        const gifAction = await this.actionGifSelect(action)
+
+
+
+        try {
+
+            let user = this.client.users?.cache.get(duel.turnoActual.userAuthor)
+
+            if(!user) {
+             user = `${duel.turnoActual.Nombre}`
+            }
+            
+
+            const embed = new EmbedBuilder()
+            .setTitle("El duelo esta en curso...")
+            .setDescription(user !== duel.turnoActual.Nombre ? `Es el turno de ${user} (${duel.turnoActual.Nombre})` : `Es el turno de ${user}`)
+            .addFields(
+                {name: currentPlayer.Nombre, value: "`HP:`" + ` ${this.barradeVida(currentPlayer.HP, currentPlayer.stats.hpMax)}`, inline: true},
+                {name: waitingPlayer.Nombre, value: "`HP:`" + ` ${this.barradeVida(waitingPlayer.HP, waitingPlayer.stats.hpMax)}`, inline: true}
+            )
+            .setThumbnail(currentPlayer.avatarURL)
+            .setFooter({text: "Esperando..."})
+            .setImage(gifAction)
+            if (duel.historialAcciones.length > 0) {
+                const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
+                const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
+                embed.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
+            }
+            duel.channels.edit({embeds: [embed]})
+
+
+            if(duel.isNPC) {
+                const player1 = duel.personajes.find(p => p.messageOrigin !== null);
+
+                if(duel.turnoActual.ID === player1.ID) {
+                    player1.messageOrigin.edit({embeds: [activeEmbed], components: [actionButtons]})
+                }else {
+                    player1.messageOrigin.edit({embeds: [waitingEmbed], components: []})
+                }
+            }else {
+                currentPlayer.messageOrigin.edit({embeds: [activeEmbed], components: [actionButtons]})
+                waitingPlayer.messageOrigin.edit({embeds: [waitingEmbed], components: []})
+            }
+
+
+        } catch (e) {
+         console.log(e)   
+        }
+     }
+
+    async updateEmbed(currentChar, enemyChar, duel, isActiveTurn, isEnd, isDefeat, extras) {
+
+        let EmbedAuthor;
+
+ 
+
+        if(isEnd) {
+            if(isDefeat) {
+                    EmbedAuthor = new EmbedBuilder()
+                    .setTitle("Tu personaje ha sido derrotado (Game Over)")
+                    .setDescription(`${extras.selectMessage}\n` + "`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
+                    .addFields(
+                        {name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}`+ "\n`Mana:`" +
+                        `${currentChar.Mana}/${currentChar.manaMax}`}
+                    )
+                    .setThumbnail(enemyChar.avatarURL)
+                    .setImage(extras.selectGif)
+                    .setColor("DarkRed");
+
+            }else {
+                EmbedAuthor = new EmbedBuilder()
+                .setTitle("¡Felicidades, has ganado! ( •̀ ω •́ )y")
+                .setDescription(`${extras.selectMessage}\n` + "`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
+                .addFields(
+                    {name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}`+ "\n`Mana:`" +
+                    `${currentChar.Mana}/${currentChar.manaMax}`}
+                )
+                .setThumbnail(enemyChar.avatarURL)
+                .setImage(extras.selectGif)
+                .setColor("Green");
+            }
+
+        }else {
+            EmbedAuthor = new EmbedBuilder()
+            .setTitle(isActiveTurn ? `¡Es tu turno!` : `Esperando turno...`)
+            .setDescription("`HP:`"+ ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
+            .addFields(
+                {name: "Tus Stats", value: "`HP:`" +`${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}` + "\n`Mana:`" +
+                `${currentChar.Mana}/${currentChar.manaMax}`, inline: true}
+            )
+            .setThumbnail(enemyChar.avatarURL)
+            
+            .setColor(isActiveTurn ? "Green" : "Red");
+
+            if (duel.historialAcciones.length > 0) {
+                const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
+                const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
+                EmbedAuthor.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
+            }
+        }
+
+        return EmbedAuthor
+    }
+
+    createActionButtons(duel) {
+        let attackDisable = false
+        let defendDisable = false
+        let bagDisable = false
+        let spellsDisable = false
+        let surrenderDisable = false
+
+        if(duel.isNPC) {
+            const npc = duel.personajes.find(p => p.messageOrigin === null)
+            attackDisable = npc.restrictions.Attack === true
+            defendDisable = npc.restrictions.Defend === true
+            bagDisable = npc.restrictions.Bag === true
+            spellsDisable = npc.restrictions.Spells === true
+            surrenderDisable = npc.restrictions.Surrender === true
+        }
+        
+        return new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-attack-${duel.id}`).setLabel('Atacar').setStyle(ButtonStyle.Secondary).setEmoji("🤺").setDisabled(attackDisable),
+            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-defend-${duel.id}`).setLabel('Defenderse').setStyle(ButtonStyle.Secondary).setEmoji("🛡️").setDisabled(defendDisable),
+            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-bag-${duel.id}`).setLabel('Bolsa').setStyle(ButtonStyle.Secondary).setEmoji("🎒").setDisabled(bagDisable),
+            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-spells-${duel.id}`).setLabel('Hechizos').setStyle(ButtonStyle.Secondary).setEmoji("🔮").setDisabled(spellsDisable),
+            new ButtonBuilder().setCustomId(`DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-surrender-${duel.id}`).setLabel('Rendirse').setStyle(ButtonStyle.Danger).setEmoji("🏳️").setDisabled(surrenderDisable)
+          );
+    }
+
     generateDetailedMessage(spell, caster, results) {
         let message = `**${caster.Nombre}** ha lanzado **[${spell.Nombre}]**`;
         
@@ -1675,13 +2044,45 @@ class Duels {
             }
             message += ".";
         }
+
+        if (results.otherEffects.length > 0) {
+            message += "\n\n";
+
+            const grupo = results.otherEffects.reduce((acc, item) => {
+                const n = item.nombreEfecto;
+
+                if(!acc[n]) acc[n] = { duracion: item.duracion, targets: [] };
+                acc[n].targets.push(item.target.Nombre)
+                return acc
+            }, {});
+
+            Object.entries(grupo).forEach(([efecto, data], i, arr) => {
+                const { duracion, targets} = data;
+
+                const listaNombres = (() => {
+                    if(targets.length === 1) return `**${targets[0]}**`;
+                    if(targets.length === 2) return `**${targets[0]}** y **${targets[1]}**`;
+                    const last = targets.pop()
+                    return `**${targets.join('**, **')}** y **${last}**`;
+                })();
+
+                
+                const verbo = targets.length === 1 ? 'esta' : "estan"
+
+                message += `${listaNombres} ${verbo} bajo el efecto de **` + "`" + efecto + "`**" + `durante **${duracion} turno${duracion > 1 ? 's' : ''}**`
+
+                if(i < arr.length - 1) message += ', ';
+                else message += '.'
+            })
+
+        }
         
         return message;
     }
     
     // Función para generar mensaje resumido
     generateSummaryMessage(spell, caster, results) {
-        let message = `${caster.Nombre} lanzó [${spell.Nombre}]`;
+        let message = `${caster.Nombre} lanzó **[${spell.Nombre}]**`;
         
         // Resumen de daño
         if (results.damage.length > 0) {
@@ -1740,60 +2141,138 @@ class Duels {
                 }
             }
         }
+
+        if (results.otherEffects.length > 0) {
+            const grouped = results.otherEffects.reduce((acc, item) => {
+              const n = item.nombreEfecto;
+              if (!acc[n]) acc[n] = [];
+              acc[n].push(item.target.Nombre);
+              return acc;
+            }, {});
+        
+            const parts = Object.entries(grouped).map(([efecto, targets]) => {
+              return `**${efecto}**: ${targets.join(', ')}`;
+            });
+        
+            message += ` • Efectos → ${parts.join(' | ')}`;
+          }
         
         return message;
     }
 
-    async ejecutarAccionesNPC(duel) {
-        const npc = duel.personajes[1];
-        const player = duel.personajes[0]
+    getDialogues(user, npc, duel, event, interaction) {
+        const triggers = npc.triggers|| [];
+        const activeTriggers = [];
 
-        const totalProbabily = npc.attacks.reduce((sum, attack) => sum + attack.probability, 0)
+        for(const trigger of triggers) {
+            let shouldTrigger = false;
 
-        let randomValue = Math.random() * totalProbabily
+            switch(trigger.type) {
+                case "InicioCombate": 
+                    shouldTrigger = duel.ronda === 1;
+                    break;
+                case "HpLow": 
+                    const currentHpPercent = npc.HP / npc.stats.hpMax;
+                    shouldTrigger = currentHpPercent <= trigger.threshold;
+                    break;
+                case 'statusApplied':
+                    shouldTrigger = npc.statusEffect.some(e => e.type === trigger.statusType);
+                    break;
+                case 'custom': 
+                    shouldTrigger = this.evalCustomCondition(trigger.condition, { npc, duel });
+                    break;
+            }
 
-        let selectedAttack = null;
-
-        for (const attack of npc.attacks) {
-            randomValue -= attack.probability;
-            if (randomValue <= 0) {
-                selectedAttack = attack;
-                break;
+            if(shouldTrigger && (!trigger.lastTriggered || (duel.ronda - trigger.lastTriggered) >= (trigger.cooldownTurns || 1))) {
+                activeTriggers.push(trigger)
             }
         }
-    
-        
-        if (!selectedAttack && npc.attacks.length > 0) {
-            selectedAttack = npc.attacks[0];
-        }
 
-        let action;
-        switch(selectedAttack.type) {
-            case 1: 
-                await this.handleAttack(duel, npc, player)
-                action = "attack"
-            break;
-            case 2: 
-                await this.handleDefend(duel, npc)
-                action = "defend"
-            break;
-            case 3:
-                await this.useItem(duel, npc, player)
-                action = "bag"
-            break;
-            case 4: 
-                await this.useSpell(duel, npc, player, spell)
-                action = "spell"
-            break;
 
-        }
+        if(activeTriggers.length > 0) {
+            const context = {
+                    npc_name: npc.Nombre,
+                    npcAvatar: npc.avatarURL,
+                    code: Date.now()
+            }
 
-        await sleep(3000)
-        await this.nextTurn(duel)
-        return {duel: duel, action: action}
+            const selectedTrigger = activeTriggers[Math.floor(Math.random() * activeTriggers.length)];
+            const message = dialogoManager.buildMessageOptions(selectedTrigger, context)
+
+            try {
+
+                if(interaction) {
+                    interaction.reply({ ...message, flags: ["Ephemeral"]})
+                }else {
+                    user.MDOrigin.send({...message}).then(m => setTimeout(() => m.delete(), 10000))
+                }
+
+              
+            } catch (error) {
+                console.error(`No se pudo enviar el dialogo al usuario ${error}`)
+                return;
+            }
+
+            
+            if(selectedTrigger.oncePerCombat) selectedTrigger.lastTriggered = Infinity;
+            else selectedTrigger.lastTriggered = duel.ronda;
+
+        } 
     }
 
+    async actionGifSelect(action) {
+        const actionGifs = {
+            "attack": await getGifs("punch"),
+            "defend": [
+                "https://c.tenor.com/TeLGX2pYe94AAAAd/tenor.gif",
+                "https://c.tenor.com/qkt_l6DMI6sAAAAd/tenor.gif",
+                "https://c.tenor.com/rkQm2lOfRa0AAAAd/tenor.gif",
+                "https://c.tenor.com/5iJ5pmSxVA4AAAAd/tenor.gif",
+                "https://c.tenor.com/dDmhCv5dnTMAAAAd/tenor.gif",
+                "https://c.tenor.com/B780LEn87eAAAAAd/tenor.gif",
+                "https://c.tenor.com/bDi6iF-AAuQAAAAd/tenor.gif",
+            ],
+            "spell": [
+                "https://c.tenor.com/-J0kOHQMBcYAAAAd/tenor.gif",
+                "https://c.tenor.com/06Qk37qmP1wAAAAd/tenor.gif",
+                "https://c.tenor.com/1ovlqNMdjsEAAAAd/tenor.gif",
+                "https://c.tenor.com/qjzML-7bLkwAAAAd/tenor.gif",
+                "https://c.tenor.com/u_SvcUXy2NwAAAAd/tenor.gif",
+                "https://c.tenor.com/fHVO05yKkEQAAAAd/tenor.gif",
+                "https://c.tenor.com/KuvSZ1kYPFAAAAAd/tenor.gif",
+                "https://c.tenor.com/TPLVfoIGoEwAAAAd/tenor.gif"
+            ], 
+            "spellFailed": [
+                "https://c.tenor.com/mSqEgKfI3uUAAAAd/tenor.gif",
+                "https://c.tenor.com/VQEadG8MqCMAAAAd/tenor.giff",
+                "https://c.tenor.com/gjBx2zbdJjAAAAAC/tenor.gif",
+                "https://c.tenor.com/W3jM5w2gvfoAAAAd/tenor.gif",
+                "https://c.tenor.com/kEVg4dod34sAAAAd/tenor.gif",
+                "https://c.tenor.com/pQ9jr5TqhUEAAAAd/tenor.gif",
+                "https://c.tenor.com/clPun4-Kdu0AAAAd/tenor.gif",
+            ],
+            "bag": [
+                "https://i.gifer.com/DXw.gif",
+                "https://c.tenor.com/wiEN5dcIkHcAAAAd/tenor.gif",
+                "https://nihonnoichigo.wordpress.com/wp-content/uploads/2017/07/t0qlw.gif",
+                "https://c.tenor.com/vLWDELtNl6wAAAAd/tenor.gif",
+                "https://c.tenor.com/0obmPDN7oeAAAAAd/tenor.gif",
+                "https://c.tenor.com/HI0UBctzeRoAAAAd/tenor.gif",
+                "https://c.tenor.com/E6l7l4t9ut4AAAAd/tenor.gif",
+            ],
+            "surrender": [
+                "https://c.tenor.com/5lvXZOwWSq0AAAAd/tenor.gif"
+            ]
+        }
 
+        if(action === "attack") {
+            const actionAtacar = actionGifs[action]
+            return actionAtacar.url
+        }
+
+        const gif = actionGifs[action]
+        return gif ? gif[Math.floor(Math.random() * gif.length)] : "https://c.tenor.com/4jSSY5iIH-MAAAAC/tenor.gif"
+     }
 }
 
 const duelSystem = new Duels()

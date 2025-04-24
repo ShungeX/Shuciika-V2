@@ -23,6 +23,7 @@ module.exports = async(client, message) => {
     try {
         const invite = await client.fetchInvite(link);
 
+
         const timeLimit = 24 * 60 * 60 * 1000;
 
         const invitacionesReg = await invites.findOne({ _id: invite.guild.id})
@@ -69,13 +70,17 @@ module.exports = async(client, message) => {
             }
         }, { upsert: true})
 
+        const createAt = invite.guild.createdTimestamp < 0 && invite.guild.createdTimestamp === null ? `Fecha desconocida` : `<t:${Math.floor(invite.guild.createdTimestamp / 1000)}:F>`
+        const memberCounts = invite.guild.memberCount ? `${invite.guild.memberCount}` : "Cantidad desconocida"
+
+
         const embed = new EmbedBuilder()
         .setAuthor({name: message.author.displayName, iconURL: message.author.displayAvatarURL()})
         .setTitle(invitacionesReg === null ? "Nueva alianza Registrada ( •̀ ω •́ )✧" : "Alianza actualizada ( •̀ ω •́ )✧")
         .setDescription("Nuestro servidor ha unido fuerzas con:" + `**${invite.guild.name}** `)
         .addFields(
             {name: "Información del servidor", value:
-                `-# Nombre: ${invite.guild.name}\n-# Creado: <t:${invite.guild.createdTimestamp}>\n-# Miembros Aproximados: ${invite.guild.memberCount}\n-# Envia al canal: ${invite.channel.name}`, inline: true},
+                `-# **Nombre:** ${invite.guild.name}\n-# **Creado:** ${createAt} \n-# **Miembros Aproximados:** ${memberCounts}\n-# **Envia al canal:** ${invite.channel.name}`, inline: true},
             {name: "Recompensa", value: "Has conseguido 1 punto de alianza que puedes reclamar por distintas recompensas"}
         )
         .setThumbnail(invite.guild.iconURL())

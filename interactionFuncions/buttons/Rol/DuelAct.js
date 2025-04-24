@@ -27,15 +27,15 @@ module.exports = {
             await duelSystem.selectEmbed(duel, actions)
             return interaction.reply({content: `Has cancelado esta acción`, ephemeral: true})
         }
+        
 
 
-        const result = await duelSystem.processAction(duelId, id, actions)
-        await interaction.reply({content: `${result.message}`, ephemeral: true})
-
-
-        if(!result.gameOver) {
-            if(!result.success) {
+        const act = await duelSystem.processAction(duelId, id, actions)
+        interaction.reply({content: `${act.message}`, flags: ["Ephemeral"]})
+        if(!act.gameOver) {
+            if(!act.success) {
             }else {
+
                 await duelSystem.selectEmbed(duel, actions)
 
                 if(duel.isNPC && duel.turnoActual.ID === duel.personajes[1].ID) {
@@ -44,15 +44,14 @@ module.exports = {
                     if(!results.duel.finalizado) {
                         await duelSystem.selectEmbed(duel, results.action)
                     }else {
-                        endEmbed()
+                       await endEmbed()
                     }
                 }
             }
 
         }else {
-            endEmbed()
+            await endEmbed()
         }
-
 
         async function endEmbed() {
             console.log("Duel Act", duel.ganador.Nombre)
@@ -73,7 +72,7 @@ module.exports = {
                     const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
                     const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
                     endEmbed.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
-                    result.messageId.edit({embeds: [endEmbed]})
+                    act.messageId.edit({embeds: [endEmbed]})
                 }
             }else if(duel.isAFK) {
                 const gifsAFK = [
@@ -101,7 +100,7 @@ module.exports = {
                     const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
                     const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
                     endEmbed.addFields({ name: '¿A esto le llamas acciónes?', value: historialTexto, inline: false });
-                    result.messageId.edit({embeds: [endEmbed]})
+                    act.messageId.edit({embeds: [endEmbed]})
                 }
 
             }else {

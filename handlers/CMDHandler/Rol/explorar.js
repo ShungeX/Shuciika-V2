@@ -126,13 +126,13 @@ module.exports = {
     let characterEnergy = soul.energy
 
     if(!energy) {
-        characterEnergy = await updateEnergy(soul.energy, 30, soul)
+        characterEnergy = await updateEnergy(soul.energy, 60, soul)
     }
 
 
     const embed = new EmbedBuilder()
     .setTitle(`Exploracion en ${region.Nombre}`)
-    .setDescription("*¿Que área vamos a explorar hoy? ( •̀ ω •́ )y*\n\n" + `Energia: ${getEnergy((!energy ? characterEnergy : 30), 30)}` + "\n-# Para seleccionar una área, interactua con el menu de abajo")
+    .setDescription("*¿Que área vamos a explorar hoy? ( •̀ ω •́ )y*\n\n" + `Energia: ${getEnergy((!energy ? characterEnergy : 60), 60)}` + "\n-# Para seleccionar una área, interactua con el menu de abajo")
     .setColor("Purple")
     .setFooter({text: "Tu energia se actualiza antes de iniciar una exploración. 10 min > 1 punto de energia"})
     .setImage("https://c.tenor.com/OJ6jmNtTflcAAAAd/tenor.gif")
@@ -206,7 +206,7 @@ module.exports = {
 
     }
 
-    async function updateEnergy(currentEnergy, maxEnergy = 30, soul) {
+    async function updateEnergy(currentEnergy, maxEnergy = 60, soul) {
         const ahora = Date.now();
         const regeneracionTime = 10 // Esto en minutos
 
