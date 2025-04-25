@@ -90,9 +90,9 @@ module.exports = {
                 `-# Es posible que algunos canales te aparezcan cómo "#Desconocidos" pero si les das click, funcionan. (Problema de discord)`
             )
             .addFields(
-                {name: "Crear ficha", value: "[Creación de personaje](https://discord.com/channels/716342375303217285/1339103959855661096)\n[Personalidades](https://discord.com/channels/716342375303217285/926688416433860638)\n[Foto de perfil para el personaje](https://canary.discord.com/channels/716342375303217285/1330769969428041822)", inline: true},
+                {name: "Crear ficha", value: "[Creación de personaje](https://discord.com/channels/716342375303217285/1339103959855661096)\n[Personalidades](https://discord.com/channels/716342375303217285/1362988047578435605)\n[Foto de perfil para el personaje](https://discord.com/channels/716342375303217285/1330769969428041822)", inline: true},
                 {name: "Lore del servidor", value: "[Lore del servidor](https://discord.com/channels/716342375303217285/1335001008920723598)", inline: true},
-                {name: "Canales sobre anime", value: "[Waifus](https://discord.com/channels/716342375303217285/730548705815560334)\n[Husbandos](https://canary.discord.com/channels/716342375303217285/730548931007873174)\n[Wallpapers anime](https://canary.discord.com/channels/716342375303217285/730549164009848854)"},
+                {name: "Canales sobre anime", value: "[Waifus](https://discord.com/channels/716342375303217285/730548705815560334)\n[Husbandos](https://discord.com/channels/716342375303217285/730548931007873174)\n[Wallpapers anime](https://discord.com/channels/716342375303217285/730549164009848854)"},
                 {name: "Canales sobre videojuegos", value: "<#872622897548648519>\n<#872622362665824346>\n<#872622542106550294>\n<#1331077659194818570>\n<#1064033792584601670>"},
                 {name: "Exploracion", value: "Shuciika tambien se cansa de llevar tantos canales, asi que te invitamos a explorar la gran variedad de canales que tenemos `✨`"}
             )
