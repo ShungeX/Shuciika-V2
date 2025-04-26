@@ -295,8 +295,8 @@ class Duels {
             ...this.player2,
         }
 
-        const mirrorAttack = this.player2.attacks.find(m => m.effects === "mirror")
-
+        const mirrorAttack = this.isNPC ? this.player2.attacks.find(m => m.effects === "mirror") : null
+        
         const duel = {
             id: duelId,
             personajes: [this.player1Rest, this.player2Rest],
