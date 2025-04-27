@@ -4,6 +4,8 @@ const db = clientdb.db("Server_db")
 const userdb = db.collection("usuarios_server")
 const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
+const transaccionCache = require("../../../utils/cache")
+const { v4: uuidv4} = require('uuid')
 
      /**
      * @param {Client} client 
@@ -32,15 +34,16 @@ module.exports =  {
     const userverif = interaction.options.getString("personaje_cache")
     const comentario = interaction.options.getString("comentario")
     const cachepj = await Cachedb.findOne({name: userverif})
-    const rol = interaction.guild.roles.cache.find((r) => r.id === "745503889297637478")
-    const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584"]
+    
+    const transacciónId = uuidv4().replace(/-/g, "")
+    const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584", "922698145404698664"]
     
     
 
     const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
 
     if(!verifRoles) {
-        return interaction.reply({content: "Lo siento, solo el **staff** puede usar este comando (╥﹏╥)", ephemeral: true})
+        return interaction.reply({content: "Lo siento, solo el **staff** y **verificadores de ficha** puede usar este comando (╥﹏╥)", ephemeral: true})
     }
 
     if(!cachepj) {
@@ -54,7 +57,7 @@ module.exports =  {
 
 
     var waiting = cachepj.waiting
-    const apodo = cachepj.apodo??"Sin apodo"
+    const apodo = cachepj.apodo ?? "Sin apodo"
 
 
     if(waiting) {
@@ -65,7 +68,7 @@ module.exports =  {
 
     const button1 = 
         new ButtonBuilder()
-        .setCustomId(`vfpj_false-${interaction.user.id}`)
+        .setCustomId(`vfpj_false-${interaction.user.id}-${transacciónId}`)
         .setStyle(ButtonStyle.Danger)
         .setLabel("Cancelar")
         .setEmoji("🚫")
@@ -74,7 +77,7 @@ module.exports =  {
     const Row = new ActionRowBuilder()
     Row.addComponents([
       new ButtonBuilder()
-      .setCustomId(`vfpj_true-${interaction.user.id}`)
+      .setCustomId(`vfpj_true-${interaction.user.id}-${transacciónId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel("Verificar")
       .setEmoji("✅"),
@@ -93,17 +96,16 @@ module.exports =  {
           )
     .setThumbnail(cachepj.avatarURL)
     .setColor(`Red`)
-    await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row]})
 
-    if(comentario) {
-        Cachedb.updateOne({_id: cachepj._id}, 
-            {$set: {comentario: comentario}}
-        )
+    await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row], withResponse: true})
+
+    const obj = {
+        comentario: comentario,
+        fichaverif: cachepj._id
     }
 
-userdb.updateOne({_id: interaction.user.id}, {
-    $setOnInsert: {_id: interaction.user.id},
-    $set: {fichaverif: cachepj._id}
-}, {upsert: true})
-    }
+    transaccionCache.set(transacciónId, obj)
+
+
+  }
 }

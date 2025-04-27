@@ -8,7 +8,8 @@ const subcommands = {
     foropost: require("../../handlers/CMDHandler/Utilidad/create_post"),
     confesion: require("../../handlers/CMDHandler/Utilidad/Confesion"),
     config_channels: require("../../handlers/CMDHandler/Utilidad/Canales_rol"),
-    simuladores: require("../../handlers/CMDHandler/Utilidad/Simuladores")
+    simuladores: require("../../handlers/CMDHandler/Utilidad/Simuladores"),
+    contenedores: require("../../handlers/CMDHandler/Utilidad/contenedores")
 }
 
 
@@ -52,6 +53,8 @@ module.exports = {
             case "simular_evento":
                 subcommands.simuladores(client, interaction)
                 break;
+            case "contenedores":
+                subcommands.contenedores(client, interaction)
 
         }
 
@@ -271,6 +274,11 @@ module.exports = {
             )
             .setRequired(true)
         )
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("contenedores")
+        .setDescription("Envia los nuevos contenedores de Discord. [Administracion]")
     ),
     
 

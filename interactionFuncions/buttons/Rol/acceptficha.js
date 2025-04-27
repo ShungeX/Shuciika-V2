@@ -8,7 +8,8 @@ const characterPj = db2.collection("Personajes")
 const { DateTime } = require('luxon')
 const timeMXF = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATETIME_HUGE_WITH_SECONDS)
 const timeMXS = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATE_SHORT)
-
+const transaccionCache = require("../../../utils/cache")
+const { v4: uuidv4} = require('uuid')
 
 
 module.exports = {
@@ -19,14 +20,19 @@ module.exports = {
      * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction
      */
-    ejecutar: async(client, interaction) => {
-    const author = await userdb.findOne({_id: interaction.user.id})
-    const cachepj = await Cachedb.findOne({_id: author.fichaverif})
+    ejecutar: async(client, interaction, cache) => {
+    const informacion = transaccionCache.get(cache)
+
+    if(informacion) {
+        return interaction.reply({content: "La interacción ya no es valida, intenta verificar de nuevo al usuario", flags: ["Ephemeral"]})
+    }
+
+    const cachepj = await Cachedb.findOne({_id: informacion.fichaverif})
     const ch = client.channels.cache.get('1137946713827577927')
     const apodo = cachepj.apodo ?? "Sin apodo"
     const user = interaction.guild.members.resolve(cachepj._id)
     const config = await userdb.findOne({_id: user.id})
-    const comentario = cachepj.comentario
+    const comentario = informacion.comentario
     const edadesRol = {
         '12': "737711080763162674",
         '13': "717422342875250789",
@@ -37,8 +43,6 @@ module.exports = {
         '18': "717530295670276126"
 }
     const edad = edadesRol[cachepj.edad]
-    var uniqueID = ""
-    
 
     const msg = await interaction.reply({content: "Espera...  (＿ ＿*) Z z z", fetchReply: true})
 
@@ -48,19 +52,34 @@ module.exports = {
 
 
     async function generateId() {
-        while(true) {
-            uniqueID = Math.floor(Math.random() * 99) + 1;
-            const verify = await characterPj.findOne({ID: uniqueID},
-                {projection: {"Objetos": {$elemMatch: {ID: uniqueID}}}}
-            )
-            
-            if(!verify) break
+        const limite = 100
+        const usados = await characterPj.countDocuments();
+
+        if(usados > limite) {
+            return `Ya no hay espacio para más estudiantes (Limite: ${limite})`
         }
+
+        let uniqueID;
+        let existe;
+        
+        do {
+            uniqueID = Math.floor(Math.random() * 100) + 1;
+            existe = await characterPj.findOne(
+                { ID: uniqueID}, 
+                { projection: { ID: 1 }}
+            )
+        } while (existe);
+
         return uniqueID
     }
 
 
     async function createCharacter() {
+
+        if(isNaN(id)) {
+            return msg.edit({content: id})
+        }
+
         try {
             await characterPj.insertOne({
                 _id: user.id,
@@ -134,7 +153,15 @@ module.exports = {
 
             await Cachedb.deleteOne({_id: user.id})
 
+
             msg.edit({content: "`Se ha verificado correctamente [✅]`"})
+            
+            try {
+                await interaction.deleteReply()
+            } catch (error) {
+                console.log("Error al borrar el mensaje original")
+            }
+
 
 
 
