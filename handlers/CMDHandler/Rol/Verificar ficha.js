@@ -106,7 +106,5 @@ module.exports =  {
     }
 
     transaccionCache.set(transacciónId, obj)
-
-
   }
 }
