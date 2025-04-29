@@ -16,7 +16,7 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction
      */
 
-    ejecutar: async(client, interaction) => {
+    ejecutar: async function(client, interaction) {
         const imgURL = interaction.fields.getTextInputValue("imagenset")
 
         this.procesarFoto(interaction, imgURL)

@@ -23,7 +23,8 @@ module.exports = {
     ejecutar: async(client, interaction, cache) => {
     const informacion = transaccionCache.get(cache)
 
-    if(informacion) {
+
+    if(!informacion) {
         return interaction.reply({content: "La interacción ya no es valida, intenta verificar de nuevo al usuario", flags: ["Ephemeral"]})
     }
 
@@ -154,10 +155,13 @@ module.exports = {
             await Cachedb.deleteOne({_id: user.id})
 
 
-            msg.edit({content: "`Se ha verificado correctamente [✅]`"})
             
             try {
-                await interaction.deleteReply()
+
+                await msg.edit({content: "`Se ha verificado correctamente [✅]`"})
+                const message = informacion.message
+                await message.delete()
+
             } catch (error) {
                 console.log("Error al borrar el mensaje original")
             }
