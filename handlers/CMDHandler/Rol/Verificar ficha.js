@@ -97,14 +97,15 @@ module.exports =  {
     .setThumbnail(cachepj.avatarURL)
     .setColor(`Red`)
 
-    const message = await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row], withResponse: true})
+    await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row], withResponse: true})
 
     const obj = {
         comentario: comentario,
-        fichaverif: cachepj._id,
-        message: message
+        fichaverif: cachepj._id
     }
 
     transaccionCache.set(transacciónId, obj)
+
+
   }
 }

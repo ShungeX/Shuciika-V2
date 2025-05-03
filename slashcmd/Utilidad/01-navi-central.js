@@ -9,7 +9,8 @@ const subcommands = {
     confesion: require("../../handlers/CMDHandler/Utilidad/Confesion"),
     config_channels: require("../../handlers/CMDHandler/Utilidad/Canales_rol"),
     simuladores: require("../../handlers/CMDHandler/Utilidad/Simuladores"),
-    contenedores: require("../../handlers/CMDHandler/Utilidad/contenedores")
+    contenedores: require("../../handlers/CMDHandler/Utilidad/componentesV2"),
+    eventos: require("../../handlers/CMDHandler/Utilidad/eventos"),
 }
 
 
@@ -55,6 +56,10 @@ module.exports = {
                 break;
             case "contenedores":
                 subcommands.contenedores(client, interaction)
+                break;
+            case "ejecutar_evento":
+                subcommands.eventos(client, interaction)
+                break; 
 
         }
 
@@ -277,8 +282,19 @@ module.exports = {
     )
     .addSubcommand(sub => 
         sub
-        .setName("contenedores")
-        .setDescription("Envia los nuevos contenedores de Discord. [Administracion]")
+        .setName("componentesv2")
+        .setDescription("Envia los nuevos componentes de Discord. [Administracion]")
+    )
+    .addSubcommand(sub => 
+        sub
+        .setName("ejecutar_evento")
+        .setDescription("Inicia un evento del servidor. [Administracion]")
+        .addStringOption(options => 
+            options
+            .setName("evento")
+            .setDescription("El evento a simular [ID - Codigo]")
+            .setRequired(true)
+        )
     ),
     
 

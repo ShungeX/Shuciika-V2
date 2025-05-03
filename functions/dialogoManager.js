@@ -27,7 +27,9 @@ class DialogueSystem {
      */
 
 
-    async startDialogue(type, dialogueId, interaction, options = {}) {
+    async startDialogue(type, dialogueId, interaction, member, options = {}) {
+
+        const user = interaction?.user || member
 
         const dialogue = this.dialogues[type].find(d => d.id === dialogueId);
 
@@ -36,22 +38,32 @@ class DialogueSystem {
             return false;
         }
 
-        if(this.activeDialogues.get(interaction.user.id)) return interaction.reply({content: "Ya hay un dialogo activo", flags: ["Ephemeral"]})
+        if(this.activeDialogues.get(user.id)) {
 
-        if(dialogue?.requisitos && !this.checkRequirements(dialogue?.requisitos, interaction.user.id, options)) {
+            if(!interaction) {
+                return {success: false, error: "Ya hay un dialogo activo"}
+            }
+
+            return interaction.reply({content: "Ya hay un dialogo activo", flags: ["Ephemeral"]})
+
+        }
+
+        if(dialogue?.requisitos && !this.checkRequirements(dialogue?.requisitos, user.id, options)) {
             return false;
         }
 
-        this.activeDialogues.set(interaction.user.id, {
+        this.activeDialogues.set(user.id, {
             type,
             dialogueId,
             currentStep: 0,
             messageIds: [],
             context: options.context || {},
-            datems: options.context?.code
+            datems: options.context?.code,
+            savedMessages: {},
+            messageQueue: []
         });
 
-        await this.processNextStep(interaction)
+        await this.processNextStep(interaction, user)
         return true;
     }
 
@@ -59,18 +71,25 @@ class DialogueSystem {
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-    async processNextStep(interaction) {
-        const userData = this.activeDialogues.get(interaction.user.id)
+    async processNextStep(interaction, member) {
+        const user = interaction?.user || member
+
+        const userData = this.activeDialogues.get(user.id)
 
         if(!userData) return false;
+
+        if (userData.skipTimeout) {
+            clearTimeout(userData.skipTimeout);
+            delete userData.skipTimeout;
+        }
 
         const dialogue = this.dialogues[userData.type].find(d => d.id === userData.dialogueId)
         const currentDialogue = dialogue.dialogos[userData.currentStep]
 
         if(!currentDialogue) {
-            this.activeDialogues.delete(interaction.user.id)
+            this.activeDialogues.delete(user.id)
             if(dialogue.onComplete) {
-                this.executeActions(dialogue.onComplete, interaction. userData.context)
+                this.executeActions(dialogue.onComplete, interaction, userData.context, user)
             }
             return true;
         }
@@ -80,17 +99,31 @@ class DialogueSystem {
         }
 
         if(currentDialogue.multipleMessages) {
-            await this.processMultipleMessages(currentDialogue.multipleMessages, interaction, userData)
+            await this.processMultipleMessages(currentDialogue.multipleMessages, interaction, userData, user)
         }else {
-            await this.sendEditMessage(currentDialogue, interaction, userData);   
+            await this.sendEditMessage(currentDialogue, interaction, userData, 0, user);   
         }
 
         if(!currentDialogue.components || currentDialogue.components.length === 0) {
+            console.log(userData.currentStep)
             userData.currentStep++;
-            this.activeDialogues.set(interaction.user.id, userData);
+            this.activeDialogues.set(user.id, userData);
 
             if(currentDialogue.nextStep) userData.currentStep = currentDialogue.nextStep
-            await this.processNextStep(interaction);
+            await this.processNextStep(interaction, user);
+        }else if(currentDialogue.components && currentDialogue.skip) {
+
+            const timeoutId = setTimeout(async () => {
+                console.log("Estoy en el timeout", userData.currentStep)
+                userData.currentStep++;
+                this.activeDialogues.set(user.id, userData);
+    
+                if(currentDialogue.nextStep) userData.currentStep = currentDialogue.nextStep
+                await this.processNextStep(interaction, user);
+            }, currentDialogue.skip)
+
+            userData.skipTimeout = timeoutId;
+            this.activeDialogues.set(user.id, userData);
         }
 
         return true;
@@ -104,9 +137,11 @@ class DialogueSystem {
      * @param {Object} userData - Datos del usuario
      */
 
-    async processMultipleMessages(messages, interaction, userData) {
+    async processMultipleMessages(messages, interaction, userData, member) {
+        const user = interaction || member
+
         const processPromises = messages.map((msg, index) => {
-            return this.sendEditMessage(msg, interaction, userData, index)
+            return this.sendEditMessage(msg, interaction, userData, index, user)
         });
 
         await Promise.all(processPromises);
@@ -120,48 +155,75 @@ class DialogueSystem {
      * @param {number} messageIndex - Índice del mensaje (para múltiples mensajes)
      */
 
-    async sendEditMessage(dialogueData, interaction, userData, messageIndex = 0) {
+    async sendEditMessage(dialogueData, interaction, userData, messageIndex = 0, member) {
+        const user = interaction?.user || member
+        const md = await user.createDM()
+
+        const { savedMessages } = userData
         const messageOptions = this.buildMessageOptions(dialogueData, userData.context);
 
-        let messageId = userData.messageIds[messageIndex];
+        let messageId = dialogueData.save?.code
+        ? savedMessages[dialogueData.save.code] : userData.messageIds[messageIndex]
         let message;
 
         switch (dialogueData.type) {
             case "edit":
                 try {
-                    const md = await interaction.user.createDM()
                     message = await md.messages.fetch(messageId)
                     await message.edit(messageOptions);
                 } catch (error) {
                     console.error(`Error al editar mensaje: ${error}`)
-                    message = await interaction.followUp({ ...messageOptions, fetchReply: true}),
+
+                    if(!interaction) {
+                        return { error: "La interacción ya no es valida 〒▽〒, el dialogo no puede continuar"}
+                    }
+
+                    message = await interaction.followUp({ ...messageOptions, fetchReply: true})
                     userData.messageIds[messageIndex] = message.id;
                     this.activeDialogues.set(interaction.user.id, userData)
                 }
                 break;
                 case "send":
-                        if(interaction.replied || interaction.deferred) {
-                            message = await interaction.followUp({ ...messageOptions, fetchReply: true})
+                        if(interaction) {
+                            if(interaction.replied || interaction.deferred) {
+                                message = await interaction.followUp({ ...messageOptions, fetchReply: true})
+                            }else {
+                                await interaction.deferReply({ ephemeral:dialogueData.ephemeral})
+                                message= await interaction.editReply(messageOptions)
+                            }
                         }else {
-                            await interaction.deferReply({ ephemeral:dialogueData.ephemeral})
-                            message= await interaction.editReply(messageOptions)
+                            message = await md.send({...messageOptions})
+                        }
+
+
+
+                        if(dialogueData.save?.code) {
+                            userData.savedMessages[dialogueData.save.code] = message.id
+                        }else {
+                            userData.messageIds[messageIndex] = message.id;
                         }
                         
                         console.log("Mensaje", message.id)
-                        userData.messageIds[messageIndex] = message.id;
-                        this.activeDialogues.set(interaction.user.id, userData)
+                        this.activeDialogues.set(user.id, userData)
                     break;
                     case "parallel":
 
                         break;
                         case "delete":
                             try {
-                                const md = await interaction.user.createDM()
                                 message = await md.messages.fetch(messageId)
                                 await message.delete(messageOptions);
+                                if(messageId) {
+                                    delete userData.savedMessages[dialogueData.save?.code]
+                                }
+
                             } catch (error) {
                                 console.error(`Error al intentar borrar el mensaje: ${error}`)
-                                await interaction.followUp({content: "-# Se supone que se deberia borrar el mensaje, pero no puedo.\n-# Shh, no le digas a nadie (>ᴗ•)", flags: "Ephemeral"})
+
+                                if(interaction) {
+                                    await interaction.followUp({content: "-# Se supone que se deberia borrar el mensaje, pero no puedo.\n-# Shh, no le digas a nadie (>ᴗ•)", flags: "Ephemeral"})
+                                }
+                               
                             }
 
                             break;
@@ -262,7 +324,7 @@ class DialogueSystem {
                     currentComponents++;
                 } else if (component.type === 'SELECT_MENU') {
                     const selectMenu = new StringSelectMenuBuilder()
-                        .setCustomId(component.customId)
+                        .setCustomId(this.parseText(component.customId, context))
                         .setPlaceholder(this.parseText(component.placeholder, context))
                         .setMinValues(component.minValues || 1)
                         .setMaxValues(component.maxValues || 1);
@@ -421,6 +483,9 @@ class DialogueSystem {
      * @param {string} userId - ID del usuario
      */
     endDialogue(userId) {
+        const data = this.activeDialogues.get(userId);
+        data.savedMessages = {}; 
+        data.messageQueue = [];
         this.activeDialogues.delete(userId);
     }
 

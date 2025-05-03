@@ -37,7 +37,7 @@ module.exports = {
 
 
     console.log(cacheId)
-    return; 
+
 
     if(soul) {
         if(soul?.isFinish) {

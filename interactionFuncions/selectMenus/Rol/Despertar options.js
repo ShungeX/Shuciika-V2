@@ -1,4 +1,4 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client, StringSelectMenuBuilder} = require(`discord.js`)
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client, StringSelectMenuBuilder, InteractionWebhook} = require(`discord.js`)
 const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
@@ -8,6 +8,7 @@ const soul = db2.collection("Soul")
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 const version = require("../../../config")
+const { activeDialogues } = require("../../../functions/dialogoManager")
 const magicSpell = db2.collection("Hechizos_globales")
 
     /**
@@ -25,10 +26,11 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction
      */
 
-    ejecutar: async(client, interaction, character, nan, nan2, nan3, extras) => {
+    ejecutar: async(client, interaction, character, nan2, nan3, extras) => {
         const userf = await Cachedb.findOne({_id: interaction.user.id})
         const souls = await soul.findOne({_id: interaction.user.id})
-        const [pregunta, respuesta] = extras.split("*")
+        console.log(interaction.values)
+        const [pregunta, respuesta] = interaction.values[0].split("*")
 
         console.log(pregunta)
 
@@ -86,11 +88,62 @@ module.exports = {
 
         const md = await interaction.user.createDM()
 
+        const userData = activeDialogues.get(interaction.user.id)
 
-        const message = await md.messages?.cache.get(souls?.messageTemp)
+        if(!userData) return interaction.reply({content: "Esta interacción ya caducó (Evento terminado...)", flags: ["Ephemeral"]})
+        const { savedMessages } = userData
+        console.log(savedMessages)
+        let messageId = savedMessages["npc"] 
+
+        const message = await md.messages?.fetch(messageId)
 
         if(!message) {
-            return interaction.reply({content: "Esta interaccion no esta disponible. Intenta usar nuevamente el comando", ephemeral: true})
+            return interaction.reply({content: "Esta interaccion no esta disponible. Intenta iniciar el evento de nuevo", ephemeral: true})
+        }
+
+
+        
+
+        if(!souls) {
+            await soul.insertOne({
+                _id: interaction.user.id,
+                messageTemp: preguntas.id,
+                ID: character.ID,
+                HP: 100,
+                Mana: 50,
+                nivelMagico: 1,
+                XP: 0,
+                Elemento: "Ninguno",
+                EnergiaAlmica: 0,
+                Corrupcion: 0,
+                Pecado: 0,
+                Virtud: 0,
+                debilidades: {},
+                equipo: [],
+                estadoActual: {},
+                firmamento: {},
+                hechizos: {},   
+                stats: {
+                  hpMax: 100,
+                  manaMax: 50,
+                  fuerza: 1,
+                  resistenciaFisica: 1,
+                  agilidad: 1,
+                  sabiduria: 1,
+                  inteligencia: 1,
+                  resistenciaMagica: 1,
+                  poderElemental: 1,
+                  percepcion: 1,
+                  voluntad: 1,
+                  regeneracion: 1,
+                  paradoja: 0,
+                  destino: 0
+                },
+                transforaciones: {},
+                isFinish: false,
+            })
+        }else if(messageId !== souls.messageTemp) {
+            await soul.updateOne({_id: interaction.user.id}, {$set: {messageTemp: message.id, Valor: 0, Corrupcion: 0, Pecado: 0, isFinish: false}})
         }
 
         await asignarValor()
@@ -696,6 +749,34 @@ module.exports = {
             await sleep(4000)
 
             message.edit({content: "Pero recuerda. ||Te estamos observando||"})
+            await sleep(6000)
+
+            message.edit({content: "El mundo onírico comienza a desvanecerse.", files: ["https://i.pinimg.com/736x/a7/be/a9/a7bea9cfc4822db371e315efe3b0aac2.jpg"]})
+            await sleep(7000)
+
+
+            const embedfirmamento9 = new EmbedBuilder()
+            .setAuthor({name: `${character.Nombre}`, iconURL: character.avatarURL})
+            .setThumbnail("https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp")
+            .setDescription("-# Mientras la oscuridad te envuelve, alcanzas a ver a Astralea, aún congelada en el tiempo. Su figura etérea parece estar fracturándose, pequeñas grietas de luz aparecen en su forma. Una lágrima de luz pura cae de su ojo inmóvil.")
+            .setColor("NotQuiteBlack")
+            message.edit({content: "", embeds: [embedfirmamento9], files: []})
+            await sleep(12000)
+
+            const embedfirmamento10 = new EmbedBuilder()
+            .setAuthor({name: `${character.Nombre}`, iconURL: character.avatarURL})
+            .setDescription("-# Justo antes de despertar, un último susurro de Astralea llega a ti, como un eco distante:")
+            .setColor("NotQuiteBlack")
+            message.edit({content: "", embeds: [embedfirmamento10]})
+            await sleep(7000)
+
+            const embedfirmamento11 = new EmbedBuilder()
+            .setAuthor({name: `Astralea | Guardiana de las estrellas`})
+            .setThumbnail("https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp")
+            .setDescription("No todo está perdido... Búscame en el Santuario de las Estrellas Caídas. Si el firmamento ha sido profanado, solo tú puedes restaurarlo...")
+            .setColor("NotQuiteBlack")
+            message.edit({content: "", embeds: [embedfirmamento11]})
+
 
             let SpellId;
 
@@ -740,7 +821,7 @@ module.exports = {
                 }
             })
 
-            await sleep(6000)
+            await sleep(9000)
 
             const typemagia = souls.Artefacto === true ? "Artefacto" : "Magia Natural"
 
@@ -749,13 +830,13 @@ module.exports = {
 
             const embed = new EmbedBuilder()
             .setTitle("En busca de un lugar en las estrellas")
-            .setDescription("Tu personaje ha despertado su poder y esta listo para enfrentarse al mundo. Lucha y esfuerzate por conseguir un lugar en las estrellas.")
+            .setDescription("Tu personaje se ha despertado y esta listo para enfrentarse al mundo. Lucha y esfuerzate por conseguir un lugar en las estrellas.")
             .addFields(
                 {name: "Tipo de magia", value: `${typemagia}`, inline: true},
                 {name: "Elemento Natural", value: `${soulsactual.Elemento}`, inline: true},
                 {name: "Nivel Magico", value: `${souls.nivelMagico}`, inline: true},
             )
-            .setImage("https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/lastwords2_mppz9u")
+            .setImage("https://i.pinimg.com/736x/82/99/61/829961dfade29dd40544a38ca9e1914b.jpg")
             .setColor("DarkPurple")
             .setFooter({text: "Se ha desbloqueado un nuevo apartado en tu perfil"})
 

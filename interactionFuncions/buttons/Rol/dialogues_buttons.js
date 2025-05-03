@@ -18,8 +18,9 @@ module.exports = {
 
         const dialogue = dialogueSystem.dialogues[userData.type].find(d => d.id === userData.dialogueId)
         const currentDialogue = dialogue.dialogos[userData.currentStep]
-        if(Number(code) !== userData.datems) return interaction.reply({content: "Esta interacción corresponde a un dialogo diferente o antiguo. Ya no se puede responder 〒▽〒", flags: "Ephemeral"})
+        if(code !== userData.datems) return interaction.reply({content: "Esta interacción corresponde a un dialogo diferente o antiguo. Ya no se puede responder 〒▽〒", flags: "Ephemeral"})
         const component = currentDialogue.components[Number(selectValue)]
+
 
         if(type === "i") {
 
@@ -30,6 +31,22 @@ module.exports = {
                 await interaction.deferUpdate();
 
                 await dialogueSystem.processNextStep(interaction)
+        }
+        if(type === "despertar") {
+            if(!component) return interaction.reply({content: "No se pudo seleccionar esta opcion, seguramente se trate de un error 〒▽〒", flags: "Ephemeral"});
+
+            if(userData?.skipTimeout) {
+                console.log("Limpiando...")
+                clearTimeout(userData.skipTimeout);
+                delete userData.skipTimeout;
+                dialogueSystem.activeDialogues.set(interaction.user.id, userData);
+            }
+
+
+            userData.currentStep = component.nextStep
+            dialogueSystem.activeDialogues.set(interaction.user.id, userData);
+            await interaction.deferUpdate();
+            await dialogueSystem.processNextStep(interaction)
         }
     }
 }

@@ -1,7 +1,691 @@
 [
-    {
-      "id": "introduccion",
-      "requisitos": null,
-      "dialogos": []
-    }
+  {
+    "id": "despertar",
+    "requisitos": null,
+    "dialogos": [
+        {
+            "step": 0,
+            "type": "send",
+            "content": "-# **Entras en un sueño profundo,tu cuerpo se relaja y todo el ruido de tu alrededor desaparece...**\n-# *La oscuridad te envuelve suavemente.*",
+            "delay": 0
+        },
+        {
+            "step": 1,
+            "type": "edit",
+            "content": "— No temas pequeño/a. El vacio solo refleja lo que tu corazón ya conoce —",
+            "delay": 12000
+        },
+                    {
+            "step": 2,
+            "type": "edit",
+            "content": "*Ante ti aparece una figura etérea envuelta en un velo luminoso. Sus ojos brillan con la intensidad de estrellas distantes. Es tan hermosa que te cuesta mirarla directamente.*",
+            "delay": 8000
+        },
+        {
+          "step": 3,
+          "type": "edit",
+          "content": "** **",
+          "delay": 9000,
+          "embeds": [
+            {
+              "author": {"name": "¿?"},
+              "description": "He estado esperando a que llegara este momento, **`{character_Nombre}`**.",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "Purple"
+            }
+          ]
+        },
+        {
+          "step": 4,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "description": "Soy **Astralea** una `Guardiana de las estrellas`, forjadora de caminos entre lo efimero y lo eterno. Protectora de aquellos que buscan su luz.",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 5,
+          "type": "edit",
+          "content": "",
+          "delay": 9000,
+          "skip": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "description": "Veo confusión en tus ojos...",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "DarkPurple"
+            }
+          ],
+          "components": [
+            {
+              "type": "BUTTON",
+              "customId": "dialogue_button-{user_id}-despertar-act-0-{code}",
+              "label": "¿Qué es este lugar?",
+              "style": "SECONDARY",
+              "nextStep": 7 
+            },
+            {
+              "type": "BUTTON",
+              "customId": "dialogue_button-{user_id}-despertar-act-1-{code}",
+              "label": "Quedarse en silencio",
+              "style": "SECONDARY",
+              "nextStep": 6
+            }
+          ]
+        },
+        {
+          "step": 6,
+          "type": "edit",
+          "content": "",
+          "delay": 0,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "description": "Tranquilo/a. El silencio también es una respuesta válida.",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "DarkPurple"
+            }
+          ],
+          "components": [],
+          "nextStep": 8
+        },
+        
+        {
+          "step": 7,
+          "type": "edit",
+          "content": "",
+          "delay": 0,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "description": "Todo a su tiempo. Primero debes entender quién eres realmente.",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "DarkPurple"
+            }
+          ],
+          "components": []
+        },
+        {
+          "step": 8,
+          "type": "edit",
+          "content": "",
+          "delay": 9000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "description": "Fui llamada por la **`Tejedora`** para guiarte en tu despertar.",
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 9,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "En tu interior, esa luz que aun no brilla con suficiente intensidad... es tu **alma**",
+              "image": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/soul_kajwym",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 10,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "Alza tu mirada, {character_Nombre}",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 11,
+          "type": "edit",
+          "content": "El espacio a tu alrededor se transforma. Estás flotando entre estrellas brillantes, cada una pulsando con un ritmo único.",
+          "delay": 7000,
+          "files": ["https://i.pinimg.com/736x/eb/e9/73/ebe973a2baecedc528f998125500dc73.jpg"],
+          "embeds": []
+        },
+        {
+          "step": 12,
+          "type": "edit",
+          "content": "** **",
+          "delay": 8000,
+          "files": [],
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "El cielo nocturno que ves, todas las estrellas que están ahi son el reflejo de almas que lograron trascender y quedan en el firmamento como guias para aquellos que buscan luz.",
+              "color": "DarkPurple"
+            }
+          ]
+          
+        },
+        {
+          "step": 13,
+          "type": "edit",
+          "content": "",
+          "delay": 9000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "Alguna vez esas estrellas fueron almas como la tuya. Sus almas brillaron con tal intensidad que se convirtieron en un fragmento del firmamento.",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 14,
+          "type": "edit",
+          "content": "",
+          "delay": 9000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "Sus caminos fueron largos y llenos de desafios. Tejieron su destino con cada elección que tomaron. ",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 15,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "Tu alma ha permanecido dormida por mucho tiempo, pero ahora reclama su lugar entre las estrellas.",
+              "image": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_480,h_480,c_fill/yoursoul_dpr7gt",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 16,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "Cada paso que des en tu viaje te acercará a ese destino. Tu lucha, tus logros y tu esencia se entrelazan para forjar una historia digna de ser recordada en el firmamento.",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 17,
+          "type": "edit",
+          "content": "",
+          "delay": 10000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "El sendero hacia las estrellas es arduo **{character_Nombre}**, pero también es el camino hacia tu verdadera grandeza.",
+              "color": "DarkPurple"
+            }
+          ]
+        },
+        {
+          "step": 18,
+          "type": "edit",
+          "content": "",
+          "delay": 8000,
+          "skip": 6000,
+          "embeds": [
+            {
+              "author": {"name": "Astralea | Guardiana de las estrellas"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+              "description": "{character_Nombre}, ¿Estás preparado/a para comenzar a forjar tu destino y ganarte tu lugar en este firmamento eterno?",
+              "color": "DarkPurple"
+            }
+          ],
+          "components": [
+            {
+              "type": "BUTTON",
+              "customId": "Noresponse",
+              "label": "Estoy preparado",
+              "style": "SECONDARY",
+              "nextStep": 0 
+            },
+            {
+              "type": "BUTTON",
+              "customId": "Noresponser",
+              "label": "Aun no me siento listo",
+              "style": "SECONDARY",
+              "nextStep": 0
+            }
+          ]
+        },
+        {
+          "step": 19,
+          "type": "edit",
+          "content": "*Justo cuando estás a punto de responder, un crujido rompe la armonía del cosmos.*",
+          "delay": 7000,
+          "embeds": [],
+          "components": []
+        },
+        {
+          "step": 20,
+          "type": "edit",
+          "content": "*El entorno se quiebra como un espejo golpeado por un puño invisible. Todo queda suspendido en un instante eterno.*",
+          "files": ["https://res.cloudinary.com/dn1cubayf/image/upload/v1737251238/CalicoDiary_On_Pinterest_ratcfa.jpg"],
+          "delay": 10000,
+          "embeds": [],
+          "components": []
+        },
+        {
+          "step": 21,
+          "type": "edit",
+          "content": "*Astralea está congelada en el acto. su expresión muestra terror y sus labios a medio formar una advertencia que nunca llegará a tus oídos.*",
+          "delay": 7000,
+          "embeds": [],
+          "components": []
+        },
+        {
+          "step": 22,
+          "type": "delete",
+          "content": "",
+          "delay": 7000
+        },
+        {
+          "step": 23,
+          "type": "send",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 2000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "-# la voz distorsiona el espacio, haciendo temblar los fragmentos congelados\n¡Oh, Astralea! Siempre tan delicada con tus palabras...",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 24,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 8000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Dejame mostarle un poco de la realidad de este mundo.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 25,
+          "save": {
+            "code": "system"
+          },
+          "type": "send",
+          "content": "-# *Un filo invisible atraviesa tu pecho... No hay sangre, pero una sensación de vacio y desesperación te invade...*",
+          "files": ["https://res.cloudinary.com/dn1cubayf/image/upload/v1746077363/Rol/Assets/qxgmhlsruhdjdpaeinrs.jpg"],
+          "delay": 5000
+        },
+        {
+          "step": 26,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Las dulces palabras de la guardiana...",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 27,
+          "save": {
+            "code": "system"
+          },
+          "files": [],
+          "type": "edit",
+          "content": "-# **(No puedes moverte)**",
+          "delay": 0
+        },
+        {
+          "step": 28,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "no son más que cantos de cuna para corderos dormidos.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 29,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Ella solo vigila el rebaño... mientras yo devoro a los debiles",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 30,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Pero tu no eres debil, ¿verdad? Tu **alma** tiene algo especial",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 31,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Y almas asi merecen tener más que un lugar en el firmamento.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 32,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Dime, **{character_Nombre}**…",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 33,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "¿Hasta dónde arrastrarías tu orgullo por un fuego que ni siquiera es tuyo?",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 34,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Las estrellas te darán migajas…",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 35,
+          "type": "edit",
+          "content": "",
+          "save": {
+            "code": "npc"
+          },
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Pero yo…",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 36,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 4000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Yo te enseñaré a devorar.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 37,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "¿No es eso más… generoso?",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 38,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Hablo contigo...",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 39,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 2000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Hablo contigo... {user}",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 40,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 3000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "El espejo no miente. La luz te abandonará, el poder te consumirá y serás olvidado",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 41,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 6000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Pero tus pensamientos son un laberinto fascinante.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 42,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 4000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Y tú no vas a ocultarme nada.",
+              "color": "NotQuiteBlack"
+            }
+          ]
+        },
+        {
+          "step": 44,
+          "type": "delete",
+          "save": {
+            "code": "system"
+          },
+          "content": "",
+          "delay": 0
+        },
+        {
+          "step": 43,
+          "type": "edit",
+          "save": {
+            "code": "npc"
+          },
+          "content": "",
+          "delay": 7000,
+          "embeds": [
+            {
+              "author": {"name": "¿Firmamento?"},
+              "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/darkpj_2_uhrvyj",
+              "description": "Un espejo maldito muestra versiones de tu futuro: una donde salvas a todos con Luz, otra donde gobiernas con Oscuridad, y una última donde desapareces. ¿Qué reflejo tocas?",
+              "color": "NotQuiteBlack"
+            }
+          ],
+          "components": [
+            {
+              "type": "SELECT_MENU",
+              "customId": "despertarOptions-{user_id}-{message.id}",
+              "placeholder": "Elige tu respuesta...",
+              "options": [
+                {
+                  "label": "A) El heroe que salva a todos con Luz",
+                  "value": "R1*A"
+                },
+                {
+                  "label": "B) El gobernante que impone su voluntad con Oscuridad",
+                  "value": "R1*B"
+                },
+                {
+                  "label": "C) Rompo el espejo. Mi futuro lo escribo yo",
+                  "value": "R1*C"
+                }
+              ]
+            }
+          ]
+        }
+        
+        ]
+}
   ]

@@ -296,7 +296,7 @@ class Duels {
         }
 
         const mirrorAttack = this.isNPC ? this.player2.attacks.find(m => m.effects === "mirror") : null
-        
+
         const duel = {
             id: duelId,
             personajes: [this.player1Rest, this.player2Rest],
@@ -1751,7 +1751,7 @@ class Duels {
         return actions
     }
 
-    getRandomAttackNPC(attacks) {
+    getRandomAttackNPC(attacks, npc) {
         const totalProbabily = attacks.reduce((sum, attack) => sum + attack.probability, 0)
 
         let randomValue = Math.random() * totalProbabily
@@ -1794,12 +1794,12 @@ class Duels {
                 console.log(next)
                 result = this.realizarAccionNPC(duel, npc, player, next.action, next?.data);
             }else {
-                this.getRandomAttackNPC(normalAttacks)
+                this.getRandomAttackNPC(normalAttacks, npc)
             }
 
         }else if(!npc.specialPhase?.active) {
             console.log("Fase no activa")
-            selectedAttack = this.getRandomAttackNPC(npc.attacks)
+            selectedAttack = this.getRandomAttackNPC(npc.attacks, npc)
         }else {
             selectedAttack = specialAttack
         }
@@ -1812,7 +1812,7 @@ class Duels {
             npc.specialPhase.turns += 1; 
 
             if(npc.specialPhase.turns < specialAttack.phase.preparationTurns) {
-                selectedAttack = this.getRandomAttackNPC(specialAttack.phase.behavior)
+                selectedAttack = this.getRandomAttackNPC(specialAttack.phase.behavior, npc)
                 result = await this.realizarAccionNPC(duel, npc, player, selectedAttack) 
                 duel.historialAcciones.push(`**${npc.Nombre} se preparara para realizar una acción... (${npc.specialPhase.turns}/${specialAttack.phase.preparationTurns})**`)
             }else {

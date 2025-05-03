@@ -1,19 +1,7 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client, StringSelectMenuBuilder, SelectMenuBuilder, StringSelectMenuOptionBuilder} = require(`discord.js`)
-const clientdb = require("../../../Server")
-const db = clientdb.db("Server_db")
-const db2 = clientdb.db("Rol_db")
-const NPCs = db2.collection("NPCs")
-const character = db2.collection("Personajes")
-const souls = db2.collection("Soul")
-const version = require("../../../config")
-const transaccionCache = require("../../../utils/cache")
 const { v4: uuidv4} = require('uuid')
-const { duelSystem } = require("../../../functions/duelManager")
 const util = require(`util`);
-const getGifs = require("../../../functions/getGifs")
-const updateInventario = require("../../../functions/updateInventario")
 const dialogueSystem  = require("../../../functions/dialogoManager")
-const sleep = util.promisify(setTimeout)
 
 module.exports = {
     customId: "selectLobby",
@@ -33,11 +21,11 @@ module.exports = {
                     context: {
                         client_avatar: client.user.avatarURL(),
                         user_id: interaction.user.id,
-                        code: Date.now()
+                        code: uuidv4().replace(/-/g, "")
                     }
 
                 }
-                await dialogueSystem.startDialogue("general", "introduccion", interaction, context)
+                await dialogueSystem.startDialogue("general", "introduccion", interaction, interaction.user, context)
                 break;
                 case "normas":
                     await normas()
