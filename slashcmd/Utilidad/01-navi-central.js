@@ -54,7 +54,7 @@ module.exports = {
             case "simular_evento":
                 subcommands.simuladores(client, interaction)
                 break;
-            case "contenedores":
+            case "componentesv2":
                 subcommands.contenedores(client, interaction)
                 break;
             case "ejecutar_evento":
@@ -288,11 +288,17 @@ module.exports = {
     .addSubcommand(sub => 
         sub
         .setName("ejecutar_evento")
-        .setDescription("Inicia un evento del servidor. [Administracion]")
+        .setDescription("Inicia un evento del servidor. [Administracion.]")
         .addStringOption(options => 
             options
             .setName("evento")
             .setDescription("El evento a simular [ID - Codigo]")
+            .setRequired(true)
+        )
+        .addBooleanOption(options => 
+            options
+            .setName("skip")
+            .setDescription("[Administrador]")
             .setRequired(true)
         )
     ),

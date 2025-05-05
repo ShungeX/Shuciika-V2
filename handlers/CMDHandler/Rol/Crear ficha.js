@@ -1,6 +1,7 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType} = require(`discord.js`)
 const clientdb = require("../../../Server")
 const { Client } = require("discord.js")
+const { formatearTextoLim } = require("../../../interactionFuncions/modals/Rol/Modal crearFicha")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 
@@ -31,8 +32,8 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
 
     if(character) {
         return interaction.reply({content: "¡Ya tienes registrado a un personaje!. ☆⌒(>。<) " + `**(${character.Nombre})**` + "\nUsa `/rol perfil` para verlo \n", ephemeral: true})
-    }else if(cachepj?.isFinish) {
-        return interaction.reply({content: '¡Ya tienes una ficha!. ☆⌒(>。<) \n para poder enviarla solo usa **`' + `/rol enviar-ficha` + '`**', ephemeral: true})
+    }else if(cachepj?.waiting) {
+        return interaction.reply({content: '¡Ya has enviado tu ficha!. ☆⌒(>。<) \n-# Espera a que un administrador la verifique', ephemeral: true})
     }else if(userfind?.messageTemp) {
         const channel = await client.channels.fetch(userfind.channelTemp) || null
         
@@ -56,75 +57,217 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
     }
     
     async function message() {
-        const Row = new ActionRowBuilder()
-        const buttonstatus = userfind?.buttons?.cachepj1 || false
+        const Nombre = cachepj?.nombre || "**Tu nombre estara aqui**"
+        const Apodo = cachepj?.apodo || "Sin apodo"
+        const foto = cachepj?.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/v1/Resources/unknowncharacter"
+        const camposRequeridos = ["nombre", "edad", "sexo", "cumpleaños", "ciudadOrg", "personalidad"];
+        const validSend = camposRequeridos.every(campo => cachepj?.[campo])
 
-        const home = new ButtonBuilder()
-        .setCustomId(`pjmodal1-${interaction.user.id}`)
-        .setStyle(ButtonStyle.Primary)
-        .setLabel("Iniciar")
-        .setEmoji("<:1_:804234149967167498>")
-        .setDisabled(buttonstatus)
-
-        Row.addComponents(home)
-
-        if(userfind) {
-            
-            const continues = new ButtonBuilder()
-            .setCustomId(`pjmodal2-${interaction.user.id}`)
-            .setStyle(ButtonStyle.Secondary)
-            .setLabel("Continuar")
-            .setEmoji("\<:2_:804234147907371008> ")
-            .setDisabled(userfind?.buttons?.cachepj2 || false)
-          const mopts =  new ButtonBuilder()
-            .setCustomId(`pjmodalextra-${interaction.user.id}`)
-            .setStyle(ButtonStyle.Secondary)
-            .setLabel("Más opciones")
-            .setEmoji("<a:catwhat:1084972549496131644>")
-            .setDisabled(userfind?.buttons?.cachepj3 || false)
-           const end = new ButtonBuilder()
-            .setCustomId(`pjFinish-${interaction.user.id}`)
-            .setStyle(ButtonStyle.Success)
-            .setLabel("Terminar")
-            .setEmoji("<:TSH_KkannaTomamidinero:798393303170154496>")
-            .setDisabled(false)
-            Row.addComponents(continues, mopts, end)
-        }
-
-        const embed = new EmbedBuilder()
-        .setTitle("Guia de creacion de personaje")
-        .setDescription("`🔮` "+`*Bienvenido nuevo aprendiz. Estas a punto de crear tu **ficha de personaje.*** \n\n*Para comenzar tu viaje, presiona el boton **Iniciar***.`)
-        .addFields([ {
-            name: "Obligatorio", value: "Debes enviar minimo los dos primeros formularios para poder enviar tu ficha:  **`Iniciar`** y **`Continuar`**"
-        }, {
-            name: "Problemas", value: "Si tienes problemas para enviar tus formularios, envia un mensaje al privado de <@!665421882694041630>"
-        }, {
-            name: "Foto de perfil", value: "Para colocar una foto de perfil a tu ficha, REVISA EL FORO: [Foto de perfil de personaje](https://canary.discord.com/channels/716342375303217285/1330769969428041822)."
-        }, {
-            name: "Dudas", value: "Cualquier duda crea una publicacion en <#1064054917662265404> con tu duda"
-        }, {
-            name: "Importante", value: "Recuerda revisa las guias de creacion de ficha antes de comenzar: [Creación de personaje](https://canary.discord.com/channels/716342375303217285/1339103959855661096).\n\n" + 
-            '-# Es posible que algunos canales te aparezcan como `#Desconocida`, presiona el canal y funcionara de manera normal (Esto es problema de discord)\n\n' + 
-            '-# Puedes cerrar los formularios si necesitas verificar algo, la informacion se guarda automaticamente (por bastante rato)'
-        }
+        const previewCharacter = [
+            {
+                "type": 10,
+                "content": `${interaction.user}`
+            },
+            {
+                "type": 17,
+                "accent_color": 8211391,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": `${foto}`
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": `# ${Nombre} *[${Apodo}]*`
+                            },
+                            {
+                                "type": 10,
+                                "content": cachepj?.historia ? "-# `Historia:`\n\n"+ `${formatearTextoLim(cachepj?.historia, 270)}` : 
+                                 "-# `Historia:`\n-# *in rol / no establecida*"
+                            }
+                        ]
+                            
+                    },
+                    {
+                      "type": 9,
+                      "accessory": {
+                          "type": 2,
+                          "style": 2,
+                          "label": "Establecer foto",
+                          "emoji": null,
+                          "disabled": false,
+                          "custom_id": `crear_ficha-${interaction.user.id}-foto`
+                      },
+                      "components": [
+                          {
+                              "type": 10,
+                              "content": "** **"
+                          },
+                      ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": "# Información: \n-# `🎎` **Sexo:** " + `${cachepj?.sexo || "** **"}` +
+                        "\n-# `🍭` **Edad:** " + `${cachepj?.edad  || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños  || "** **"}`+ "\n-# `🛫` **C/Org:** " 
+                         + `${cachepj?.ciudadOrg  || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia  || "** **"}` + 
+                         "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad  || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad  || "** **"}`
+                    },
+                    {
+                        "type": 10,
+                        "content": "-# `Más opciones se irán agregando en un futuro`"
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 3,
+                                "custom_id": `crear_ficha-${interaction.user.id}`,
+                                "options": [
+                                    {
+                                        "label": "» Nombre .ᐟ.ᐟ",
+                                        "value": `nombre`,
+                                        "description": "El nombre de tu personaje",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Apodo (opcional) .ᐟ.ᐟ",
+                                        "value": `apodo`,
+                                        "description": "El apodo de tu personaje",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Sexo .ᐟ.ᐟ",
+                                        "value": `sexo`,
+                                        "description": "El sexo de tu personaje",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Edad .ᐟ.ᐟ",
+                                        "value": `edad`,
+                                        "description": "La edad de tu personaje",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Cumpleaños .ᐟ.ᐟ",
+                                        "value": `cumpleaños`,
+                                        "description": "Día de cumpleaños (DD/MM)",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Ciudad de origen .ᐟ.ᐟ",
+                                        "value": `ciudadorg`,
+                                        "description": "Ciudad en la que nació",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Linaje Familiar (opcional) .ᐟ.ᐟ",
+                                        "value": `apellido`,
+                                        "description": "Apellido ",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Personalidad .ᐟ.ᐟ",
+                                        "value": `personalidad`,
+                                        "description": "Estructura MBTI",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Especialidades (opcional).ᐟ.ᐟ",
+                                        "value": `especialidades`,
+                                        "description": "Actividades en las que es bueno",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "» Establecer historia",
+                                        "value": `historia`,
+                                        "description": "El transfondo del personaje",
+                                        "emoji": null,
+                                        "default": false
+                                    }
+                                ],
+                                "placeholder": "Personaliza tu personaje",
+                                "min_values": 1,
+                                "max_values": 1,
+                                "disabled": false
+                            }
+                        ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 3,
+                                "label": "Guía / Tutorial",
+                                "emoji": null,
+                                "disabled": false,
+                                "custom_id": `crear_ficha-${interaction.user.id}-guia`
+                            },
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": "Da tu opinión",
+                                "emoji": null,
+                                "disabled": false,
+                                "custom_id": `crear_ficha-${interaction.user.id}-opinion`
+                            },
+                            {
+                              "type": 2,
+                              "style": 1,
+                              "label": "Enviar ficha",
+                              "emoji": null,
+                              "disabled": !validSend,
+                              "custom_id": `crear_ficha-${interaction.user.id}-enviar_Ficha`
+                          }
+                        ]
+                    }
+                ]
+            }
+        ]
     
-    ])
-        .setColor("Random")
-    
 
     
-        const msg = await interaction.reply({content: `${interaction.user}`,embeds: [embed], components: [Row], fetchReply: true})
+        const msg = await interaction.reply({components: previewCharacter, flags: ["IsComponentsV2"], withResponse: true})
     
+
     
           await userdb.updateOne({_id: interaction.user.id}, 
             {
                 $set: {
-                    created: Date.now(), buttons: {
-                    cachepj1: userfind?.buttons?.cachepj1 || false,
-                    cachepj2: userfind?.buttons?.cachepj2 || false,
-                    cachepj3: userfind?.buttons?.cachepj3 || false,
-                },
-                messageTemp: msg.id, 
+                created: Date.now(),
+                messageTemp: msg.resource.message.id, 
                 channelTemp: interaction.channelId
             }
             },

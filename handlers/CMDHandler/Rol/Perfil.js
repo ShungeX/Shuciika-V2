@@ -31,52 +31,42 @@ module.exports = {
             var user = interaction.options.getUser("usuario") 
             var estado = ""
 
-
-
-
-
             if(Idfind || user) {
             const personaje = await characters.findOne({$or: [
-        {ID: Idfind},
-        {_id: user?.id},
+            {ID: Idfind},
+            {_id: user?.id},
             ]})
-
-
 
             if(!personaje) {
             return interaction.reply({content: "El usuario que mencionaste no tiene un personaje registrado (╥﹏╥)\n-# ¿O quizás fue la ID?", ephemeral: true})
-        
-             }
+            }
+
             user = interaction.guild.members.resolve(personaje._id)
             perfil(personaje)
             }else if(cachepj) {
-        if(cachepj.waiting) {
+            if(cachepj?.waiting) {
             estado = "En espera"
-        }else {
+            }else {
             estado = "No enviada"
-        }
+            }
 
-        if(!cachepj.isFinish) {
-            return interaction.reply({content: "Aun no puedes usar este comando. Debes terminar los dos formularios de tu ficha ＞﹏＜ ", ephemeral: true})
-        }
-        
         const noverif = new EmbedBuilder()
         .setAuthor({name: interaction.member.displayName, iconURL: interaction.user.displayAvatarURL({dynamic: true})})
-        .setTitle(`${cachepj.name} ${cachepj?.apodo ? `[${cachepj.apodo}]` : ''}`)
+        .setTitle(`${cachepj?.nombre} ${cachepj?.apodo ? `[${cachepj?.apodo}]` : ''}`)
         .setDescription(cachepj.historia ? cachepj.historia: "Sin Historia (¿In rol?)")
         .addFields(
-          {name: "Informacion", value: "`📑` **Apodo: ** " + cachepj.apodo + "\n`🎎` **Sexo: **" + cachepj.sexo + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true},
-          {name: "Extra", value: "`🎂` **Cumple **" + cachepj.cumpleaños + "\n`👑` **Linaje Familiar **" + cachepj.familia + "\n`❔`** Estado:** " + estado, inline: true},
-          {name: "🎭 Personalidad", value: cachepj.personalidad, inline: false},
-          {name: "🎮 Especialidad", value: cachepj.especialidad, inline: false}
+          {name: "Informacion", value: "`📑` **Apodo: ** " + cachepj?.apodo + "\n`🎎` **Sexo: **" + cachepj?.sexo + "\n`🍭` **Edad: **" + cachepj?.edad + "\n`🛫` **C/Org: **" + cachepj?.ciudadOrg, inline: true},
+          {name: "Extra", value: "`🎂` **Cumple **" + cachepj?.cumpleaños + "\n`👑` **Linaje Familiar **" + cachepj?.familia + "\n`❔`** Estado:** " + estado, inline: true},
+          {name: "🎭 Personalidad", value: cachepj?.personalidad, inline: false},
+          {name: "🎮 Especialidad", value: cachepj?.especialidad, inline: false}
         )
         .setThumbnail(`${cachepj.avatarURL ? cachepj.avatarURL: "https://cdn.discordapp.com/attachments/665423320765693982/905282026133938206/unknown.png"}`)
         .setColor(`Red`)
-        return interaction.reply({content: '**Vista previa de tu personaje.** Para enviar tu ficha debes usar el comando: `' + `/rol enviar_ficha` + "`", embeds: [noverif]})
+        return interaction.reply({content: '**Vista previa de tu personaje.**\n-# esto significa que aun no ha sido verificada. espera pacientemente  	(∪｡∪)｡｡｡zzZ', embeds: [noverif]})
             }else {
         if(!character) {
             interaction.reply({content: `No tienes un **personaje** o **ficha** para usar esto. ╮(￣～￣)╭ \n
-                Puedes usar el comando **/Rol crear_ficha para crear una ficha
+                Puedes usar el comando **/rol crear_ficha para crear una ficha**
                 \nTambien puedes mencionar a un usuario o buscar su **ID** de personaje (⌒‿⌒)`})
             return;
         }

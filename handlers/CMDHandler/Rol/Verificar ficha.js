@@ -33,7 +33,7 @@ module.exports =  {
     ejecutar: async(client, interaction) => {
     const userverif = interaction.options.getString("personaje_cache")
     const comentario = interaction.options.getString("comentario")
-    const cachepj = await Cachedb.findOne({name: userverif})
+    const cachepj = await Cachedb.findOne({_id: userverif})
     
     const transacciónId = uuidv4().replace(/-/g, "")
     const roles = ["810198633705766962","745503889297637478","716851609509953560","734142447256469584", "922698145404698664"]
@@ -43,28 +43,20 @@ module.exports =  {
     const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
 
     if(!verifRoles) {
-        return interaction.reply({content: "Lo siento, solo el **staff** y **verificadores de ficha** puede usar este comando (╥﹏╥)", ephemeral: true})
+        return interaction.reply({content: "Lo siento, solo el **staff** y **verificadores de ficha** puede usar este comando (╥﹏╥)", flags: ["Ephemeral"]})
     }
 
     if(!cachepj) {
-        return interaction.reply({content: "El usuario mencionado no tiene un personaje registrado. ＞﹏＜"})
+        return interaction.reply({content: "El usuario mencionado no tiene un personaje registrado. ＞﹏＜", flags: ["Ephemeral"]})
     }
-    const isFinish = cachepj?.isFinish || false
+    const waiting = cachepj?.waiting
 
-    if(!isFinish) {
-        return interaction.reply({content: "El usuario aun no termina su ficha. Debes esperar a que minimo el usuario complete las dos partes obligatorias antes de verificar ( •̀ ω •́ )✧", ephemeral: true})
+    if(!waiting) {
+        return interaction.reply({content: "El usuario aun no termina su ficha. debes ser paciente y esperar a que el usuario envie su ficha ( •̀ ω •́ )✧", ephemeral: true})
     }
 
+    const apodo = cachepj?.apodo || "Sin apodo"
 
-    var waiting = cachepj.waiting
-    const apodo = cachepj.apodo ?? "Sin apodo"
-
-
-    if(waiting) {
-        waiting = "En espera"
-    }else {
-        waiting = "No enviada"
-    }
 
     const button1 = 
         new ButtonBuilder()
@@ -85,7 +77,7 @@ module.exports =  {
     ])
     const embed = new EmbedBuilder()
     .setAuthor({name: interaction.user.username, iconURL: interaction.user.displayAvatarURL({dynamic: true})})
-    .setTitle(cachepj.name)
+    .setTitle(cachepj.nombre)
     .setDescription(cachepj?.historia ? cachepj.historia: "Sin Historia (¿In rol?)")
     .addFields(
             {name: `Informacion`, value: "`📑` **Apodo: ** " + apodo + "\n`🎎` **Sexo: **" + cachepj.sexo + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true },
@@ -97,9 +89,10 @@ module.exports =  {
     .setThumbnail(cachepj.avatarURL)
     .setColor(`Red`)
 
-    await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row], withResponse: true})
+    const messages = await interaction.reply({content: '**[Vista previa del personaje]** ¿Este esta es la ficha a verificar?', embeds: [embed], components: [Row], withResponse: true})
 
     const obj = {
+        message: messages.id,
         comentario: comentario,
         fichaverif: cachepj._id
     }

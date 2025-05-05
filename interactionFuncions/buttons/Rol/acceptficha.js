@@ -9,7 +9,8 @@ const { DateTime } = require('luxon')
 const timeMXF = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATETIME_HUGE_WITH_SECONDS)
 const timeMXS = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATE_SHORT)
 const transaccionCache = require("../../../utils/cache")
-const { v4: uuidv4} = require('uuid')
+const { v4: uuidv4} = require('uuid');
+const { procesarFoto } = require("./ActualizarFoto");
 
 
 module.exports = {
@@ -30,18 +31,20 @@ module.exports = {
 
     const cachepj = await Cachedb.findOne({_id: informacion.fichaverif})
     const ch = client.channels.cache.get('1137946713827577927')
-    const apodo = cachepj.apodo ?? "Sin apodo"
     const user = interaction.guild.members.resolve(cachepj._id)
     const config = await userdb.findOne({_id: user.id})
     const comentario = informacion.comentario
     const edadesRol = {
-        '12': "737711080763162674",
         '13': "717422342875250789",
         '14': "717530248400338944",
         '15': "717530295670276126",
         '16': "717530295670276126",
         '17': "717530295670276126",
-        '18': "717530295670276126"
+        '18': "717530295670276126",
+        '19': "717530295670276126",
+        '20': "717530295670276126",
+        '21': "717530295670276126",
+        '22': "717530295670276126",
 }
     const edad = edadesRol[cachepj.edad]
 
@@ -82,33 +85,37 @@ module.exports = {
         }
 
         try {
+
             await characterPj.insertOne({
                 _id: user.id,
                 ID: id,
-                Nombre: cachepj.name,
-                Apodo: apodo,
+                Nombre: cachepj.nombre,
+                Apodo: defaultIfEmpty(cachepj?.apodo, ""),
                 Sexo: cachepj.sexo,
                 Reputacion: 0,
                 Edad: cachepj.edad,
                 Cumpleaños: cachepj.cumpleaños,
                 CiudadOrg: cachepj.ciudadOrg,
                 Personalidad: cachepj.personalidad,
-                Especialidad: cachepj.especialidad,
+                Especialidad: defaultIfEmpty(cachepj?.especialidad, "Sin especialidades"),
                 Descripcion: null,
-                Historia: cachepj.historia ? cachepj.historia: "In rol",
-                Familia: cachepj.familia || "No especificado",
+                Historia: defaultIfEmpty(cachepj?.historia, "In rol"),
+                Familia: defaultIfEmpty(cachepj?.familia, "No especificado"),
                 Compañero: "Sin compañero",
                 Team: "Sin team",
                 Mascotas: "Sin mascota",
                 FechaF: timeMXF,
                 FechaS: timeMXS, 
-                avatarURL: cachepj.avatarURL,
+                avatarURL: cachepj?.avatarURL,
                 Rol: "Alumno / a",
                 Dinero: 0,
                 Stats: {},
                 DesmpAcademico: {},
-                Inventario: []
+                Inventario: [],
+                Medallas: []
             })
+
+            procesarFoto(interaction, cachepj.avatarURL, true)
 
             edadAsignada()
 
@@ -142,14 +149,13 @@ module.exports = {
 
             await ch.send({content: "`Personaje de: `" + `${user}` + "\n `Verificado por:` " + `${interaction.user}`, embeds: [embed]})
 
-            if(config.statusMd) {
+            try {
                 await user.send({embeds: [verificado]})
-
                 if(comentario) {
                     await user.send({content: `${interaction.user} Ha dejado un comentario sobre tu ficha.ヾ(•ω•)o\n` + "`" + `${comentario}` + "`"})
                 }
-            }else if(!config.statusMd) {
-               await createChannel(verificado)
+            } catch (error) {
+                await createChannel(verificado)
             }
 
             await Cachedb.deleteOne({_id: user.id})
@@ -157,10 +163,11 @@ module.exports = {
 
             
             try {
-
                 await msg.edit({content: "`Se ha verificado correctamente [✅]`"})
-                const message = informacion.message
+                const message = await interaction.channel.messages.fetch(informacion.message)
                 await message.delete()
+
+
 
             } catch (error) {
                 console.log("Error al borrar el mensaje original")
@@ -223,6 +230,12 @@ module.exports = {
     
           })
     }
+
+    function defaultIfEmpty(str, defaultVal) {
+        return (typeof str === "string" && str.trim().length > 0)
+          ? str
+          : defaultVal;
+      }
 }
 }
 

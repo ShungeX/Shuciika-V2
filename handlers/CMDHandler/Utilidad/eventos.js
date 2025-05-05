@@ -14,11 +14,12 @@ const eventosManager = require("../../../functions/eventosManager")
 
 module.exports = async(client, interaction) => {
     const eventName = interaction.options.getString("evento")
+    const eventOptions = interaction.options.getBoolean("skip")
     
     
     switch (eventName) {
         case "despertar":
-            await DespertarEvent()
+            await DespertarEvent(eventOptions)
             break;
     
         default:
@@ -26,7 +27,30 @@ module.exports = async(client, interaction) => {
     }
 
 
-    async function DespertarEvent() {
+    async function DespertarEvent(skip) {
+        if(skip) {
+            const channel2 = await client.channels.fetch("1368712502585852044")
+
+            const embed2 = new EmbedBuilder()
+            .setTitle("Evento de despertar")
+            .setDescription("*Entre el caos y el desorden se encuentran unos cristales muy hermosos en el suelo*\n-# Estos parecen reflejar varias versiones de ti mismo/a")
+            .setImage("https://i.pinimg.com/736x/9a/43/b9/9a43b9fc7b64090fd21cea0f618182b0.jpg")
+            .setFooter({text: "Evento permanente"})
+            .setColor("Purple")
+
+            const buttons = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                .setCustomId(`events_registers-null-despertar_TOB01-startDialogue`)
+                .setEmoji("<a:ExclamationMarkBubble:1355437226447732746>")
+                .setLabel("Tocar los cristales")
+                .setStyle(ButtonStyle.Primary)
+    
+            )
+
+           return await channel2.send({embeds: [embed2], components: [buttons]})
+            
+        }
+
         const channel = client.channels.cache.get("1319810691099656224")
         const messageStaff = await interaction.deferReply({withResponse: true})
 

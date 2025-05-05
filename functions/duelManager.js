@@ -1408,7 +1408,7 @@ class Duels {
                 fuerteContra: ["Rakau", "Aqua"],
                 debilContra: ["Wind", "Lapis"]
             },
-            Krýo: {
+            Kryo: {
                 fuerteContra: ["Aqua", "Wind"],
                 debilContra: ["Pyró", "Lapis"]
             },
@@ -1434,6 +1434,8 @@ class Duels {
     
                 for (const target of targetDamage) {
                     const efecto = efectividadElemental[spell.Elemento];
+
+                    console.log(efecto)
             
                     if(efecto.fuerteContra.includes(target.Elemento)) {
                         multipElement = 1.3 // 30% de daño adicional

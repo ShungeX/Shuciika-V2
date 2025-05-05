@@ -60,13 +60,13 @@ module.exports = async (client, interaction) => {
         const characters = await Cachedb.find().toArray()
 
         const filtro = characters
-        .filter(ch => ch.name.toLowerCase().startsWith(focusedOptions.value.toLowerCase()))
+        .filter(ch => ch.nombre.toLowerCase().startsWith(focusedOptions.value.toLowerCase()))
         .slice(0, 25)
         
         await interaction.respond(
             filtro.map(personaje => ({
-                name: personaje.name,
-                value: personaje.name
+                name: personaje.nombre,
+                value: personaje._id
             }))
         )
         }
