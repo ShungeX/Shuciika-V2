@@ -1,0 +1,571 @@
+{
+  "_id": "DRACB01",
+  "Fam_id": "DRAC01",
+  "Tipo": "Draco",
+  "Subtipo": "Bibliotecario",
+  "Rareza": "Arcano",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": "REC_LIBROS_1",
+      "Nombre": "Ojo de Bibliotecario",
+      "Tipo": "Pasiva",
+      "Descripcion": "Aumenta en un 5% la probabilidad de encontrar páginas raras al explorar.",
+      "NivelDesbloqueo": 5
+    }
+  ],
+  "Descripcion": "Se alimenta del conocimiento de libros no leídos y puede ayudar a encontrar información. Su aliento huele a papel viejo.",
+  "Alimentacion": {
+    "Base": [
+      "TOB-01173"
+    ],
+    "Preferido": {
+      "ID": "TOB-01524",
+      "Bonus": 0.5,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [
+      "GRIMC01"
+    ],
+    "Enemistades": [
+      "ALEBJ02"
+    ],
+    "Familiares": [
+      "DRAC01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "DRACN01",
+  "Fam_id": "DRAC01",
+  "Tipo": "Draco",
+  "Subtipo": "Neón",
+  "Rareza": "Etéreo",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": "ELECT_EXCESO_1",
+      "Nombre": "Sobrecarga",
+      "Tipo": "Activa",
+      "Descripcion": "Inhabilita dispositivos electronicos durante 3 turnos, puede provocar reacciones adversas si hay usuarios de la misma sinergia elemental",
+      "NivelDesbloqueo": 5
+    }
+  ],
+  "Descripcion": "Sus escamas brillan con los colores de las luces de la ciudad y se siente atraído por la electricidad. Puede causar pequeñas sobrecargas en aparatos.",
+  "Alimentacion": {
+    "Base": [],
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [
+      "GOLMP01"
+    ],
+    "Familiares": [
+      "DRAC01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "DRACG01",
+  "Fam_id": "DRAC01",
+  "Tipo": "Draco",
+  "Subtipo": "Gema",
+  "Rareza": "Arcano",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Un draco pequeño y lento cuyas escamas son cristales en bruto. Es muy codiciado por su belleza.",
+  "Alimentacion": {
+    "Base": [
+      "TOB-01849"
+    ],
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [
+      "GOLMP01"
+    ],
+    "Familiares": [
+      "DRAC01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "GOLMC01",
+  "Fam_id": "GOLM01",
+  "Tipo": "Golem",
+  "Subtipo": "Chatarrero",
+  "Rareza": "Terrenal",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Creado a partir de piezas de tecnología viejaPuede que intente 'reparar' objetos... a su manera.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "GOLM01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "GOLMP01",
+  "Fam_id": "GOLM01",
+  "Tipo": "Golem",
+  "Subtipo": "Pixel",
+  "Rareza": "Singular",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Una criatura digital que puede manifestarse fuera de las pantallas por cortos periodos. Se comunica con emoticonos flotantes.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "GOLM01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "KITSI01",
+  "Fam_id": "KITS01",
+  "Tipo": "Kistune",
+  "Subtipo": "Ilusorio",
+  "Rareza": "Etéreo",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Capaz de crear pequeños espejismos inofensivos, como hacer que un libro parezca una caja de pizza.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "KITS01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "KITSB01",
+  "Fam_id": "KITS01",
+  "Tipo": "Kistune",
+  "Subtipo": "Bayas",
+  "Rareza": "Singular",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Un comelon y fan de todo tipo de bayas, incluso de aquellas que son incomibles para los humanos",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "KITS01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "ALEBJ02",
+  "Fam_id": "ALEB01",
+  "Tipo": "Alebrije Miniatura",
+  "Subtipo": "Jaguar-Monarca",
+  "Rareza": "Legendario",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Un cuerpo de jaguar con alas de mariposa monarca. Es ágil y sigiloso.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "ALEB01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "SLIMC02",
+  "Fam_id": "SLIM01",
+  "Tipo": "Slime",
+  "Subtipo": "Comun",
+  "Rareza": "Terrenal",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Un ser gelatinoso",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "SLIM01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "GRIFT01",
+  "Fam_id": "GRIF01",
+  "Tipo": "Grifo",
+  "Subtipo": "Tormentoso",
+  "Rareza": "Arcano",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Sus plumas crepitan con estática antes de una tormenta de nieve.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "GRIF01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "_id": "KITSU01",
+  "Fam_id": "KITS01",
+  "Tipo": "Kistune",
+  "Subtipo": "Urbano",
+  "Rareza": "Terrenal",
+  "Origen": [
+    "Tobeya"
+  ],
+  "Habilidades": [
+    {
+      "ID_Habilidad": null,
+      "Nombre": "",
+      "Tipo": "",
+      "Descripcion": "",
+      "NivelDesbloqueo": null
+    }
+  ],
+  "Descripcion": "Se camufla perfectamente en entornos de ciudad y es un experto en encontrar atajos.",
+  "Alimentacion": {
+    "Base": null,
+    "Preferido": {
+      "ID": null,
+      "Bonus": null,
+      "Forzado": false,
+      "EfectoExtra": null
+    }
+  },
+  "Social": {
+    "Amistades": [],
+    "Enemistades": [],
+    "Familiares": [
+      "KITS01"
+    ]
+  },
+  "PersonalidadExc": [],
+  "Extra": []
+},
+{
+  "missionId": "recolectar_lumens_50",
+  "type": "diaria",
+  "nombre": "Recolecta lumens",
+  "descripcion": "Recolecta 50 lumens explorando o trabajando",
+  "categoria": "recoleccion",
+  "dificultad": "baja",
+  "requisitos": {
+    "nivelMinimo": 1,
+    "sendero": "cualquiera",
+    "arquetipo": "cualquiera"
+  },
+  "objetivo": {
+    "tipo": "contador",
+    "meta": 50,
+    "campoVinculado": "Dinero"
+  },
+  "recompensa": {
+    "xp": 20,
+    "dinero": 25,
+    "objetos": [
+      {
+        "IDAutocomplete": "TOB-01871",
+        "cantidad": 1
+      }
+    ]
+  },
+  "pool": "general_principiante", // Pool de asignación para filtrar (ej: "combate_avanzado")
+  "imagen": "https://i.pinimg.com/736x/12/ba/24/12ba242a16472166ec0719550602ad50.jpg" // URL para el embed de Discord
+}
+
+{
+  "missionId": "recolectar_marcapaginasviejo_15",
+  "type": "diaria",
+  "nombre": "Recolecta Marca-páginas Desgastado",
+  "descripcion": "Recolecta 15 Marca-páginas Desgastado al explorar la biblioteca",
+  "categoria": "recoleccion",
+  "dificultad": "intermedio",
+  "requisitos": {
+    "nivelMinimo": 1,
+    "sendero": "cualquiera",
+    "arquetipo": "cualquiera"
+  },
+  "objetivo": {
+    "tipo": "contador",
+    "meta": 15,
+    "campoVinculado": "item_TOB-01173"
+  },
+  "recompensa": {
+    "xp": 50,
+    "dinero": 50,
+    "objetos": []
+  },
+  "pool": "general_principiante", // Pool de asignación para filtrar (ej: "combate_avanzado")
+  "imagen": "https://i.pinimg.com/736x/6d/10/03/6d10036443cdc2ef926fe158dce76f36.jpg" // URL para el embed de Discord
+}
+
+{
+  "missionId": "derrota_npc_004_1",
+  "type": "diaria",
+  "nombre": "Derrota reflector abisal",
+  "descripcion": "Derrota a un reflector abisal durante tu exploración en el instituto",
+  "categoria": "batalla",
+  "dificultad": "intermedio",
+  "requisitos": {
+    "nivelMinimo": 1,
+    "sendero": "cualquiera",
+    "arquetipo": "cualquiera"
+  },
+  "objetivo": {
+    "tipo": "contador",
+    "meta": 1,
+    "campoVinculado": "npcDefeated_NPC-004"
+  },
+  "recompensa": {
+    "xp": 30,
+    "dinero": 25,
+    "objetos": []
+  },
+  "pool": "general_principiante",
+  "imagen": "https://i.pinimg.com/736x/22/9b/6d/229b6d3e3d0927cbf9b1a58398a8b60a.jpg"
+}
+
+
+{
+  "missionId": "derrota_NPC_003_3",
+  "type": "diaria",
+  "nombre": "Derrota libros vivientes",
+  "descripcion": "Derrota a 3 libros vivientes durante tu exploración en el instituto",
+  "categoria": "batalla",
+  "dificultad": "bajo",
+  "requisitos": {
+    "nivelMinimo": 1,
+    "sendero": "cualquiera",
+    "arquetipo": "cualquiera"
+  },
+  "objetivo": {
+    "tipo": "contador",
+    "meta": 1,
+    "campoVinculado": "npcDefeated_NPC-003"
+  },
+  "recompensa": {
+    "xp": 25,
+    "dinero": 15,
+    "objetos": []
+  },
+  "pool": "general_principiante",
+  "imagen": "https://i.pinimg.com/736x/b4/5a/bc/b45abc1ea0d81c0341d95c8437bd053d.jpg"
+}
+
+
+{
+  "missionId": "derrota_NPC_006_100",
+  "type": "diaria",
+  "nombre": "Derrota campeones fantasmales",
+  "descripcion": "Derrota a 100 campeones fantasmales durante tu exploración en el instituto",
+  "categoria": "batalla",
+  "dificultad": "extremo",
+  "requisitos": {
+    "nivelMinimo": 1,
+    "sendero": "cualquiera",
+    "arquetipo": "cualquiera"
+  },
+  "objetivo": {
+    "tipo": "contador",
+    "meta": 1,
+    "campoVinculado": "npcDefeated_NPC-006"
+  },
+  "recompensa": {
+    "xp": 1000,
+    "dinero": 1000,
+    "objetos": [
+      {
+        "IDAutocomplete": "TOB-01336",
+        "cantidad": 3
+      }
+    ]
+  },
+  "pool": "general_principiante",
+  "imagen": "https://i.pinimg.com/736x/78/0b/07/780b075ee9b1fa34951a7caba43e157f.jpg"
+}

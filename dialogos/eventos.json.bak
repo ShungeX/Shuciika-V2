@@ -1,0 +1,1425 @@
+[
+  {
+    "id": "despertar",
+    "requisitos": null,
+    "dialogos": [
+      {
+        "step": 0,
+        "action": {
+          "type": "send",
+          "guardar": "vacio"
+        },
+        "content": "-# ** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n** **\n",
+        "delay": 0
+      },
+      {
+        "step": 1,
+        "action": {
+          "type": "send",
+          "guardar": "main"
+        },
+        "content": "-# **Entras en un sueño profundo,tu cuerpo se relaja y todo el ruido de tu alrededor desaparece...**\n-# *La oscuridad te envuelve suavemente.*",
+        "delay": 0
+      },
+      {
+        "step": 2,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "-# *Tu alma resuena más allá de lo que tus ojos pueden ver*",
+        "delay": 12000,
+        "nextStep": 40
+      },
+      {
+        "step": 3,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Al abrir tus ojos... notas una hermosa realidad.*",
+        "delay": 6000
+      },
+      {
+        "step": 4,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Ante ti, un hermoso jardín, perfectamente cuidado y ordenado, aunque... todo se siente antinatural; Los árboles crecen sin hojas y las flores solo son de un color brillante. Todo lo demas esta rodeado de oscuridad.",
+        "files": [
+          "https://i.pinimg.com/originals/61/77/15/61771528347afd26037a1b321bf22bb7.gif"
+        ],
+        "delay": 4000
+      },
+      {
+        "step": 5,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "En el cielo no hay sol, solo una luz brillante que ilumina lo poco que ves. Y más alla del jardín, todo esta rodeado de muros altos. ",
+        "files": [
+          "https://files.catbox.moe/d295gl.gif"
+        ],
+        "delay": 11000
+      },
+      {
+        "step": 6,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Sin embargo, *Una tenue y dulce voz te habla*",
+        "files": [],
+        "delay": 8000
+      },
+      {
+        "step": 7,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "delay": 6000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Aunque extraño… sigue siendo hermoso. ¿No lo crees?",
+            "color": "Purple"
+          }
+        ]
+      },
+      {
+        "step": 8,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "",
+        "delay": 7000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Tranquilo. Estoy aquí para orientarte",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 9,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "",
+        "delay": 7000,
+        "skip": 18000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "¿Quieres empezar a caminar?",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "BUTTON",
+            "customId": "dialogue_button-{user_id}-despertar-act-0-{code}",
+            "label": "Si, vamos a caminar",
+            "style": "SECONDARY",
+            "nextStep": 13
+          },
+          {
+            "type": "BUTTON",
+            "customId": "dialogue_button-{user_id}-despertar-act-1-{code}",
+            "label": "Aun no, quiero seguir contemplándolo",
+            "style": "SECONDARY",
+            "nextStep": 10
+          }
+        ]
+      },
+      {
+        "step": 10,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "",
+        "delay": 0,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Esta bien, obsérvalo un rato mas, no hay prisa.",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": []
+      },
+      {
+        "step": 11,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Mientras contemplas más a detalle el entorno, todo parece ser igual, sin embargo... sientes que algo ha cambiado en ti*",
+        "delay": 8000,
+        "embeds": []
+      },
+      {
+        "step": 12,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "delay": 8000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Ahora si, vamos, hay que caminar.",
+            "color": "DarkPurple"
+          }
+        ],
+        "nextStep": 14
+      },
+      {
+        "step": 13,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "",
+        "delay": 0,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Esa es la respuesta que esperaba, vamos. Exploremos este hermoso lugar.",
+            "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": []
+      },
+      {
+        "step": 14,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Mientras caminas, te das cuenta que la luz del cielo te acompaña.",
+        "delay": 8000,
+        "embeds": []
+      },
+      {
+        "step": 15,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Su resplandor te permite ver más allá, revelando detalles antes invisibles.",
+        "delay": 8000,
+        "embeds": []
+      },
+      {
+        "step": 16,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Las flores comienzan a cambiar de forma. Y los árboles, antes secos, comienzan a florecer.",
+        "delay": 7000,
+        "files": [
+          "https://i.pinimg.com/736x/eb/e9/73/ebe973a2baecedc528f998125500dc73.jpg"
+        ],
+        "embeds": []
+      },
+      {
+        "step": 17,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Ante ti, aparecen dos senderos:",
+        "delay": 8000,
+        "files": [],
+        "embeds": [
+          {
+            "author": {
+              "name": "Tu"
+            },
+            "fields": [
+              {
+                "name": "Sendero derecho",
+                "value": "El de la **derecha** está pavimentado, perfectamente liso, y brillantemente iluminado. Conduce directo hacia un hermoso campo de flores blancas."
+              },
+              {
+                "name": "Sendero izquierdo",
+                "value": "El de la **izquierda** es apenas visible. La hierba alta cubre el camino y oculta lo que hay más allá."
+              }
+            ],
+            "color": "#49374D"
+          }
+        ]
+      },
+      {
+        "step": 18,
+        "action": {
+          "type": "send",
+          "guardar": "armonia"
+        },
+        "content": "",
+        "delay": 15000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "description": "Observa. El camino está perfectamente trazado ante ti. Cada paso en él te acerca a tu verdadero potencial. Es el único camino seguro.",
+            "color": "#28B5A1"
+          }
+        ]
+      },
+      {
+        "step": 19,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "Antes de que puedas tomar una decisión, una voz más aguda resuena cerca de tu nuca.",
+        "delay": 10000,
+        "embeds": []
+      },
+      {
+        "step": 20,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 8000,
+        "embeds": [
+          {
+            "author": {
+              "name": "La voz más aguda"
+            },
+            "description": "...¿Y el otro? ¿A dónde llevara? ¿Qué secretos esconde la sombra de las hiervas? Un camino conocido solo te lleva a un destino conocido...",
+            "color": "#9E1200"
+          }
+        ]
+      },
+      {
+        "step": 21,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "",
+        "delay": 8000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Tu"
+            },
+            "fields": [
+              {
+                "name": "Sendero derecho",
+                "value": "El de la **derecha** está pavimentado, perfectamente liso, y brillantemente iluminado. Conduce directo hacia un hermoso campo de flores blancas."
+              },
+              {
+                "name": "Sendero izquierdo",
+                "value": "El de la **izquierda** es apenas visible. La hierba alta cubre el camino y oculta lo que hay más allá."
+              }
+            ],
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Elige tu respuesta...",
+            "options": [
+              {
+                "label": "A) Seguir el camino de la derecha.",
+                "value": "R1*A*25"
+              },
+              {
+                "label": "B) Seguir el camino de la izquierda.",
+                "value": "R1*B*22"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 22,
+        "action": {
+          "type": "delete",
+          "target": "armonia"
+        },
+        "content": " ** **",
+        "delay": 0,
+        "embeds": []
+      },
+      {
+        "step": 23,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Caminas entre la hierba alta, todo empieza a volverse más oscuro, sientes un ligero dolor, cómo si diminutos insectos te picaran. ",
+        "delay": 0,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 24,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Sin embargo sales de esa hierba alta, para percatarte que llegaste al mismo destino. Un campo circular, donde todas las flores son de un blanco purísimo. Todas, excepto una.",
+        "delay": 10000,
+        "embeds": [],
+        "nextStep": 30
+      },
+      {
+        "step": 25,
+        "action": {
+          "type": "delete",
+          "target": "armonia"
+        },
+        "content": " ** **",
+        "delay": 0,
+        "embeds": []
+      },
+      {
+        "step": 26,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": " En el instante en que tu pie toca el camino pavimentado, el resto del jardín se desvanece en una oscuridad silenciosa. Lo único que existe es el sendero y tú.",
+        "delay": 0,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 27,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "La caminata es serena, sin esfuerzo. Cada paso que das resuena con una nota musical perfecta, y con cada nota, las flores y árboles sin hojas que bordean el camino florecen en una explosión de vida y color.",
+        "delay": 10000,
+        "embeds": []
+      },
+      {
+        "step": 28,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "No sientes cansancio, solo una creciente sensación de paz y certeza.",
+        "delay": 10000,
+        "embeds": []
+      },
+      {
+        "step": 29,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**El camino te conduce suavemente hasta un campo circular, donde todas las flores son de un blanco purísimo. Todas, excepto una.**",
+        "delay": 10000,
+        "embeds": []
+      },
+      {
+        "step": 30,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**En el centro del campo, una única flor de pétalos oscuros y retorcidos desentona con la perfección del resto. Es la única mancha en un lienzo puro.**",
+        "files": [
+          "https://i.pinimg.com/1200x/9f/5f/66/9f5f66008f36d72bd263eca89f3c0cea.jpg"
+        ],
+        "delay": 10000,
+        "embeds": []
+      },
+      {
+        "step": 31,
+        "action": {
+          "type": "send",
+          "guardar": "armonia"
+        },
+        "content": "",
+        "delay": 9000,
+        "embeds": [
+          {
+            "author": {
+              "name": "¿?"
+            },
+            "thumbnail": "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp",
+            "description": "Observa la belleza del orden. Cada flor, un testimonio de la creación perfecta. Pero esa... esa es una nota equivocada. Una sombra donde debería haber luz. Para que la sinfonía sea perfecta.",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 32,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "(Aún más débil, un pequeño susurro) ¿Silenciada? ¿O simplemente... distinta? ¿Su oscuridad la hace menos digna de existir...?",
+        "files": [
+          "https://i.pinimg.com/1200x/0c/50/e0/0c50e0352fa218b2c779c31016291849.jpg"
+        ],
+        "delay": 10000,
+        "embeds": [],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Elige tu respuesta...",
+            "options": [
+              {
+                "label": "A) Arranca la flor oscura",
+                "value": "R2*A*36"
+              },
+              {
+                "label": "B) Dejala existir",
+                "value": "R2*B*33"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 33,
+        "action": {
+          "type": "delete",
+          "target": "armonia"
+        },
+        "content": " ** **",
+        "delay": 0,
+        "embeds": []
+      },
+      {
+        "step": 34,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**Ignoras a la flor. entiendes que no eres nadie para arrebatarla. **",
+        "delay": 0,
+        "embeds": [],
+        "files": [],
+        "components": []
+      },
+      {
+        "step": 35,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**Aunque un sentimiento de incomodidad y desorden te invade **",
+        "delay": 9000,
+        "embeds": [],
+        "files": [],
+        "nextStep": 40
+      },
+      {
+        "step": 36,
+        "action": {
+          "type": "delete",
+          "target": "armonia"
+        },
+        "content": " ** **",
+        "delay": 0,
+        "embeds": []
+      },
+      {
+        "step": 37,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**Te acercas a la flor. Al tocar los pétalos oscuros, la flor se rompe en fragmentos diminutos que lentamente se desvanece en el viento. **",
+        "delay": 0,
+        "files": [
+          "https://i.pinimg.com/originals/85/93/f1/8593f1ed6c8502a1e743d806873df28b.gif"
+        ],
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 38,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*En el instante en que desaparece, del suelo brota una nueva flor, idéntica a las demás, de un blanco resplandeciente. *",
+        "delay": 10000,
+        "embeds": [],
+        "files": [],
+        "components": []
+      },
+      {
+        "step": 39,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*El circulo es ahora perfecto. Una profunda sensación de satisfacción y propósito te inunda. La armonía ha sido restaurada.*",
+        "delay": 9000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 40,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*El sendero pavimentado vuelve a materializarse frente a ti, guiando hacia tu siguiente camino*",
+        "delay": 9000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 41,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Todo vuelve a ser tranquilo y lleno de armonía.*",
+        "delay": 8000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 42,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "hasta que llegas a un claro, bañado por la luz constante del \"cielo\".",
+        "delay": 9000,
+        "embeds": [],
+        "components": [],
+        "files": [
+          "https://i.pinimg.com/1200x/53/05/99/5305993a27e1265ce1c9e70f1b8612df.jpg"
+        ]
+      },
+      {
+        "step": 43,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Las voces se han calmado. El silencio es absoluto.",
+        "delay": 9000,
+        "embeds": [],
+        "components": [],
+        "files": []
+      },
+      {
+        "step": 44,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "El aire ondula como un reflejo en el agua.",
+        "delay": 7000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 45,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Y de esa ondulación emergen dos figuras que reconoces al instante:",
+        "delay": 7000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 46,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "-# *Eres tú mismo*",
+        "delay": 7000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 47,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "- Tu \"Yo armónico\" esta a la derecha. Su postura es erguida y serena. Irradia una calma inquebrantable, sus ojos reflejan la luz del jardín con una determinación pura.",
+        "delay": 7000,
+        "embeds": [],
+        "components": [],
+        "files": [
+          "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg"
+        ]
+      },
+      {
+        "step": 48,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "- Tu \"Yo del eco\" está a la izquierda. Su postura es más relajada, casi inquieta y vibrante. sus ojos no reflejan la luz del jardín, sino que parecen absorberla, llenos de una pasión rebelde y una curiosidad insaciable.",
+        "delay": 14000,
+        "embeds": [],
+        "components": [],
+        "files": [
+          "https://i.pinimg.com/1200x/26/ef/91/26ef91c65058bcb92b0116d6d3b28700.jpg"
+        ]
+      },
+      {
+        "step": 49,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "-# *Ambos te miran, cómo si fueras una pieza faltante.... Entonces comienza tu interrogatorio.*",
+        "delay": 13000,
+        "embeds": [],
+        "components": [],
+        "files": []
+      },
+      {
+        "step": 50,
+        "action": {
+          "type": "send",
+          "guardar": "armonia"
+        },
+        "content": "** **",
+        "delay": 9000,
+        "skip": 4000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿A qué le temes más?*\n\n¿A perder el control y dañar el orden que te rodea?",
+            "color": "#33EBFF"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "A) Perder el control y dañar el orden que te rodea",
+            "disabled": true,
+            "options": [
+              {
+                "label": "A) Arranca la flor oscura",
+                "value": "R2*A"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 51,
+        "action": {
+          "type": "send",
+          "guardar": "eco"
+        },
+        "content": "Antes de que puedas meditarlo, tu yo del \"eco\" da un paso, interrumpiendo. Su voz es un susurro desafiante.",
+        "delay": 5000,
+        "embeds": [],
+        "components": []
+      },
+      {
+        "step": 52,
+        "action": {
+          "type": "edit",
+          "target": "eco"
+        },
+        "content": "** **",
+        "delay": 9000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz del Eco"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/26/ef/91/26ef91c65058bcb92b0116d6d3b28700.jpg",
+            "description": "¿O a que nunca te dejen elegir? ",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 53,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 6000,
+        "skip": 25000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿A qué le temes más?*\n\n¿A Perder el control y dañar el orden que te rodea?",
+            "color": "#33EBFF"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Es tu momento de tomar una decision...",
+            "disable": false,
+            "options": [
+              {
+                "label": "A) Perder el control y dañar el orden que te rodea",
+                "value": "R2*A*55"
+              },
+              {
+                "label": "B) No ser libre para forjar mi propio camino.",
+                "value": "R2*B*56"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 54,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "*Tu silencio, inquieta a las dos presencias. Ninguna se siente satisfecha*",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "nextStep": 57
+      },
+      {
+        "step": 55,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "*Tras tu elección, tu version de la **armonia** asiente satisfecha, mientras la otra muestra decepción.*",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "nextStep": 57
+      },
+      {
+        "step": 56,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "*Tras tu elección, tu version del **eco** asiente satisfecha, mientras la otra muestra decepción.*",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "nextStep": 57
+      },
+      {
+        "step": 57,
+        "action": {
+          "type": "delete",
+          "target": "eco"
+        },
+        "content": "** **",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "nextStep": 0
+      },
+      {
+        "step": 58,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 9000,
+        "skip": 4000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué es más importante para ti en tu viaje?*\n\n *¿A) Proteger la belleza y la certeza de lo que ya existe?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "A) Proteger la belleza y la certeza de lo que ya existea",
+            "disabled": true,
+            "options": [
+              {
+                "label": "A) Arranca la flor oscura",
+                "value": "R3*A"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 59,
+        "action": {
+          "type": "send",
+          "guardar": "eco"
+        },
+        "content": "** **",
+        "delay": 5000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz del Eco"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/26/ef/91/26ef91c65058bcb92b0116d6d3b28700.jpg",
+            "description": "¿O arriesgarlo todo por un atisbo de lo que podría ser? ",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 60,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 7000,
+        "skip": 30000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué es más importante para ti en tu viaje?*\n\n *¿A) Proteger la belleza y la certeza de lo que ya existe?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Selecciona tu respuesta...",
+            "disabled": false,
+            "options": [
+              {
+                "label": "A) Proteger la belleza y la certeza de lo que ya existe",
+                "value": "R3*A*61"
+              },
+              {
+                "label": "B) Descubrir los secretos que aún nadie conoce.",
+                "value": "R3*B*61"
+              }
+            ]
+          }
+        ],
+        "nextStep": 61
+      },
+      {
+        "step": 61,
+        "action": {
+          "type": "delete",
+          "target": "eco"
+        },
+        "content": "** **",
+        "delay": 0,
+        "embeds": []
+      },
+      {
+        "step": 62,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 0,
+        "skip": 4000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué verdad prefieres?*\n\n *¿A) Una verdad útil que construye mundos y da propósito?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "A) Una verdad útil que construye mundos y da propósito",
+            "disabled": true,
+            "options": [
+              {
+                "label": "A) Arranca la flor oscura",
+                "value": "R3*A"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 63,
+        "action": {
+          "type": "send",
+          "guardar": "eco"
+        },
+        "content": "** **",
+        "delay": 5000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz del Eco"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/26/ef/91/26ef91c65058bcb92b0116d6d3b28700.jpg",
+            "description": "¿O la verdad absoluta, sin importar si lo destruye todo?",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 64,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 7000,
+        "skip": 25000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué verdad prefieres?*\n\n *¿A) Una verdad útil que construye mundos y da propósito?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Selecciona tu respuesta...",
+            "disabled": false,
+            "options": [
+              {
+                "label": "A) Una verdad útil que construye mundos y da propósito",
+                "value": "R4*A*65"
+              },
+              {
+                "label": "B) La verdad cruda, aunque sea dolorosa e incomprensible",
+                "value": "R4*B*65"
+              }
+            ]
+          }
+        ],
+        "nextStep": 65
+      },
+      {
+        "step": 57,
+        "action": {
+          "type": "delete",
+          "target": "eco"
+        },
+        "content": "** **",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "nextStep": 0
+      },
+      {
+        "step": 65,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 0,
+        "skip": 4000,
+        "embeds": [
+          {
+            "author": {
+              "name": "**Voz Armónico**"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué es poder?*\n\n *¿A) Una herramienta para mantener la armonía y proteger a los demás?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "A) Una herramienta para mantener la armonía y proteger a los demás.",
+            "disabled": true,
+            "options": [
+              {
+                "label": "A) Arranca la flor oscura",
+                "value": "R3*A"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 66,
+        "action": {
+          "type": "send",
+          "guardar": "eco"
+        },
+        "content": "** **",
+        "delay": 5000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz del Eco"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/26/ef/91/26ef91c65058bcb92b0116d6d3b28700.jpg",
+            "description": "¿O es el derecho a que tu voluntad se haga realidad?",
+            "color": "DarkPurple"
+          }
+        ]
+      },
+      {
+        "step": 67,
+        "action": {
+          "type": "edit",
+          "target": "armonia"
+        },
+        "content": "** **",
+        "delay": 7000,
+        "skip": 25000,
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz Armónica"
+            },
+            "thumbnail": "https://i.pinimg.com/1200x/73/fa/58/73fa586f45263605b764f1800c5e68c8.jpg",
+            "description": "*¿Qué es poder?*\n\n *¿A) Una herramienta para mantener la armonía y proteger a los demás?*",
+            "color": "DarkPurple"
+          }
+        ],
+        "components": [
+          {
+            "type": "SELECT_MENU",
+            "customId": "despertarOptions-{user_id}-{message.id}",
+            "placeholder": "Selecciona tu respuesta...",
+            "disabled": false,
+            "options": [
+              {
+                "label": "A) Una herramienta para mantener la armonía y proteger a los demás. ",
+                "value": "R5*A*68"
+              },
+              {
+                "label": "B) La capacidad de romper las reglas que te limitan.",
+                "value": "R5*B*68"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": 68,
+        "action": {
+          "type": "delete",
+          "target": "eco"
+        },
+        "delay": 0
+      },
+      {
+        "step": 69,
+        "action": {
+          "type": "delete",
+          "target": "armonia"
+        },
+        "delay": 0
+      },
+      {
+        "step": 70,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Las preguntas terminan, ambos empiezan a discutir. No con palabras, sino con gestos, energía e intensidad.*",
+        "delay": 0,
+        "embeds": [],
+        "components": [],
+        "files": []
+      },
+      {
+        "step": 71,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Uno señala hacia la luz.*",
+        "delay": 8000,
+        "files": [
+          "https://i.pinimg.com/1200x/8e/a6/79/8ea679773c251bca0b09d5a9e63b514d.jpg"
+        ]
+      },
+      {
+        "step": 72,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "*Otro hacia la sombra*",
+        "delay": 8000,
+        "files": [
+          "https://i.pinimg.com/736x/4a/0c/61/4a0c6191733aa95c95851d427f8940a3.jpg"
+        ]
+      },
+      {
+        "step": 73,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "**Pero ambos quieren tener razón...**",
+        "delay": 8000,
+        "files": []
+      },
+      {
+        "step": 74,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "Aunque algo más profundo los detiene, como si una fuerza invisible las *obligara* a sincronizarse.",
+        "files": [
+          "https://i.pinimg.com/736x/e8/7b/00/e87b008ae91eb493babe91088ae469de.jpg"
+        ],
+        "delay": 8000
+      },
+      {
+        "step": 75,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "La línea que los separaba se vuelve borrosa. ya no sabes quién era quién..",
+        "delay": 8000,
+        "files": []
+      },
+      {
+        "step": 76,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "No fuimos creados para estar separados.",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 8000
+      },
+      {
+        "step": 77,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "Solo para recordarte lo que ya eras",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 8000
+      },
+      {
+        "step": 78,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "Pero al final, quien toma las decisiones sobre *el*... **eres tú.**",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 8000
+      },
+      {
+        "step": 79,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "Si, hablamos contigo...",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 8000
+      },
+      {
+        "step": 80,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "Si, hablamos contigo... {user}",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 6000
+      },
+      {
+        "step": 81,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "Nos intriga saber...",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 7000
+      },
+      {
+        "step": 82,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "¿Cuál es tu propósito para este recipiente?",
+            "image": "https://i.pinimg.com/736x/7e/d0/95/7ed095687d01e54e375f407a75a855e0.jpg",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 7000
+      },
+      {
+        "step": 83,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "¿Nos bendecirás con el calor y la luz de un destino glorioso...",
+            "image": "https://i.pinimg.com/736x/70/5e/81/705e815ce3d0ff430c6275b21542de18.jpg",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 7000
+      },
+      {
+        "step": 84,
+        "action": {
+          "type": "edit",
+          "target": "main"
+        },
+        "content": "** **",
+        "embeds": [
+          {
+            "author": {
+              "name": "Voz unificada"
+            },
+            "thumbnail": "https://i.pinimg.com/736x/5e/61/f0/5e61f0ad73abf6c03e7c54c8cc9643f0.jpg",
+            "description": "...O nos enseñarás lo que se esconde en el caos?",
+            "image": "https://i.pinimg.com/736x/63/6b/e9/636be97f65a22d5076e99e115fe86d7a.jpg",
+            "color": "DarkPurple"
+          }
+        ],
+        "delay": 7000
+      }
+    ],
+    "onComplete": {
+      "type": "ejecute",
+      "code": "despertar"
+    }
+  }
+]

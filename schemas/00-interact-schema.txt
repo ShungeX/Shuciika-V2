@@ -1,0 +1,21 @@
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType} = require(`discord.js`)
+const {SlashCommandBuilder} = require("@discordjs/builders")
+
+module.exports = {
+    /**
+     * 
+     * @param {*} client 
+     * @param {ChatInputCommandInteraction} interaction 
+     */
+     
+
+
+    ejecutar: async(client, interaction) => {
+
+    },
+
+    data: new SlashCommandBuilder()
+    .setName()
+    .setDescription(),
+    deleted: false
+}
