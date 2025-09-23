@@ -23,6 +23,7 @@ module.exports = {
 
          if(!getCache) return interaction.reply({content: "Esta interacción ya expiro ＞﹏＜", ephemeral: true});
 
+
          const characterAuthor = getCache.characterAuthor
          const authorSoul = getCache.authorSoul
          const characterRival = getCache.characterRival
@@ -83,14 +84,17 @@ module.exports = {
 
             const gifSelect = gifsObjets[Math.floor(Math.random() * gifsObjets.length)]
 
+            console.log(gifSelect)
+            console.log(getCache.characterRival.avatarURL)
             const embed = new EmbedBuilder()
-            .setTitle(`${getCache.characterRival.Nombre} a aceptado el duelo`)
+            .setTitle(`${getCache.characterRival.perfil.Nombre} a aceptado el duelo`)
             .setDescription("Preparando el duelo...")
-            .setThumbnail(`${getCache.characterRival.avatarURL}`)
+            .setThumbnail(`${getCache.characterRival.perfil.avatarURL}`)
             .setImage(gifSelect)
+
     
-            getCache.Message.edit({components: []})
-               const messagesend = await interaction.reply({content: `<@!${getCache.characterAuthor._id}>`, embeds: [embed], fetchReply: true})
+            await getCache.Message.edit({components: []})
+               const messagesend = await interaction.reply({content: `<@!${getCache.characterAuthor.ownerID}>`, embeds: [embed], fetchReply: true})
 
            transaccionCache.delete(cache)
  
@@ -131,25 +135,17 @@ module.exports = {
 
          }else if(response === "decline") {
             const embed = new EmbedBuilder()
-            .setTitle(`${getCache.characterRival.Nombre} a rechazado el duelo ＞﹏＜`)
+            .setTitle(`${getCache.characterRival.perfil.Nombre} a rechazado el duelo ＞﹏＜`)
             .setDescription("Quizás para la proxima")
-            .setThumbnail(`${getCache.characterRival.avatarURL}`)
+            .setThumbnail(`${getCache.characterRival.perfil.avatarURL}`)
             .setImage("https://c.tenor.com/UDzn7Mcr_gwAAAAC/tenor.gif")
 
-            getCache.Message.edit({components: []})
+
+            await getCache.Message.edit({components: []})
             transaccionCache.delete(cache)
-            return interaction.reply({content: `<@!${getCache.characterAuthor._id}>`, embeds: [embed]})
+            return interaction.reply({content: `<@!${getCache.characterAuthor.ownerID}>`, embeds: [embed]})
             
          }
-
-
-
-         async function charactersinDuel(characterId) {
-
-            return Array.from(duelSystem.activeduels.values()).some(duel => {
-                return duel.personajes.some(p => p.ID === characterId)
-            })
-        }
 
     }
 }

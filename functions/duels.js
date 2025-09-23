@@ -24,13 +24,15 @@ const duelEmitter = new DuelEmitter();
 
 
 class Duelv2 {
-    constructor(player1, player2, channel, duelType, isNPC) {
-        this.id = `${player1.ID}${player2.ID}${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
-        this.personajes = [player1, player2];
-        this.channel = channel; // El mensaje del espectador
+    constructor(equipo1, equipo2, duelType, isNPC, channel, MDChannelsMap = new Map()) {
+        this.id = `duel-${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
+        this.equipo1 = equipo1;
+        this.equipo2 = equipo2;
+        this.espectador = channel // El mensaje del espectador
         this.ronda = 1;
         this.historialAcciones = ["¡Empezó el duelo!"];
         this.finalizado = false;
+        this.MDChannels = MDChannelsMap
 
         this.isNPC = isNPC;
         this.duelType = duelType;
@@ -40,8 +42,17 @@ class Duelv2 {
         this.timeoutId = null;
 
         // Determinar el turno inicial
-        const turnStart = this.selectStart(player1.stats.agilidad, player2.stats.agilidad);
-        this.turnoActual = turnStart ? player1 : player2;
+        this.compasMax = 1000;
+        this.allCombatientes = [...equipo1, ...equipo2]
+        this.allCombatientes.forEach(combatiente => {
+            const agiOtros = this.allCombatientes
+                .filter(c => c._id !== combatiente._id)
+                .map(c => c.stats.agilidad)
+                .reduce((sum, agi) => sum + agi, 0) / (this.allCombatientes.length - 1 || 1); //Agilidad promedio de los demas
+
+            combatiente.compas = this.AgiSelect(combatiente.stats.agilidad, agiOtros)
+        })
+        this.turnoActual = this.determinarTurnoActual();
 
         // Otras propiedades específicas del duelo
         const mirrorAttack = this.isNPC ? this.personajes[1].attacks.find(m => m.effects === "mirror") : null;
@@ -59,19 +70,21 @@ class Duelv2 {
      * @param {Number} agiB - Agilidad del jugador B
      * @returns {Boolean} ¿Inicia jugador A?
      */
-    selectStart(agiA, agiB) {
-        const diff = agiA - agiB
+    agiSelect(agiCombatiente, agiAlls) {
+        const diff = agiCombatiente - agiAlls;
+        const umbralInicio = 7 // Si se supera el umbral entonces el combate inicia por el jugador de mayor agilidad
 
         //Diferencia entre A y B (5 puntos)
-        if (diff >= 7) return true
-        if (diff <= -7) return false
+        if (diff >= umbralInicio) return Math.random() * (this.compasMax * 0.2) + (this.compasMax * 0.8);
+        if (diff <= -umbralInicio) return Math.random() * (this.compasMax * 0.2) + (this.compasMax * 0.0);
 
-        const total = (agiA + agiB) + 1
+        const probabilidadBase = (agiCombatiente / (agiCombatiente + agiAlls)) * 0.5 + 0.25
 
-        const pA = diff === 0 ? 0.5 : agiA / total
-
-        console.log(pA)
-        return Math.random() < pA
+        if (Math.random() < probabilidadBase) {
+            return Math.random() * (this.compasMax * 0.4) + (this.compasMax * 0.5); // Rango medio-alto
+        } else {
+            return Math.random() * (this.compasMax * 0.4) + (this.compasMax * 0.1); // Rango medio-bajo
+        }
 
     }
 
@@ -180,7 +193,32 @@ class Duelv2 {
         }
 
 
-        this.turnoActual = this.personajes.find(p => p.ID !== this.turnoActual.ID)
+        //Si actuó significa que ya uso su turno, se restablece el compás
+        if (this.turnoActual) {
+            this.turnoActual.compas = 0
+        }
+        this.turnoActual = null; // Nadie tiene el turno hasta que se determine el siguiente
+
+        while (!this.turnoActual) {
+        // Cada tick de "tiempo", avanzamos el Compás de todos
+        this.allCombatientes.forEach(c => {
+            if (!c.estaDerrotado() && !c.statusTurn.aturdido) { // Solo si está vivo y no aturdido
+                c.compas += c.effectiveTempo; // Usa el Tempo efectivo
+            }
+        });
+
+        this.turnoActual = this.determinarTurnoActual();
+
+        if (!this.turnoActual && this.allCombatientes.every(c => c.estaDerrotado() || c.statusTurn.aturdido)) {
+             this.verificarFinDeDuelo(); // Todos derrotados o incapaces de actuar
+             return;
+        }
+    }
+
+        this.ronda++;
+        this.emit('nuevoTurno')
+        this.resetTimeOut()
+
 
         const result = await this.applyStatusEffect(this.turnoActual)
         const notTurn = this.personajes.find(p => p.ID !== this.turnoActual.ID)
@@ -205,7 +243,7 @@ class Duelv2 {
 
         this.timeoutId = setTimeout(() => this.handleTimeout(), this.tiempoLimite);
 
-        this.ronda++;
+
         this.tiempoInicio = Date.now()
 
 
@@ -240,7 +278,18 @@ class Duelv2 {
             }
         }
 
-        return {isNextTurn: true }
+        return { isNextTurn: true }
+    }
+
+    async determinarTurnoActual() {
+        const pjconturno = this.allCombatientes
+            .filter(c => !c.estaDerrotado() && !c.statusTurn.aturdido) // Solo vivos y no aturdidos
+            .sort((a, b) => b.compas - a.compas)[0]; // El que tiene más Compás
+        if (pjconturno && pjconturno.compas >= this.compasMax) {
+            return pjconturno;
+        }
+
+        return null;
     }
 
     /**
@@ -387,7 +436,7 @@ class Duelv2 {
      * @param {null} parametros - Sin valor
      * @returns {Object} - success, message
      */
-    async handleAttack(attacker, defender,parametros) {
+    async handleAttack(attacker, defender, parametros) {
         let equipamiento;
 
         const dañoBase = Math.floor(Math.random() * (9 - 4) + 2)
@@ -971,16 +1020,16 @@ class Duelv2 {
                 );
             }
 
-                if (this.mirror.esPosible) {
-                    const dataItem = {
-                        itemID: objetoExist
-                    }
-
-                    this.recordarAccionesJugador(3, dataItem)
+            if (this.mirror.esPosible) {
+                const dataItem = {
+                    itemID: objetoExist
                 }
 
-                this.historialAcciones.push(`${user.Nombre} usó *${objetoExist.Nombre}*. [${effectsAp.join(", ")}]`)
-                return { success: true, message: `Has usado ${objetoExist.Nombre} y obtuviste ${effectsAp.join(", ")}` }
+                this.recordarAccionesJugador(3, dataItem)
+            }
+
+            this.historialAcciones.push(`${user.Nombre} usó *${objetoExist.Nombre}*. [${effectsAp.join(", ")}]`)
+            return { success: true, message: `Has usado ${objetoExist.Nombre} y obtuviste ${effectsAp.join(", ")}` }
 
 
 
@@ -1444,7 +1493,7 @@ class Duelv2 {
      * @param {hechizo} spell - Información del hechizo
      * @param {personaje} caster - ¿Quien castea el hechizo?
      * @returns 
-     */ 
+     */
     async deductSpellCost(spell, caster) {
         const authorDinero = await character.findOne({ ID: caster.ID })
         const cost = spell.Costos;
@@ -1667,238 +1716,8 @@ class Duelv2 {
         return { action: result }
     }
 
-    
-    async messageComponents(player, rival, image = false, isEspectador) {
-        let lastActions;
-        let effectsActivesR;
-        let effectsActivesU;
-
-        if (this.historialAcciones.length > 0) {
-            const ultimasAcciones = this.historialAcciones.slice(-5).reverse();
-            const historialTexto = ultimasAcciones.map(accion => `- -# ${accion}`).join('\n');
-            lastActions = `${historialTexto}`;
-        }
 
 
-        if (isEspectador) {
-            const espectadorJSON = [{
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `# ${this.ronda === 1 ? "¡El duelo ha comenzado!" : "El duelo esta en curso..."} <a:KrisJojos:1350664814414004395>`
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# Es turno de <@!${this.turnoActual.userAuthor}> (${this.turnoActual.Nombre})`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": `${this.personajes[0].avatarURL}`
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# ${this.personajes[0].Nombre} (Lv: ${this.personajes[0].nivelMagico})`
-                            },
-                            {
-                                "type": 10,
-                                "content": "*`HP:`*" + ` ${this.barradeVida(this.personajes[0].HP, this.personajes[0].stats.hpMax)}`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": `${this.personajes[1].avatarURL}`
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# ${this.personajes[1].Nombre} (Lv: ${this.personajes[1].nivelMagico}) ${this.isNPC ? "[NPC]" : ""}`
-                            },
-                            {
-                                "type": 10,
-                                "content": "`HP:`" + ` ${this.barradeVida(this.personajes[1].HP, this.personajes[1].stats.hpMax)}`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Ultimas acciones**\n${lastActions}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 12,
-                        "items": [
-                            {
-                                "media": {
-                                    "url": image
-                                },
-                                "description": null,
-                                "spoiler": false
-                            }
-                        ]
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# ${this.ronda === 1 ? "Es el primer turno" : `Turno: ${this.ronda}`}`
-                    }
-                ]
-            }
-            ]
-
-            return espectadorJSON
-        }
-
-
-        if (player.statusEffect.length > 0) {
-            const efectosActivos = player.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesU = `${efectosActivos}`
-        }
-
-        if (rival.statusEffect.length > 0) {
-            const efectosActivos = rival.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesR = `${efectosActivos}`
-        }
-
-        const isTurn = this.turnoActual.ID === player.ID ? "¡Es tu turno!" : "Esperando la acción del rival..."
-
-        const usersDuel = [
-            {
-                "type": 9,
-                "accessory": {
-                    "type": 11,
-                    "media": {
-                        "url": `${rival.avatarURL}`
-                    },
-                    "description": null,
-                    "spoiler": false
-                },
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `# ${isTurn}`
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Tu rival:** ${rival.Nombre} (Lv: ${rival.nivelMagico}) ${this.isNPC ? "[NPC]" : ""}\n` +
-                            "-# *`HP`*:" + ` ${this.barradeVida(rival.HP, rival.stats.hpMax)}` + "\n-# *`Mana`*:" + ` ${this.barradeMana(rival.Mana, rival.stats.manaMax)}` +
-                            `\n\n-# **Efectos:** ${effectsActivesR ? `\n${effectsActivesR}` : "Sin efectos"}`
-                    }
-                ]
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 9,
-                "accessory": {
-                    "type": 11,
-                    "media": {
-                        "url": `${player.avatarURL}`
-                    },
-                    "description": null,
-                    "spoiler": false
-                },
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `**Tus stats:** ${player.Nombre} (Lv: ${player.nivelMagico})\n` +
-                            "-# *`HP`*:" + ` ${this.barradeVida(player.HP, player.stats.hpMax)}` + "\n-# *`Mana`*:" + ` ${this.barradeMana(player.Mana, player.stats.manaMax)}` +
-                            `\n\n-# **Efectos:** ${effectsActivesU ? `\n${effectsActivesU}` : "Sin efectos"}`
-                    }
-                ]
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 10,
-                "content": `**Ultimas acciones:**\n${lastActions}`
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-        ]
-
-        if (image) {
-            usersDuel.push({
-                "type": 12,
-                "items": [
-                    {
-                        "media": {
-                            "url": ""
-                        },
-                        "description": null,
-                        "spoiler": false
-                    }
-                ]
-            })
-
-        }
-
-
-        usersDuel.push({
-            "type": 10,
-            "content": `-# ${this.ronda === 1 ? "Es el primer turno" : `Turno: ${this.ronda}`}`
-        })
-
-        const contenedorC = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": usersDuel
-            }
-        ]
-
-        if (this.turnoActual.ID === player.ID) {
-            const buttons = this.createActionButtons()
-
-            usersDuel.push(...buttons)
-        }
-
-        return contenedorC
-    }
 
     async endDuel(reason, winner, parametros) {
 
@@ -1982,463 +1801,6 @@ class Duelv2 {
         return null
     }
 
-
-    //Generación de mensajes:
-
-    async selectEmbed(action) {
-
-        const Player1 = duel.personajes[0]
-        const Player2 = duel.personajes[1]
-        const player1Message = await this.messageComponents(Player1, Player2, duel)
-        const player2Message = duel.isNPC ? null : await this.messageComponents(Player2, Player1, duel);
-        const gifAction = await this.actionGifSelect(action)
-
-
-
-        try {
-            //Actualización del mensaje de espectadores
-            const espectadoresMessage = await this.messageComponents(null, null, duel, gifAction, true)
-            duel.channels.edit({ components: espectadoresMessage })
-
-
-            //Si el duelo es NPC solo enviar al jugador principal;)
-            if (duel.isNPC) {
-                Player1.messageOrigin.edit({ components: player1Message })
-            } else {
-                Player1.messageOrigin.edit({ components: player1Message })
-                Player2.messageOrigin.edit({ components: player2Message })
-            }
-
-
-        } catch (e) {
-            console.log(e)
-        }
-    }
-
-    async updateEmbed(currentChar, enemyChar, isActiveTurn, isEnd, isDefeat, extras) {
-
-        let EmbedAuthor;
-
-
-
-        if (isEnd) {
-            if (isDefeat) {
-                EmbedAuthor = new EmbedBuilder()
-                    .setTitle("Tu personaje ha sido derrotado (Game Over)")
-                    .setDescription(`${extras.selectMessage}\n` + "`HP:`" + ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-                    .addFields(
-                        {
-                            name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}` + "\n`Mana:`" +
-                                `${currentChar.Mana}/${currentChar.stats.manaMax}`
-                        }
-                    )
-                    .setThumbnail(enemyChar.avatarURL)
-                    .setImage(extras.selectGif)
-                    .setColor("DarkRed");
-
-            } else {
-                EmbedAuthor = new EmbedBuilder()
-                    .setTitle("¡Felicidades, has ganado! ( •̀ ω •́ )y")
-                    .setDescription(`${extras.selectMessage}\n` + "`HP:`" + ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-                    .addFields(
-                        {
-                            name: "Tus Stats", value: "`HP:` " + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}` + "\n`Mana:`" +
-                                `${currentChar.Mana}/${currentChar.stats.manaMax}`
-                        }
-                    )
-                    .setThumbnail(enemyChar.avatarURL)
-                    .setImage(extras.selectGif)
-                    .setColor("Green");
-            }
-
-        } else {
-            EmbedAuthor = new EmbedBuilder()
-                .setTitle(isActiveTurn ? `¡Es tu turno!` : `Esperando turno...`)
-                .setDescription("`HP:`" + ` ${this.barradeVida(enemyChar.HP, enemyChar.stats.hpMax)} **(Rival)**`)
-                .addFields(
-                    {
-                        name: "Tus Stats", value: "`HP:`" + `${this.barradeVida(currentChar.HP, currentChar.stats.hpMax, true)}` + "\n`Mana:`" +
-                            `${currentChar.Mana}/${currentChar.stats.manaMax}`, inline: true
-                    }
-                )
-                .setThumbnail(enemyChar.avatarURL)
-
-                .setColor(isActiveTurn ? "Green" : "Red");
-
-            if (duel.historialAcciones.length > 0) {
-                const ultimasAcciones = duel.historialAcciones.slice(-3).reverse();
-                const historialTexto = ultimasAcciones.map(accion => `• ${accion}`).join('\n');
-                EmbedAuthor.addFields({ name: 'Últimas acciones', value: historialTexto, inline: false });
-            }
-        }
-
-        return EmbedAuthor
-    }
-
-    createActionButtons() {
-        let attackDisable = false
-        let defendDisable = false
-        let bagDisable = false
-        let spellsDisable = false
-        let surrenderDisable = false
-
-        if (duel.isNPC) {
-            const npc = duel.personajes.find(p => p.imNPC === true)
-            attackDisable = npc.restrictions.Attack === true
-            defendDisable = npc.restrictions.Defend === true
-            bagDisable = npc.restrictions.Bag === true
-            spellsDisable = npc.restrictions.Spells === true
-            surrenderDisable = npc.restrictions.Surrender === true
-        }
-
-        const buttonJSON = [
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 1,
-                "components": [
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Atacar",
-                        "emoji": {
-                            name: "sword",
-                            id: "1370631600454504498"
-                        },
-                        "disabled": attackDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-attack-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Defenderse",
-                        "emoji": {
-                            name: "yellowShield",
-                            id: "1370631300616159233"
-                        },
-                        "disabled": defendDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-defend-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Mochila",
-                        "emoji": {
-                            name: "EmuNui",
-                            id: "1370631281028890727"
-                        },
-                        "disabled": bagDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-bag-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Hechizos",
-                        "emoji": {
-                            name: "SpellBook",
-                            id: "1370631319910092811"
-                        },
-                        "disabled": spellsDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-spells-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 4,
-                        "label": "Rendirse",
-                        "emoji": {
-                            name: "whiteflagpepo",
-                            id: "1370631336536047737",
-                        },
-                        "disabled": surrenderDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-surrender-${duel.id}`
-                    }
-                ]
-            }
-        ]
-
-        return buttonJSON
-    }
-
-    generateDetailedMessage(spell, caster, results) {
-        let message = `**${caster.Nombre}** ha lanzado **[${spell.Nombre}]**`;
-
-        // Parte de daño
-        if (results.damage.length > 0) {
-            message += "\n\n";
-
-            results.damage.forEach((result, index) => {
-                if (index > 0) message += ", ";
-                message += `**${result.target.Nombre}** recibió **${result.amount}** de daño`;
-                if (result.isElemental.message) {
-                    message += ` [${result.isElemental.message}]`;
-                }
-            });
-            message += ".";
-        }
-
-        // Parte de curación
-        if (results.healing.length > 0) {
-            message += "\n\n";
-
-            // Agrupar objetivos de curación
-            const healingTargets = results.healing.map(r => r.target.Nombre);
-            const totalHealing = results.healing.reduce((sum, r) => sum + r.amount, 0);
-
-            if (healingTargets.length === 1) {
-                message += `**${healingTargets[0]}** recuperó **${totalHealing}** HP`;
-            } else {
-                // Si el lanzador está entre los objetivos
-                if (healingTargets.includes(caster.Nombre)) {
-                    const others = healingTargets.filter(name => name !== caster.Nombre);
-
-                    if (others.length === 0) {
-                        message += `**${caster.Nombre}** recuperó **${totalHealing}** HP`;
-                    } else if (others.length === 1) {
-                        message += `**${caster.Nombre}** y **${others[0]}** recuperaron un total de **${totalHealing}** HP`;
-                    } else {
-                        const lastAlly = others.pop();
-                        message += `**${caster.Nombre}**, ${others.join(', ')} y **${lastAlly}** recuperaron un total de **${totalHealing}** HP`;
-                    }
-                } else {
-                    // Si el lanzador no está entre los objetivos
-                    const lastAlly = healingTargets.pop();
-                    message += `${healingTargets.join(', ')} y ${lastAlly} recuperaron un total de ${totalHealing} HP`;
-                }
-            }
-            message += ".";
-        }
-
-        if (results.otherEffects.length > 0) {
-            message += "\n\n";
-
-            const grupo = results.otherEffects.reduce((acc, item) => {
-                const n = item.nombreEfecto;
-
-                if (!acc[n]) acc[n] = { duracion: item.duracion, targets: [] };
-                acc[n].targets.push(item.target.Nombre)
-                return acc
-            }, {});
-
-            Object.entries(grupo).forEach(([efecto, data], i, arr) => {
-                const { duracion, targets } = data;
-
-                const listaNombres = (() => {
-                    if (targets.length === 1) return `**${targets[0]}**`;
-                    if (targets.length === 2) return `**${targets[0]}** y **${targets[1]}**`;
-                    const last = targets.pop()
-                    return `**${targets.join('**, **')}** y **${last}**`;
-                })();
-
-
-                const verbo = targets.length === 1 ? 'esta' : "estan"
-
-                message += `${listaNombres} ${verbo} bajo el efecto de **` + "`" + efecto + "`**" + `durante **${duracion} turno${duracion > 1 ? 's' : ''}**`
-
-                if (i < arr.length - 1) message += ', ';
-                else message += '.'
-            })
-
-        }
-
-        return message;
-    }
-
-    // Función para generar mensaje resumido
-    generateSummaryMessage(spell, caster, results) {
-        let message = `${caster.Nombre} lanzó **[${spell.Nombre}]**`;
-
-        // Resumen de daño
-        if (results.damage.length > 0) {
-            const targets = results.damage.map(r => r.target.Nombre);
-
-            if (targets.length === 2) {
-                message += ` sobre ${targets.join(' y ')}`;
-                message += " y los dañó";
-            } else if (targets.length >= 3) {
-                message += ` sobre ${targets.length} enemigos`;
-                message += " y los dañó";
-            }
-
-            if (targets.length <= 1) {
-                message += ` sobre ${targets}`;
-                message += " y lo dañó";
-            }
-
-
-        }
-
-        // Resumen de curación
-        if (results.healing.length > 0) {
-            const totalHealing = results.healing.reduce((sum, r) => sum + r.amount, 0);
-            const healingTargets = results.healing.map(r => r.target.Nombre);
-
-            if (results.damage.length > 0) {
-                message += ", además ";
-            } else {
-                message += " y ";
-            }
-
-            // Si el lanzador está entre los objetivos de curación
-            if (healingTargets.includes(caster.Nombre)) {
-                const others = healingTargets.filter(name => name !== caster.Nombre);
-
-                if (others.length === 0) {
-                    message += `recuperó ${totalHealing} HP`;
-                } else if (others.length === 1) {
-                    message += `él y ${others[0]} recuperaron ${totalHealing} HP`;
-                } else if (others.length <= 3) {
-                    const lastAlly = others.pop();
-                    message += `él, ${others.join(', ')} y ${lastAlly} recuperaron ${totalHealing} HP`;
-                } else {
-                    message += `él y sus aliados recuperaron ${totalHealing} HP`;
-                }
-            } else {
-                // Si el lanzador no está entre los objetivos
-                if (healingTargets.length === 1) {
-                    message += `${healingTargets[0]} recuperó ${totalHealing} HP`;
-                } else if (healingTargets.length <= 3) {
-                    const lastAlly = healingTargets.pop();
-                    message += `${healingTargets.join(', ')} y ${lastAlly} recuperaron ${totalHealing} HP`;
-                } else {
-                    message += `sus aliados recuperaron ${totalHealing} HP`;
-                }
-            }
-        }
-
-        if (results.otherEffects.length > 0) {
-            const grouped = results.otherEffects.reduce((acc, item) => {
-                const n = item.nombreEfecto;
-                if (!acc[n]) acc[n] = [];
-                acc[n].push(item.target.Nombre);
-                return acc;
-            }, {});
-
-            const parts = Object.entries(grouped).map(([efecto, targets]) => {
-                return `**${efecto}**: ${targets.join(', ')}`;
-            });
-
-            message += ` • Efectos → ${parts.join(' | ')}`;
-        }
-
-        return message;
-    }
-
-    getDialogues(user, npc, event, interaction) {
-        const triggers = npc.triggers || [];
-        const activeTriggers = [];
-
-        for (const trigger of triggers) {
-            let shouldTrigger = false;
-
-            switch (trigger.type) {
-                case "InicioCombate":
-                    shouldTrigger = duel.ronda === 1;
-                    break;
-                case "HpLow":
-                    const currentHpPercent = npc.HP / npc.stats.hpMax;
-                    shouldTrigger = currentHpPercent <= trigger.threshold;
-                    break;
-                case 'statusApplied':
-                    shouldTrigger = npc.statusEffect.some(e => e.type === trigger.statusType);
-                    break;
-                case 'custom':
-                    shouldTrigger = this.evalCustomCondition(trigger.condition, { npc, duel });
-                    break;
-            }
-
-            if (shouldTrigger && (!trigger.lastTriggered || (duel.ronda - trigger.lastTriggered) >= (trigger.cooldownTurns || 1))) {
-                activeTriggers.push(trigger)
-            }
-        }
-
-
-        if (activeTriggers.length > 0) {
-            const context = {
-                npc_name: npc.Nombre,
-                npcAvatar: npc.avatarURL,
-                code: Date.now()
-            }
-
-            const selectedTrigger = activeTriggers[Math.floor(Math.random() * activeTriggers.length)];
-            const message = dialogoManager.buildMessageOptions(selectedTrigger, context)
-
-            try {
-
-                if (interaction) {
-                    interaction.reply({ ...message, flags: ["Ephemeral"] })
-                } else {
-                    user.MDOrigin.send({ ...message }).then(m => setTimeout(() => m.delete(), 10000))
-                }
-
-
-            } catch (error) {
-                console.error(`No se pudo enviar el dialogo al usuario ${error}`)
-                return;
-            }
-
-
-            if (selectedTrigger.oncePerCombat) selectedTrigger.lastTriggered = Infinity;
-            else selectedTrigger.lastTriggered = duel.ronda;
-
-        }
-    }
-
-    async actionGifSelect(action) {
-        const actionGifs = {
-            "attack": await getGifs("punch"),
-            "defend": [
-                "https://c.tenor.com/TeLGX2pYe94AAAAd/tenor.gif",
-                "https://c.tenor.com/qkt_l6DMI6sAAAAd/tenor.gif",
-                "https://c.tenor.com/rkQm2lOfRa0AAAAd/tenor.gif",
-                "https://c.tenor.com/5iJ5pmSxVA4AAAAd/tenor.gif",
-                "https://c.tenor.com/dDmhCv5dnTMAAAAd/tenor.gif",
-                "https://c.tenor.com/B780LEn87eAAAAAd/tenor.gif",
-                "https://c.tenor.com/bDi6iF-AAuQAAAAd/tenor.gif",
-            ],
-            "spell": [
-                "https://c.tenor.com/-J0kOHQMBcYAAAAd/tenor.gif",
-                "https://c.tenor.com/06Qk37qmP1wAAAAd/tenor.gif",
-                "https://c.tenor.com/1ovlqNMdjsEAAAAd/tenor.gif",
-                "https://c.tenor.com/qjzML-7bLkwAAAAd/tenor.gif",
-                "https://c.tenor.com/u_SvcUXy2NwAAAAd/tenor.gif",
-                "https://c.tenor.com/fHVO05yKkEQAAAAd/tenor.gif",
-                "https://c.tenor.com/KuvSZ1kYPFAAAAAd/tenor.gif",
-                "https://c.tenor.com/TPLVfoIGoEwAAAAd/tenor.gif"
-            ],
-            "spellFailed": [
-                "https://c.tenor.com/mSqEgKfI3uUAAAAd/tenor.gif",
-                "https://c.tenor.com/VQEadG8MqCMAAAAd/tenor.giff",
-                "https://c.tenor.com/gjBx2zbdJjAAAAAC/tenor.gif",
-                "https://c.tenor.com/W3jM5w2gvfoAAAAd/tenor.gif",
-                "https://c.tenor.com/kEVg4dod34sAAAAd/tenor.gif",
-                "https://c.tenor.com/pQ9jr5TqhUEAAAAd/tenor.gif",
-                "https://c.tenor.com/clPun4-Kdu0AAAAd/tenor.gif",
-            ],
-            "bag": [
-                "https://i.gifer.com/DXw.gif",
-                "https://c.tenor.com/wiEN5dcIkHcAAAAd/tenor.gif",
-                "https://nihonnoichigo.wordpress.com/wp-content/uploads/2017/07/t0qlw.gif",
-                "https://c.tenor.com/vLWDELtNl6wAAAAd/tenor.gif",
-                "https://c.tenor.com/0obmPDN7oeAAAAAd/tenor.gif",
-                "https://c.tenor.com/HI0UBctzeRoAAAAd/tenor.gif",
-                "https://c.tenor.com/E6l7l4t9ut4AAAAd/tenor.gif",
-            ],
-            "surrender": [
-                "https://c.tenor.com/5lvXZOwWSq0AAAAd/tenor.gif"
-            ]
-        }
-
-        if (action === "attack") {
-            const actionAtacar = actionGifs[action]
-            return actionAtacar.url
-        }
-
-        const gif = actionGifs[action]
-        return gif ? gif[Math.floor(Math.random() * gif.length)] : "https://c.tenor.com/4jSSY5iIH-MAAAAC/tenor.gif"
-    }
 
     deepClone(obj) {
         return JSON.parse(JSON.stringify(obj));

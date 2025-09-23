@@ -116,7 +116,7 @@ module.exports = {
 
         const row = new ActionRowBuilder().addComponents(button, button2)
 
-        const message = await interaction.reply({ content: `${rivalUser}`, embeds: [embed], components: [row], withResponse: true })
+        const message = (await interaction.reply({ content: `${rivalUser}`, embeds: [embed], components: [row], withResponse: true })).resource.message
 
 
 
