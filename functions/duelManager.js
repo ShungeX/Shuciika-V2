@@ -4,6 +4,17 @@ const { Personaje, NPC } = require('./combatientes')
 class duelManager {
     constructor() {
         this.activeDuels = new Map();
+
+        this.colores = {
+            reset: '[0m',
+            bold: '[1m',
+            red: '[2;31m',
+            green: '[2;32m',
+            yellow: '[2;33m',
+            blue: '[2;34m',
+            // ... los colores que Discord soporte
+        };
+        this.ESC = '\u001b';
     }
 
     async createDuel(client, isNPC, duelType, parametros) {
@@ -27,7 +38,7 @@ class duelManager {
         this.activeDuels.delete(duelId);
     }
 
-    async startDuelMessages(duel, player1, player2) {
+    async startDuelMessages(duel, team1, team2) {
         const espectadorJSON = [{
             "type": 17,
             "accent_color": null,
@@ -114,6 +125,18 @@ class duelManager {
             ]
         }
         ]
+
+
+
+        const parsCH = `${Duelv2.BarraDeVida(ch)} | ${ch.Nombre}`
+
+        if (team1.length > 1 || team2.length > 1) {
+
+
+        } else {
+
+        }
+
 
         duel.message = await duel.channel.send({ components: espectadorJSON, flags: ["IsComponentsV2"], withResponse: true })
 
@@ -293,119 +316,108 @@ class duelManager {
         return gif ? gif[Math.floor(Math.random() * gif.length)] : "https://c.tenor.com/4jSSY5iIH-MAAAAC/tenor.gif"
     }
 
-    async messageComponents(duel, player, rival, image = false, isEspectador = false) {
-        let lastActions;
+    async characterComponents(team, small = false) {
+        const teamJSON = []
+
+        if (team.length > 1) teamJSON.push(
+            {
+                "type": 10,
+                "content": "_**Team 1**_"
+            }
+        )
+
+        team.forEach(pj => {
+            if (small) {
+                teamJSON.push(
+                    {
+                        "type": 10,
+                        "content": `${Duelv2.BarraDeVida(pj.HP, pj.stats.hpMax, true)} | ${pj.Nombre}}`
+                    }
+                )
+            } else {
+                teamJSON(
+                    {
+                        "type": 10,
+                        "content": `**${pj.Nombre} (LV: ${pj.nivelMagico})**`
+                    },
+                    {
+                        "type": 10,
+                        "content": `${Duelv2.BarraDeVida(pj.HP, pj.stats.hpMax, false)}`
+                    }
+                )
+            }
+        })
+
+        return teamJSON
+    }
+
+    async messageComponents(duel, team1, team2, image = false, isEspectador = false) {
+        const lastActions = this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
         let effectsActivesR;
         let effectsActivesU;
-
-        if (duel.historialAcciones.length > 0) {
-            const ultimasAcciones = duel.historialAcciones.slice(-5).reverse();
-            const historialTexto = ultimasAcciones.map(accion => `- -# ${accion}`).join('\n');
-            lastActions = `${historialTexto}`;
-        }
+        const imagesTeams = []
 
 
         if (isEspectador) {
-            const espectadorJSON = [{
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `# ${duel.ronda === 1 ? "¡El duelo ha comenzado!" : "El duelo esta en curso..."} <a:KrisJojos:1350664814414004395>`
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# Es turno de <@!${duel.turnoActual.userAuthor}> (${duel.turnoActual.Nombre})`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": `${duel.personajes[0].avatarURL}`
-                            },
-                            "description": null,
-                            "spoiler": false
+            const sup = [
+                {
+                    "type": 17,
+                    "accent_color": null,
+                    "spoiler": false,
+                    "components": [
+                        {
+                            "type": 10,
+                            "content": "# El duelo ha comenzado:\n- *Es el turno de: *"
                         },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# ${duel.personajes[0].Nombre} (Lv: ${duel.personajes[0].nivelMagico})`
-                            },
-                            {
-                                "type": 10,
-                                "content": "*`HP:`*" + ` ${duel.barradeVida(duel.personajes[0].HP, duel.personajes[0].stats.hpMax)}`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": `${duel.personajes[1].avatarURL}`
-                            },
-                            "description": null,
-                            "spoiler": false
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
                         },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# ${duel.personajes[1].Nombre} (Lv: ${duel.personajes[1].nivelMagico}) ${duel.isNPC ? "[NPC]" : ""}`
-                            },
-                            {
-                                "type": 10,
-                                "content": "`HP:`" + ` ${duel.barradeVida(duel.personajes[1].HP, duel.personajes[1].stats.hpMax)}`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Ultimas acciones**\n${lastActions}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 12,
-                        "items": [
-                            {
+                        {
+                            "type": 9,
+                            "accessory": {
+                                "type": 11,
                                 "media": {
-                                    "url": image
+                                    "url": team1.length > 1 ? `${imagesTeams[0]}` : `${team1[0].avatarURL}`
                                 },
                                 "description": null,
                                 "spoiler": false
-                            }
-                        ]
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# ${duel.ronda === 1 ? "Es el primer turno" : `Turno: ${duel.ronda}`}`
-                    }
-                ]
-            }
+                            },
+                            "components": this.characterComponents(team1, team1.length > 1)
+                        },
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
+                        },
+                        {
+                            "type": 9,
+                            "accessory": {
+                                "type": 11,
+                                "media": {
+                                    "url": team2.length > 1 ? `${imagesTeams[1]}` : `${team2[0].avatarURL}`
+                                },
+                                "description": null,
+                                "spoiler": false
+                            },
+                            "components": this.characterComponents(team2, team2.length > 1)
+                        },
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
+                        },
+                        {
+                            "type": 10,
+                            "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
+                        }
+                    ]
+                }
             ]
 
-            return espectadorJSON
+
+            return sup
         }
 
         if (player.statusEffect.length > 0) {
@@ -522,6 +534,42 @@ class duelManager {
         }
 
         return contenedorC
+    }
+
+    colorizeText(text, color) {
+        return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
+    }
+
+    async asciiText(accion) {
+        switch (accion.tipo) {
+            case 'ataque': {
+                const atacante = this.colorize(accion.data.atacante, this.colores.green);
+                const defensor = this.colorize(accion.data.defensor, this.colores.red);
+                const daño = this.colorize(accion.data.daño, this.colores.yellow);
+                return `${atacante} inflige ${daño} de daño a ${defensor}.`;
+            }
+
+            case 'derrota': {
+                const derrotado = this.colorize(accion.data.derrotado, this.colores.bold);
+                const mensaje = this.colorize(accion.data.mensaje, this.colores.red);
+                return `${derrotado} ha sido vencido. ${mensaje}`;
+            }
+
+            case 'hechizo': {
+                const lanzador = this.colorize(accion.data.lanzador, this.colores.green);
+                const hechizo = this.colorize(accion.data.nombreHechizo, this.colores.blue);
+                return `${lanzador} lanza el hechizo ${hechizo}.`;
+            }
+
+            case 'inicioDuelo': {
+                const parte1 = this.colorize('El duelo ha', this.colores.green);
+                const parte2 = this.colorize('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
+                return `${parte1} ${parte2}`;
+            }
+
+            default:
+                return 'Acción desconocida.';
+        }
     }
 }
 
