@@ -1,5 +1,6 @@
 const { Duelv2, duelEmitter } = require('./duels');
 const { Personaje, NPC } = require('./combatientes')
+const crypto = require("crypto")
 
 class duelManager {
     constructor() {
@@ -17,15 +18,29 @@ class duelManager {
         this.ESC = '\u001b';
     }
 
-    async createDuel(client, isNPC, duelType, parametros) {
-        const player1 = new Personaje(parametros.Player);
-        const player2 = isNPC ? new NPC(parametros.Rival) : new Personaje(parametros.Rival);
-        const duelInstance = new Duelv2(player1, player2, parametros.channel, duelType, isNPC);
+    async createDuel(client, isNPC, duelType, team1Data, team2Data, parametros) {
+        const team1Instances = Object.values(team1Data).map(charData => {
+            if (charData.isNPC) {
+                return new NPC(charData);
+            } else {
+                return new Personaje(charData);
+            }
+        });
+
+        const team2Instances = Object.values(team2Data).map(charData => {
+            if (charData.isNPC) {
+                return new NPC(charData);
+            } else {
+                return new Personaje(charData);
+            }
+        });
+
+        const duelInstance = new Duelv2(team1Instances, team2Instances, parametros.channel, duelType, isNPC);
 
 
         console.log(duelInstance.turnoActual.ownerID)
         this.activeDuels.set(duelInstance.id, duelInstance);
-        await this.startDuelMessages(duelInstance, player1, player2)
+        await this.startDuelMessages(duelInstance, team1Instances, team2Instances)
 
         return duelInstance;
     }
@@ -570,6 +585,26 @@ class duelManager {
             default:
                 return 'Acción desconocida.';
         }
+    }
+
+    async createCode(longitud = 6) {
+        const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        const longitudCaracteres = caracteres.length;
+
+        const randomValues = crypto.randomBytes(longitud);
+
+        let resultado = "";
+
+        for (let i = 0; i < longitud; i++) {
+            const indice = randomValues[i] % longitudCaracteres;
+            resultado += caracteres.charAt(indice);
+        }
+
+        return resultado;
+    }
+
+    async createSala(data) {
+
     }
 }
 

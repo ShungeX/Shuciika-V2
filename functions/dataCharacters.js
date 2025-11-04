@@ -4,7 +4,7 @@ const clientdb = require("../Server")
 const db = clientdb.db("Rol_db")
 const personajes = db.collection("Personajes")
 const souls = db.collection("Soul")
-const transaccionCache = require("../utils/cache");
+const cacheGlobal = require("../utils/cache");
 const getXPSoul = require("./getXPSoul.js");
 const levelsEmitter = require("./emitterShuciika.js");
 const { maxEnergy } = require("../config.js");
@@ -682,6 +682,7 @@ module.exports = {
         );
 
         return misionesFinales;
-    }
+    },
+
 
 }

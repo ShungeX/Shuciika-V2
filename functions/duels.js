@@ -24,7 +24,7 @@ const duelEmitter = new DuelEmitter();
 
 
 class Duelv2 {
-    constructor(equipo1, equipo2, duelType, isNPC, channel, MDChannelsMap = new Map()) {
+    constructor(equipo1, equipo2, duelType, channel, MDChannelsMap = new Map()) {
         this.id = `duel-${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
         this.equipo1 = equipo1;
         this.equipo2 = equipo2;
@@ -34,7 +34,6 @@ class Duelv2 {
         this.finalizado = false;
         this.MDChannels = MDChannelsMap
 
-        this.isNPC = isNPC;
         this.duelType = duelType;
 
         this.tiempoInicio = Date.now();
@@ -55,13 +54,29 @@ class Duelv2 {
         this.turnoActual = this.determinarTurnoActual();
 
         // Otras propiedades específicas del duelo
-        const mirrorAttack = this.isNPC ? this.personajes[1].attacks.find(m => m.effects === "mirror") : null;
-        this.mirror = {
-            esPosible: this.isNPC && mirrorAttack,
-            active: false,
-            countdown: 0,
-            recordedActions: []
-        };
+        const mirrorCaster = this.allCombatientes.find(combatiente =>
+            combatiente.isNPC && // 1. ¿Es un NPC?
+            combatiente.attacks && // 2. ¿Tiene la propiedad 'attacks'?
+            combatiente.attacks.find(atk => atk.effects === "mirror") // 3. ¿Tiene el ataque?
+        );
+
+        if (mirrorCaster) {
+            this.mirror = {
+                esPosible: true,
+                active: true, // La habilidad se activa al inicio del combate
+                countdown: 3, // 3 turnos
+                recordedActions: [],
+                casterId: mirrorCaster._id // ¡Importante! Guardamos QUIÉN es el espejo
+            };
+        } else {
+            // Si nadie tiene la habilidad, se desactiva
+            this.mirror = {
+                esPosible: false,
+                active: false,
+                countdown: 0,
+                recordedActions: []
+            };
+        }
     }
 
     /**
@@ -200,20 +215,20 @@ class Duelv2 {
         this.turnoActual = null; // Nadie tiene el turno hasta que se determine el siguiente
 
         while (!this.turnoActual) {
-        // Cada tick de "tiempo", avanzamos el Compás de todos
-        this.allCombatientes.forEach(c => {
-            if (!c.estaDerrotado() && !c.statusTurn.aturdido) { // Solo si está vivo y no aturdido
-                c.compas += c.effectiveTempo; // Usa el Tempo efectivo
+            // Cada tick de "tiempo", avanzamos el Compás de todos
+            this.allCombatientes.forEach(c => {
+                if (!c.estaDerrotado() && !c.statusTurn.aturdido) { // Solo si está vivo y no aturdido
+                    c.compas += c.effectiveTempo; // Usa el Tempo efectivo
+                }
+            });
+
+            this.turnoActual = this.determinarTurnoActual();
+
+            if (!this.turnoActual && this.allCombatientes.every(c => c.estaDerrotado() || c.statusTurn.aturdido)) {
+                this.verificarFinDeDuelo(); // Todos derrotados o incapaces de actuar
+                return;
             }
-        });
-
-        this.turnoActual = this.determinarTurnoActual();
-
-        if (!this.turnoActual && this.allCombatientes.every(c => c.estaDerrotado() || c.statusTurn.aturdido)) {
-             this.verificarFinDeDuelo(); // Todos derrotados o incapaces de actuar
-             return;
         }
-    }
 
         this.ronda++;
         this.emit('nuevoTurno')
