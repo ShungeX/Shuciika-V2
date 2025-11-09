@@ -13,7 +13,6 @@ class duelManager {
 
     async createDuel(duelType, team1Data, team2Data, dmMap) {
         const team1Instances = Object.values(team1Data).map(charData => {
-            console.log(charData)
             if (charData.isNPC) {
                 return new NPC(charData);
             } else {
@@ -32,7 +31,7 @@ class duelManager {
         const duelInstance = await new Duelv2(team1Instances, team2Instances, duelType, dmMap);
 
 
-        console.log(duelInstance.turnoActual.ownerID)
+        console.log("Turno actual:", duelInstance.turnoActual.ownerID)
         this.activeDuels.set(duelInstance.id, duelInstance);
         await this.sendDuelMessages(duelInstance, team1Instances, team2Instances)
 
@@ -52,10 +51,6 @@ class duelManager {
         const espectadorJSON = await interfazCreate.duelBattleMessage(duel, duel.equipo1, duel.equipo2, true)
         const channel = await client.channels.fetch("1345239393786527784")
 
-        console.log(espectadorJSON[0].components)
-        console.log(espectadorJSON[0].components[2])
-        console.log(espectadorJSON[0].components[4])
-
 
         if (!duel.espectador) {
             const message = await channel.send({ components: espectadorJSON, flags: ["IsComponentsV2"] })
@@ -70,10 +65,10 @@ class duelManager {
 
         const dmPromise = humanPlayers.map(async player => {
             try {
-                const mdChannel = duel.MDChannels.get(player.ownerID);
+                const mdChannel = duel.MDChannels.get(player.ownerId);
 
                 if (!mdChannel) {
-                    throw new Error(`Canal MD no encontrado para el jugador ${player.Nombre} con la ID: ${player.ownerID}`)
+                    throw new Error(`Canal MD no encontrado para el jugador ${player.Nombre} con la ID: ${player.ownerId}`)
                 }
 
                 const esDelEquipo1 = duel.equipo1.some(miembro => miembro._id === player._id);

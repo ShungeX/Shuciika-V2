@@ -1,6 +1,8 @@
 class Combatiente {
     constructor(data) {
+        console.log(data.ownerId)
         this.ID = data._id;
+        this.ownerId = data.ownerId;
         this.Nombre = data.perfil.Nombre;
         this.HP = data.nucleo.HP;
         this.Mana = data.nucleo.Mana;

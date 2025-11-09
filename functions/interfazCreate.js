@@ -376,7 +376,7 @@ class InterfazCreate {
     }
 
     async duelBattleMessage(duel, player, rivalTeam, isEspectador = false) {
-        const lastActions = this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
+        const lastActions = await this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
 
         let effectsActivesR;
         let effectsActivesU;
@@ -393,7 +393,7 @@ class InterfazCreate {
                     "components": [
                         {
                             "type": 10,
-                            "content": "# El duelo ha comenzado:\n- *Es el turno de: *"
+                            "content": "# ¡El duelo ha comenzado!:\n- *Es el turno de: " + `<@!${duel.turnoActual.ownerId}>*`
                         },
                         {
                             "type": 14,
@@ -410,7 +410,7 @@ class InterfazCreate {
                                 "description": null,
                                 "spoiler": false
                             },
-                            "components": this.characterComponents(player, player.length > 1)
+                            "components": await this.characterComponents(player, player.length > 1)
                         },
                         {
                             "type": 14,
@@ -427,7 +427,7 @@ class InterfazCreate {
                                 "description": null,
                                 "spoiler": false
                             },
-                            "components": this.characterComponents(rivalTeam, rivalTeam.length > 1)
+                            "components": await this.characterComponents(rivalTeam, rivalTeam.length > 1)
                         },
                         {
                             "type": 14,

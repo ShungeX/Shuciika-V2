@@ -22,9 +22,8 @@ const dialogoManager = require("./dialogoManager")
 class DuelEmitter extends EventEmitter { }
 const duelEmitter = new DuelEmitter();
 
-
 class Duelv2 {
-    constructor(equipo1, equipo2, duelType, MDChannelsMap = new Map()) {
+    constructor(equipo1, equipo2, duelType, MDChannelsMap = new Map()){
         this.id = `duel-${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
         this.equipo1 = equipo1;
         this.equipo2 = equipo2;
@@ -51,7 +50,7 @@ class Duelv2 {
 
             combatiente.compas = this.agiSelect(combatiente.stats.agilidad, agiOtros)
         })
-        this.turnoActual = this.determinarTurnoActual();
+        this.turnoActual =  this.determinarTurnoActual();
 
         // Otras propiedades específicas del duelo
         const mirrorCaster = this.allCombatientes.find(combatiente =>
@@ -202,7 +201,7 @@ class Duelv2 {
         return { isNextTurn: true }
     }
 
-    async determinarTurnoActual() {
+     determinarTurnoActual() {
         const pjconturno = this.allCombatientes
             .filter(c => !c.fueDerrotado() && !c.statusTurn.aturdido) // Solo vivos y no aturdidos
             .sort((a, b) => b.compas - a.compas)[0]; // El que tiene más Compás
