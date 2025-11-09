@@ -40,13 +40,22 @@ module.exports = {
 
 
                 const character = await characters.findOne({ _id: activeCharacter.nix.personajeActivo })
+                const soul = await souls.findOne({ _id: character._id })
+
 
                 if (!character) return interaction.reply({ content: "Ocurrio un error al ingresar al duelo [Personaje no encontrado]\n-# Vuelve a usar el comando", flags: ["Ephemeral"] })
-                const { aspiracion, Historia, Cumpleaños, Peso, Estatura, ...infoperfil } = character.perfil
+                const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil
+                const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
+                const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero
 
                 const characterData = {
+                    ownerId: interaction.user.id,
                     perfil: infoperfil,
-                    social: { compañero: character.social.compañero, team: character.social.team }
+                    social: { compañero: character.social.compañero, team: character.social.team },
+                    nucleo: infoNucleo,
+                    stats: soul.stats,
+                    dominio: soul.dominio,
+                    sendero: infoSendero
                 }
 
                 getCache[id][character._id] = characterData
@@ -218,8 +227,11 @@ module.exports = {
             }
 
             if (id === "start") {
-                const team1_ids = Object.keys(getCache.team1)
-                const team2_ids = Object.keys(getCache.team2)
+                const team1_snapshots = Object.values(getCache.team1);
+                const team2_snapshots = Object.values(getCache.team2);
+
+                const team1_ids = team1_snapshots.map(snapshot => snapshot.ownerId);
+                const team2_ids = team2_snapshots.map(snapshot => snapshot.ownerId);
 
                 const allids = [...team1_ids, ...team2_ids]
 
@@ -233,10 +245,12 @@ module.exports = {
                             flags: "SuppressNotifications"
                         }).then(m => setTimeout(() => m.delete().catch(e => { }), 3000));
 
-                        return { status: 'success', userId: userId };
+
+                        return { status: 'success', userId: id };
 
                     } catch (error) {
-                        const user = await client.users.cache.get(userId) || { globalName: `Usuario (${userId})` };
+                        console.log(error)
+                        const user = await client.users.cache.get(id) || { globalName: `Usuario (${id})` };
                         throw new Error(`\`${user.globalName}\` tiene los DMs deshabilitados.`);
                     }
                 })
@@ -252,8 +266,15 @@ module.exports = {
                     })
                 }
 
-                
+                const mdChannelsMap = new Map();
+                result.forEach(res => {
+                    // 'res.value' contiene el objeto que retornamos: { userId, mdChannel }
+                    if (res.status === 'fulfilled') {
+                        mdChannelsMap.set(res.value.userId, res.value.mdChannel);
+                    }
+                });
 
+                duelSystem.createDuel("pvp", getCache.team1, getCache.team2, mdChannelsMap)
             }
         }
 

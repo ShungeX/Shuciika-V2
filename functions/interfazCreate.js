@@ -8,12 +8,20 @@ const souls = db2.collection("Soul")
 const npcs = db2.collection("NPCs")
 const cacheGlobal = require("../utils/cache")
 const getXp = require("../functions/getXP")
-const { duelSystem } = require("../functions/duelManager")
 
 
 class InterfazCreate {
-    constructor(collection) {
-
+    constructor() {
+        this.colores = {
+            reset: '[0m',
+            bold: '[1m',
+            red: '[2;31m',
+            green: '[2;32m',
+            yellow: '[2;33m',
+            blue: '[2;34m',
+            // ... los colores que Discord soporte
+        };
+        this.ESC = '\u001b';
     }
 
 
@@ -306,6 +314,284 @@ class InterfazCreate {
         }
 
         return mensajeGlobal
+    }
+
+    /**
+     * Formatea la vida en simbolos: [Emoji] hpactual/hpmax
+     * @param {Number} current - valor actual del jugador
+     * @param {Number} max - valor maximo del jugador
+     * @param {Number | Object} emoji - [Predeterminado: 1 = vida, 2 = mana] o custom {vacio: id_emoji o texto, lleno: [ID_emoji o texto]}
+     * @param {Number} barraLenght - Tamaño de la barra a mostrar (Predeterminado: 10) 
+     * @returns Texto formateado
+     */
+    barraCustom(current, max, emoji, barraLenght = 10) {
+        let emojiSet;
+
+        switch (emoji) {
+            case 1: // Vida
+                emojiSet = {
+                    lleno: "❤︎",
+                    vacio: "𖹭",
+                    especial: '<a:AttencionHeart:1345256576167968828>'
+                };
+                break;
+            case 2: //mana
+                emojiSet = {
+                    lleno: '<:iconMana:1370897534083534978>',
+                    vacio: ".",
+                }
+            default:
+                if (typeof emoji === "object" && emoji.lleno && emoji.vacio) {
+                    emojiSet = emoji
+                } else {
+                    emojiSet = {
+                        lleno: '█',
+                        vacio: '░',
+                    }
+                }
+        }
+
+        const porcentaje = (current / max) * 100
+        let filledBars = Math.round((current / max) * barraLenght);
+
+        if (current > 0 && filledBars === 0) {
+            filledBars = 1
+        }
+
+        if (current <= 0) {
+            filledBars = 0
+        }
+
+        const emptyBars = barraLenght - filledBars;
+
+        let barraLlena = '';
+        const barraVacia = emojiSet.vacio.repeat(emptyBars);
+
+        if (emojiSet.especial && porcentaje < 10 && filledBars > 0) {
+            barraLlena = emojiSet.lleno.repeat(filledBars - 1) + emojiSet.especial
+        } else {
+            barraLlena = emojiSet.lleno.repeat(filledBars)
+        }
+        return `[${barraLlena}${barraVacia}] **(${current}/${max})**`;
+    }
+
+    async duelBattleMessage(duel, player, rivalTeam, isEspectador = false) {
+        const lastActions = this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
+
+        let effectsActivesR;
+        let effectsActivesU;
+
+        const imagesTeams = []
+
+
+        if (isEspectador) {
+            const sup = [
+                {
+                    "type": 17,
+                    "accent_color": null,
+                    "spoiler": false,
+                    "components": [
+                        {
+                            "type": 10,
+                            "content": "# El duelo ha comenzado:\n- *Es el turno de: *"
+                        },
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
+                        },
+                        {
+                            "type": 9,
+                            "accessory": {
+                                "type": 11,
+                                "media": {
+                                    "url": player.length > 1 ? `${imagesTeams[0]}` : `${player[0].avatarURL}`
+                                },
+                                "description": null,
+                                "spoiler": false
+                            },
+                            "components": this.characterComponents(player, player.length > 1)
+                        },
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
+                        },
+                        {
+                            "type": 9,
+                            "accessory": {
+                                "type": 11,
+                                "media": {
+                                    "url": rivalTeam.length > 1 ? `${imagesTeams[1]}` : `${rivalTeam[0].avatarURL}`
+                                },
+                                "description": null,
+                                "spoiler": false
+                            },
+                            "components": this.characterComponents(rivalTeam, rivalTeam.length > 1)
+                        },
+                        {
+                            "type": 14,
+                            "divider": true,
+                            "spacing": 1
+                        },
+                        {
+                            "type": 10,
+                            "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
+                        }
+                    ]
+                }
+            ]
+
+
+            return sup
+        }
+
+        if (player.statusEffect.length > 0) {
+            const efectosActivos = player.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
+            effectsActivesU = `${efectosActivos}`
+        }
+
+        if (rival.statusEffect.length > 0) {
+            const efectosActivos = rival.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
+            effectsActivesR = `${efectosActivos}`
+        }
+
+        const isTurn = duel.turnoActual._id === player._id ? "¡Es tu turno!" : "Esperando la acción del rival..."
+
+        const messageTitle = `# ${isTurn}\n-# Turno: ${duel.ronda}\n`
+        let rivalTeams
+
+        if (rivalTeam.length > 1) {
+            rivalTeam.forEach(pj => {
+                rivalTeams = "\n" + `**${pj.Nombre} (ARM: ${pj.nivelMagico})`
+            })
+        }
+
+        const userDuelsMini = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 10,
+                        "content": messageTitle + `\n${rivalTeam.length > 1 ? "Tus rivales:" : "Tu rival:"}`
+                    },
+                    {
+                        "type": 10,
+                        "content": rivalTeams
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": `Tu: ${player.Nombre}` + `\n-# HP: ${this.characterComponents(player, false, true)}` +
+                            `\n-# Mana: ${interfazCreate.barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + "\n\nEfectos: [En desarrollo]"
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
+                    },
+                ]
+            }
+        ]
+
+
+        if (duel.turnoActual._id === player._id) {
+            const buttons = this.createActionButtons(duel)
+
+            userDuelsMini[0].components.push(...buttons)
+        }
+
+        return userDuelsMini
+    }
+
+    async characterComponents(team, small = false, isOnePlayer = false) {
+
+
+        if (isOnePlayer) return `${this.barraCustom(team.HP, team.stats.hpMax, 1, 10)}`
+
+        const teamJSON = []
+
+        if (team.length > 1) teamJSON.push(
+            {
+                "type": 10,
+                "content": "_**Team 1**_"
+            }
+        )
+
+        team.forEach(pj => {
+            if (small) {
+                teamJSON.push(
+                    {
+                        "type": 10,
+                        "content": `${this.barraCustom(pj.HP, pj.stats.hpMax, 1, 10)} | ${pj.Nombre}}`
+                    }
+                )
+            } else {
+                teamJSON.push(
+                    {
+                        "type": 10,
+                        "content": `**${pj.Nombre} (LV: ${pj.nivelMagico})**`
+                    },
+                    {
+                        "type": 10,
+                        "content": `${this.barraCustom(pj.HP, pj.stats.hpMax, 1, 10)}`
+                    }
+                )
+            }
+        })
+
+        return teamJSON
+    }
+
+    colorizeText(text, color) {
+        return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
+    }
+
+    async asciiText(accion) {
+        switch (accion.tipo) {
+            case 'ataque': {
+                const atacante = this.colorize(accion.data.atacante, this.colores.green);
+                const defensor = this.colorize(accion.data.defensor, this.colores.red);
+                const daño = this.colorize(accion.data.daño, this.colores.yellow);
+                return `${atacante} inflige ${daño} de daño a ${defensor}.`;
+            }
+
+            case 'derrota': {
+                const derrotado = this.colorize(accion.data.derrotado, this.colores.bold);
+                const mensaje = this.colorize(accion.data.mensaje, this.colores.red);
+                return `${derrotado} ha sido vencido. ${mensaje}`;
+            }
+
+            case 'hechizo': {
+                const lanzador = this.colorize(accion.data.lanzador, this.colores.green);
+                const hechizo = this.colorize(accion.data.nombreHechizo, this.colores.blue);
+                return `${lanzador} lanza el hechizo ${hechizo}.`;
+            }
+
+            case 'inicioDuelo': {
+                const parte1 = this.colorize('El duelo ha', this.colores.green);
+                const parte2 = this.colorize('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
+                return `${parte1} ${parte2}`;
+            }
+
+            default:
+                return 'Acción desconocida.';
+        }
     }
 }
 

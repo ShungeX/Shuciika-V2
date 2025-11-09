@@ -243,11 +243,18 @@ module.exports = {
                 return interaction.channel.send({ content: "No puedo enviarte el mensaje de la sala...\n-# Verifica tus DM" })
             })
 
-            const { aspiracion, Historia, Cumpleaños, Peso, Estatura, ...infoperfil } = character.perfil
+            const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil
+            const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
+            const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero
 
             const characterData = {
+                ownerId: interaction.user.id,
                 perfil: infoperfil,
-                social: { compañero: character.social.compañero, team: character.social.team }
+                social: { compañero: character.social.compañero, team: character.social.team },
+                nucleo: infoNucleo,
+                stats: soul.stats,
+                dominio: soul.dominio,
+                sendero: infoSendero
             }
 
             const dataSala = {

@@ -24,11 +24,11 @@ const duelEmitter = new DuelEmitter();
 
 
 class Duelv2 {
-    constructor(equipo1, equipo2, duelType, channel, MDChannelsMap = new Map()) {
+    constructor(equipo1, equipo2, duelType, MDChannelsMap = new Map()) {
         this.id = `duel-${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
         this.equipo1 = equipo1;
         this.equipo2 = equipo2;
-        this.espectador = channel // El mensaje del espectador
+        this.espectador = null // El mensaje del espectador
         this.ronda = 1;
         this.historialAcciones = ["¡Empezó el duelo!"];
         this.finalizado = false;
@@ -49,7 +49,7 @@ class Duelv2 {
                 .map(c => c.stats.agilidad)
                 .reduce((sum, agi) => sum + agi, 0) / (this.allCombatientes.length - 1 || 1); //Agilidad promedio de los demas
 
-            combatiente.compas = this.AgiSelect(combatiente.stats.agilidad, agiOtros)
+            combatiente.compas = this.agiSelect(combatiente.stats.agilidad, agiOtros)
         })
         this.turnoActual = this.determinarTurnoActual();
 
@@ -103,101 +103,7 @@ class Duelv2 {
 
     }
 
-    /**
-     * Formatea la vida en simbolos: [Emoji] hpactual/hpmax
-     * @param {Number} current - Vida actual del jugador
-     * @param {Number} max - Vida maxima del jugador
-     * @param {Boolean} mini - Versión mini del texto [5 corazónes maximos] 
-     * @returns Texto formateado
-     */
-    barradeVida(current, max, mini) {
 
-        if (mini) {
-            const porcentaje = (current / max) * 100
-
-            const totalBars = 5;
-            let filledBars = Math.round((current / max) * totalBars);
-            const emptyBars = totalBars - filledBars;
-
-            if (current > 0 && filledBars === 0) {
-                filledBars = 1
-            }
-
-            let heartsCompletos = '❤︎'.repeat(filledBars)
-            const heartsVacios = '𖹭'.repeat(emptyBars)
-
-
-            if (porcentaje < 10 && filledBars > 0) {
-                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:AttencionHeart:1345256576167968828>'
-            }
-            return `**(${current}/${max})** [${heartsCompletos}${heartsVacios}]`;
-
-        } else {
-            const porcentaje = (current / max) * 100
-
-            const totalBars = 10;
-            let filledBars = Math.round((current / max) * totalBars);
-            const emptyBars = totalBars - filledBars;
-
-            if (current > 0 && filledBars === 0) {
-                filledBars = 1
-            }
-
-            let heartsCompletos = '❤︎'.repeat(filledBars)
-            const heartsVacios = '𖹭'.repeat(emptyBars)
-
-            if (porcentaje < 10 && filledBars > 0) {
-                heartsCompletos = heartsCompletos.slice(0, -2) + '<a:AttencionHeart:1345256576167968828>'
-            }
-            return `[${heartsCompletos}${heartsVacios}] **(${current}/${max})**`;
-        }
-
-
-    }
-
-    /**
-    * Formatea el maná en simbolos: [Emoji] hpactual/hpmax
-    * @param {Number} current - Vida actual del jugador
-    * @param {Number} max - Vida maxima del jugador
-    * @param {Boolean} mini - Versión mini del texto [5 corazónes maximos] 
-    * @returns Texto formateado
-    */
-    barradeMana(current, max, mini) {
-
-        if (mini) {
-            const porcentaje = (current / max) * 100
-
-            const totalBars = 3;
-            let filledBars = Math.round((current / max) * totalBars);
-            const emptyBars = totalBars - filledBars;
-
-            if (current > 0 && filledBars === 0) {
-                filledBars = 1
-            }
-
-            let heartsCompletos = '<:iconMana:1370897534083534978>'.repeat(filledBars)
-            const heartsVacios = '.'.repeat(emptyBars)
-            return `**(${current}/${max})** [${heartsCompletos}${heartsVacios}]`;
-
-        } else {
-            const porcentaje = (current / max) * 100
-
-            const totalBars = 5;
-            let filledBars = Math.round((current / max) * totalBars);
-            const emptyBars = totalBars - filledBars;
-
-            if (current > 0 && filledBars === 0) {
-                filledBars = 1
-            }
-
-            let heartsCompletos = '<:iconMana:1370897534083534978>'.repeat(filledBars)
-            const heartsVacios = '.'.repeat(emptyBars)
-
-            return `[${heartsCompletos}${heartsVacios}] **(${current}/${max})**`;
-        }
-
-
-    }
 
     /**
      * Asigna el siguiente turno.
@@ -298,7 +204,7 @@ class Duelv2 {
 
     async determinarTurnoActual() {
         const pjconturno = this.allCombatientes
-            .filter(c => !c.estaDerrotado() && !c.statusTurn.aturdido) // Solo vivos y no aturdidos
+            .filter(c => !c.fueDerrotado() && !c.statusTurn.aturdido) // Solo vivos y no aturdidos
             .sort((a, b) => b.compas - a.compas)[0]; // El que tiene más Compás
         if (pjconturno && pjconturno.compas >= this.compasMax) {
             return pjconturno;

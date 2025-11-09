@@ -1,25 +1,19 @@
 const { Duelv2, duelEmitter } = require('./duels');
 const { Personaje, NPC } = require('./combatientes')
-const crypto = require("crypto")
+const crypto = require("crypto");
+const interfazCreate = require('./interfazCreate');
+const client = require("../bot")
 
 class duelManager {
     constructor() {
         this.activeDuels = new Map();
 
-        this.colores = {
-            reset: '[0m',
-            bold: '[1m',
-            red: '[2;31m',
-            green: '[2;32m',
-            yellow: '[2;33m',
-            blue: '[2;34m',
-            // ... los colores que Discord soporte
-        };
-        this.ESC = '\u001b';
+
     }
 
-    async createDuel(client, isNPC, duelType, team1Data, team2Data, parametros) {
+    async createDuel(duelType, team1Data, team2Data, dmMap) {
         const team1Instances = Object.values(team1Data).map(charData => {
+            console.log(charData)
             if (charData.isNPC) {
                 return new NPC(charData);
             } else {
@@ -35,12 +29,12 @@ class duelManager {
             }
         });
 
-        const duelInstance = new Duelv2(team1Instances, team2Instances, parametros.channel, duelType, isNPC);
+        const duelInstance = await new Duelv2(team1Instances, team2Instances, duelType, dmMap);
 
 
         console.log(duelInstance.turnoActual.ownerID)
         this.activeDuels.set(duelInstance.id, duelInstance);
-        await this.startDuelMessages(duelInstance, team1Instances, team2Instances)
+        await this.sendDuelMessages(duelInstance, team1Instances, team2Instances)
 
         return duelInstance;
     }
@@ -53,128 +47,59 @@ class duelManager {
         this.activeDuels.delete(duelId);
     }
 
-    async startDuelMessages(duel, team1, team2) {
-        const espectadorJSON = [{
-            "type": 17,
-            "accent_color": null,
-            "spoiler": false,
-            "components": [
-                {
-                    "type": 10,
-                    "content": "# ¡El duelo ha comenzado! <a:KrisJojos:1350664814414004395>"
-                },
-                {
-                    "type": 10,
-                    "content": `-# Es turno de <@!${player1.ownerID}> (${player1.Nombre})`
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 9,
-                    "accessory": {
-                        "type": 11,
-                        "media": {
-                            "url": `${player1.avatarURL}`
-                        },
-                        "description": null,
-                        "spoiler": false
-                    },
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": `# ${player1.Nombre} (Lv: ${player1.nivelMagico})`
-                        },
-                        {
-                            "type": 10,
-                            "content": "*`HP:`*" + ` ${duel.barradeVida(player1.HP, player1.stats.hpMax)}`
-                        }
-                    ]
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 9,
-                    "accessory": {
-                        "type": 11,
-                        "media": {
-                            "url": `${player2.avatarURL}`
-                        },
-                        "description": null,
-                        "spoiler": false
-                    },
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": `# ${player2.Nombre} (Lv: ${player2.nivelMagico}) ${duel.isNPC ? "[NPC]" : ""}`
-                        },
-                        {
-                            "type": 10,
-                            "content": "`HP:`" + ` ${duel.barradeVida(player2.HP, player2.stats.hpMax)}`
-                        }
-                    ]
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 10,
-                    "content": "**Ultimas acciones**\n- ¡Empezó el duelo!"
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 10,
-                    "content": "-# este es el primer turno..."
+    async sendDuelMessages(duel) {
+
+        const espectadorJSON = await interfazCreate.duelBattleMessage(duel, duel.equipo1, duel.equipo2, true)
+        const channel = await client.channels.fetch("1345239393786527784")
+
+        console.log(espectadorJSON[0].components)
+        console.log(espectadorJSON[0].components[2])
+        console.log(espectadorJSON[0].components[4])
+
+
+        if (!duel.espectador) {
+            const message = await channel.send({ components: espectadorJSON, flags: ["IsComponentsV2"] })
+            duel.espectador = message
+        } else {
+            duel.espectador.edit({ components: espectadorJSON, flags: ["IsComponentsV2"] })
+        }
+
+
+        const allPlayers = [...duel.equipo1, ...duel.equipo2]
+        const humanPlayers = allPlayers.filter(player => !player.isNPC)
+
+        const dmPromise = humanPlayers.map(async player => {
+            try {
+                const mdChannel = duel.MDChannels.get(player.ownerID);
+
+                if (!mdChannel) {
+                    throw new Error(`Canal MD no encontrado para el jugador ${player.Nombre} con la ID: ${player.ownerID}`)
                 }
-            ]
-        }
-        ]
+
+                const esDelEquipo1 = duel.equipo1.some(miembro => miembro._id === player._id);
+
+                const rivales = esDelEquipo1 ? duel.equipo2 : duel.equipo1;
+
+                const message = await interfazCreate.duelBattleMessage(duel, player, rivales, false)
+
+                const messageToEdit = duel.activeDMMessages.get(player.ownerID);
+
+                if (messageToEdit) {
+                    await messageToEdit.edit({ components: message, flags: ["IsComponentsV2"] })
+                } else {
+                    const sentMessage = await mdChannel.send({ components: message, flags: ["IsComponentsV2"] })
+
+                    duel.activeDMMessages.set(player.ownerID, sentMessage);
+                }
 
 
+            } catch (error) {
+                console.log(error)
+            }
+        })
 
-        const parsCH = `${Duelv2.BarraDeVida(ch)} | ${ch.Nombre}`
-
-        if (team1.length > 1 || team2.length > 1) {
-
-
-        } else {
-
-        }
-
-
-        duel.message = await duel.channel.send({ components: espectadorJSON, flags: ["IsComponentsV2"], withResponse: true })
-
-
-        console.log(duel)
-        console.log("MDs", duel.MDpj1, duel.MDpj2)
-        if (duel.isNPC) {
-
-            const componentAuthor = await duel.messageComponents(duel, player1, player2)
-            duel.MDpj1 = await duel.MDpj1.send({ components: componentAuthor, flags: ["IsComponentsV2"] }).catch()
-            duel.MDpj2 = null
-
-        } else {
-            const AuthorM = await this.messageComponents(duel, player1, player2)
-            const rivalM = await this.messageComponents(duel, player2, player1)
-
-            duel.MDpj1 = await duel.MDpj1.send({ components: AuthorM, flags: ["IsComponentsV2"] })
-            duel.MDpj2 = await duel.MDpj2.send({ components: rivalM, flags: ["IsComponentsV2"] })
-        }
-
-    }
-
-    async actualizarMensajeTurno(duel) {
+        await Promise.all(dmPromise)
+        console.warn("Mensajes enviados correctamente")
 
     }
 
@@ -329,262 +254,6 @@ class duelManager {
 
         const gif = actionGifs[action]
         return gif ? gif[Math.floor(Math.random() * gif.length)] : "https://c.tenor.com/4jSSY5iIH-MAAAAC/tenor.gif"
-    }
-
-    async characterComponents(team, small = false) {
-        const teamJSON = []
-
-        if (team.length > 1) teamJSON.push(
-            {
-                "type": 10,
-                "content": "_**Team 1**_"
-            }
-        )
-
-        team.forEach(pj => {
-            if (small) {
-                teamJSON.push(
-                    {
-                        "type": 10,
-                        "content": `${Duelv2.BarraDeVida(pj.HP, pj.stats.hpMax, true)} | ${pj.Nombre}}`
-                    }
-                )
-            } else {
-                teamJSON(
-                    {
-                        "type": 10,
-                        "content": `**${pj.Nombre} (LV: ${pj.nivelMagico})**`
-                    },
-                    {
-                        "type": 10,
-                        "content": `${Duelv2.BarraDeVida(pj.HP, pj.stats.hpMax, false)}`
-                    }
-                )
-            }
-        })
-
-        return teamJSON
-    }
-
-    async messageComponents(duel, team1, team2, image = false, isEspectador = false) {
-        const lastActions = this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
-        let effectsActivesR;
-        let effectsActivesU;
-        const imagesTeams = []
-
-
-        if (isEspectador) {
-            const sup = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": "# El duelo ha comenzado:\n- *Es el turno de: *"
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": team1.length > 1 ? `${imagesTeams[0]}` : `${team1[0].avatarURL}`
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": this.characterComponents(team1, team1.length > 1)
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": team2.length > 1 ? `${imagesTeams[1]}` : `${team2[0].avatarURL}`
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": this.characterComponents(team2, team2.length > 1)
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
-                        }
-                    ]
-                }
-            ]
-
-
-            return sup
-        }
-
-        if (player.statusEffect.length > 0) {
-            const efectosActivos = player.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesU = `${efectosActivos}`
-        }
-
-        if (rival.statusEffect.length > 0) {
-            const efectosActivos = rival.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesR = `${efectosActivos}`
-        }
-
-        const isTurn = duel.turnoActual._id === player._id ? "¡Es tu turno!" : "Esperando la acción del rival..."
-
-        const usersDuel = [
-            {
-                "type": 9,
-                "accessory": {
-                    "type": 11,
-                    "media": {
-                        "url": `${rival.avatarURL}`
-                    },
-                    "description": null,
-                    "spoiler": false
-                },
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `# ${isTurn}`
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Tu rival:** ${rival.Nombre} (Lv: ${rival.nivelMagico}) ${duel.isNPC ? "[NPC]" : ""}\n` +
-                            "-# *`HP`*:" + ` ${duel.barradeVida(rival.HP, rival.stats.hpMax)}` + "\n-# *`Mana`*:" + ` ${duel.barradeMana(rival.Mana, rival.stats.manaMax)}` +
-                            `\n\n-# **Efectos:** ${effectsActivesR ? `\n${effectsActivesR}` : "Sin efectos"}`
-                    }
-                ]
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 9,
-                "accessory": {
-                    "type": 11,
-                    "media": {
-                        "url": `${player.avatarURL}`
-                    },
-                    "description": null,
-                    "spoiler": false
-                },
-                "components": [
-                    {
-                        "type": 10,
-                        "content": `**Tus stats:** ${player.Nombre} (Lv: ${player.nivelMagico})\n` +
-                            "-# *`HP`*:" + ` ${duel.barradeVida(player.HP, player.stats.hpMax)}` + "\n-# *`Mana`*:" + ` ${duel.barradeMana(player.Mana, player.stats.manaMax)}` +
-                            `\n\n-# **Efectos:** ${effectsActivesU ? `\n${effectsActivesU}` : "Sin efectos"}`
-                    }
-                ]
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 10,
-                "content": `**Ultimas acciones:**\n${lastActions}`
-            },
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-        ]
-
-        if (image) {
-            usersDuel.push({
-                "type": 12,
-                "items": [
-                    {
-                        "media": {
-                            "url": ""
-                        },
-                        "description": null,
-                        "spoiler": false
-                    }
-                ]
-            })
-
-        }
-
-
-        usersDuel.push({
-            "type": 10,
-            "content": `-# ${duel.ronda === 1 ? "Es el primer turno" : `Turno: ${duel.ronda}`}`
-        })
-
-        const contenedorC = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": usersDuel
-            }
-        ]
-
-        if (duel.turnoActual._id === player._id) {
-            const buttons = this.createActionButtons(duel)
-
-            usersDuel.push(...buttons)
-        }
-
-        return contenedorC
-    }
-
-    colorizeText(text, color) {
-        return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
-    }
-
-    async asciiText(accion) {
-        switch (accion.tipo) {
-            case 'ataque': {
-                const atacante = this.colorize(accion.data.atacante, this.colores.green);
-                const defensor = this.colorize(accion.data.defensor, this.colores.red);
-                const daño = this.colorize(accion.data.daño, this.colores.yellow);
-                return `${atacante} inflige ${daño} de daño a ${defensor}.`;
-            }
-
-            case 'derrota': {
-                const derrotado = this.colorize(accion.data.derrotado, this.colores.bold);
-                const mensaje = this.colorize(accion.data.mensaje, this.colores.red);
-                return `${derrotado} ha sido vencido. ${mensaje}`;
-            }
-
-            case 'hechizo': {
-                const lanzador = this.colorize(accion.data.lanzador, this.colores.green);
-                const hechizo = this.colorize(accion.data.nombreHechizo, this.colores.blue);
-                return `${lanzador} lanza el hechizo ${hechizo}.`;
-            }
-
-            case 'inicioDuelo': {
-                const parte1 = this.colorize('El duelo ha', this.colores.green);
-                const parte2 = this.colorize('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
-                return `${parte1} ${parte2}`;
-            }
-
-            default:
-                return 'Acción desconocida.';
-        }
     }
 
     async createCode(longitud = 6) {
