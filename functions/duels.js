@@ -23,15 +23,16 @@ class DuelEmitter extends EventEmitter { }
 const duelEmitter = new DuelEmitter();
 
 class Duelv2 {
-    constructor(equipo1, equipo2, duelType, MDChannelsMap = new Map()){
-        this.id = `duel-${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
+    constructor(equipo1, equipo2, duelType, MDChannelsMap = new Map()) {
+        this.id = `${duelType | "Duel"}_${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
         this.equipo1 = equipo1;
         this.equipo2 = equipo2;
         this.espectador = null // El mensaje del espectador
         this.ronda = 1;
-        this.historialAcciones = ["¡Empezó el duelo!"];
+        this.historialAcciones = [{tipo: "inicioDuelo", data: {esJefe: duelType === "jefe"}}];
         this.finalizado = false;
         this.MDChannels = MDChannelsMap
+        this.activeDMMessages = new Map()
 
         this.duelType = duelType;
 
@@ -50,7 +51,23 @@ class Duelv2 {
 
             combatiente.compas = this.agiSelect(combatiente.stats.agilidad, agiOtros)
         })
-        this.turnoActual =  this.determinarTurnoActual();
+        this.turnoActual = null;
+        while (this.turnoActual === null) {
+
+            this.turnoActual = this.determinarTurnoActual();
+
+            if (this.turnoActual === null) {
+                this.allCombatientes.forEach(c => {
+                    if (!c.fueDerrotado() && !c.statusTurn.aturdido) {
+                        c.compas += c.stats.agilidad;
+                    }
+                });
+            }
+        }
+
+        console.log(this.turnoActual)
+
+        this.turnoActual.compas -= this.compasMax;
 
         // Otras propiedades específicas del duelo
         const mirrorCaster = this.allCombatientes.find(combatiente =>
@@ -201,7 +218,7 @@ class Duelv2 {
         return { isNextTurn: true }
     }
 
-     determinarTurnoActual() {
+    determinarTurnoActual() {
         const pjconturno = this.allCombatientes
             .filter(c => !c.fueDerrotado() && !c.statusTurn.aturdido) // Solo vivos y no aturdidos
             .sort((a, b) => b.compas - a.compas)[0]; // El que tiene más Compás

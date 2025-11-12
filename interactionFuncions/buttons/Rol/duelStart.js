@@ -59,9 +59,6 @@ module.exports = {
                 }
 
                 getCache[id][character._id] = characterData
-
-                console.log(getCache.team1)
-
                 const message = await interfazCreate.salaDueloMessage(getCache, "all", interaction.user.id)
 
                 if (getCache.autor !== interaction.user.id) {
@@ -246,7 +243,7 @@ module.exports = {
                         }).then(m => setTimeout(() => m.delete().catch(e => { }), 3000));
 
 
-                        return { status: 'success', userId: id };
+                        return { status: 'success', userId: id, mdChannel: md};
 
                     } catch (error) {
                         console.log(error)

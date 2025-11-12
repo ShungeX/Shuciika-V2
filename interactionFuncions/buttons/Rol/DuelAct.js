@@ -16,7 +16,8 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-    ejecutar: async(client, interaction, id, actions, duelId) => {
+    ejecutar: async(client, interaction, characterId, actions, duelId) => {
+        console.log("Duel ID:", duelId, actions, characterId)
         const duel = await duelSystem.getDuel(duelId)
        
         if(!duel)  {
@@ -27,9 +28,10 @@ module.exports = {
             await duelSystem.selectEmbed(duel, actions)
             return interaction.deferUpdate()
         }
+
         
 
-        const act = await duelSystem.processAction(duelId, id, actions)
+        const act = await duelSystem.processAction(characterId, actions, duel)
         interaction.reply({content: `${act.message}`, flags: ["Ephemeral"]})
         if(!act?.gameOver) {
             if(!act.success) {

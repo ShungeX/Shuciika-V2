@@ -1,7 +1,7 @@
 class Combatiente {
-    constructor(data) {
-        console.log(data.ownerId)
-        this.ID = data._id;
+    constructor(id, data) {
+        console.log(data)
+        this.ID = id
         this.ownerId = data.ownerId;
         this.Nombre = data.perfil.Nombre;
         this.HP = data.nucleo.HP;
@@ -18,11 +18,12 @@ class Combatiente {
                 ralentizado: 0,
                 acelerado: 0,
             }
-            this.Tempo = data.stats.agilidad, // Agilidad del usuario de forma poetica: tempo
-            this.Compas = 0 // Barra de acción, determinada a 1000 puntos.
+            this.tempo = data.stats.agilidad, // Agilidad del usuario de forma poetica: tempo
+            this.compas = 0 // Barra de acción, determinada a 1000 puntos.
         this.isAct = true,
         this.defeated = false,
         this.isTurn = false
+        console.log(this.ID)
     }
 
     aplicarDaño(cantidad) {
@@ -48,8 +49,8 @@ class Combatiente {
 }
 
 class Personaje extends Combatiente {
-    constructor(data) {
-        super(data)
+    constructor(id, data) {
+        super(id, data)
         this.ownerID = data.ownerID,
             this.resonancia = data.sendero.resonancia,
             this.disonancia = data.sendero.disonancia,

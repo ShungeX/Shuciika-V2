@@ -7,31 +7,29 @@ const client = require("../bot")
 class duelManager {
     constructor() {
         this.activeDuels = new Map();
-
-
     }
 
     async createDuel(duelType, team1Data, team2Data, dmMap) {
-        const team1Instances = Object.values(team1Data).map(charData => {
+        const team1Instances = Object.entries(team1Data).map(([id, charData]) => {
             if (charData.isNPC) {
-                return new NPC(charData);
+                return new NPC(id, charData);
             } else {
-                return new Personaje(charData);
+                return new Personaje(id, charData);
             }
         });
 
-        const team2Instances = Object.values(team2Data).map(charData => {
+        const team2Instances = Object.entries(team2Data).map(([id, charData]) => {
             if (charData.isNPC) {
-                return new NPC(charData);
+                return new NPC(id, charData);
             } else {
-                return new Personaje(charData);
+                return new Personaje(id, charData);
             }
         });
 
         const duelInstance = await new Duelv2(team1Instances, team2Instances, duelType, dmMap);
 
 
-        console.log("Turno actual:", duelInstance.turnoActual.ownerID)
+        console.log("Turno actual:", duelInstance.turnoActual.ownerId)
         this.activeDuels.set(duelInstance.id, duelInstance);
         await this.sendDuelMessages(duelInstance, team1Instances, team2Instances)
 
@@ -39,6 +37,9 @@ class duelManager {
     }
 
     getDuel(duelId) {
+
+        console.log(duelId)
+        console.log(this.activeDuels)
         return this.activeDuels.get(duelId);
     }
 
@@ -71,15 +72,16 @@ class duelManager {
                     throw new Error(`Canal MD no encontrado para el jugador ${player.Nombre} con la ID: ${player.ownerId}`)
                 }
 
-                const esDelEquipo1 = duel.equipo1.some(miembro => miembro._id === player._id);
+                const esDelEquipo1 = duel.equipo1.some(miembro => miembro.ID === player.ID);
 
                 const rivales = esDelEquipo1 ? duel.equipo2 : duel.equipo1;
 
                 const message = await interfazCreate.duelBattleMessage(duel, player, rivales, false)
 
-                const messageToEdit = duel.activeDMMessages.get(player.ownerID);
+                const messageToEdit = duel?.activeDMMessages?.get(player.ownerId);
 
                 if (messageToEdit) {
+
                     await messageToEdit.edit({ components: message, flags: ["IsComponentsV2"] })
                 } else {
                     const sentMessage = await mdChannel.send({ components: message, flags: ["IsComponentsV2"] })
@@ -144,7 +146,7 @@ class duelManager {
                             id: "1370631600454504498"
                         },
                         "disabled": attackDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual._id}-attack-${duel.id}`
+                        "custom_id": `DuelAct-${duel.turnoActual.userAuthor}-${duel.turnoActual.ID}-attack-${duel.id}`
                     },
                     {
                         "type": 2,
@@ -155,7 +157,7 @@ class duelManager {
                             id: "1370631300616159233"
                         },
                         "disabled": defendDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual._id}-defend-${duel.id}`
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual.ID}-defend-${duel.id}`
                     },
                     {
                         "type": 2,
@@ -166,7 +168,7 @@ class duelManager {
                             id: "1370631281028890727"
                         },
                         "disabled": bagDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual._id}-bag-${duel.id}`
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual.ID}-bag-${duel.id}`
                     },
                     {
                         "type": 2,
@@ -177,7 +179,7 @@ class duelManager {
                             id: "1370631319910092811"
                         },
                         "disabled": spellsDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual._id}-spells-${duel.id}`
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual.ID}-spells-${duel.id}`
                     },
                     {
                         "type": 2,
@@ -188,7 +190,7 @@ class duelManager {
                             id: "1370631336536047737",
                         },
                         "disabled": surrenderDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual._id}-surrender-${duel.id}`
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerID}-${duel.turnoActual.ID}-surrender-${duel.id}`
                     }
                 ]
             }

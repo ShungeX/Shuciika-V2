@@ -446,25 +446,33 @@ class InterfazCreate {
             return sup
         }
 
-        if (player.statusEffect.length > 0) {
+        if (player.statusEffect?.length > 0) {
             const efectosActivos = player.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
             effectsActivesU = `${efectosActivos}`
         }
 
-        if (rival.statusEffect.length > 0) {
-            const efectosActivos = rival.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
+        if (rivalTeam.statusEffect?.length > 0) {
+            const efectosActivos = rivalTeam.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
             effectsActivesR = `${efectosActivos}`
         }
 
-        const isTurn = duel.turnoActual._id === player._id ? "¡Es tu turno!" : "Esperando la acción del rival..."
+        const isTurn = duel.turnoActual.ID === player.ID ? "¡Es tu turno!" : "Esperando la acción del rival..."
 
-        const messageTitle = `# ${isTurn}\n-# Turno: ${duel.ronda}\n`
-        let rivalTeams
+        const messageTitle = `# ${isTurn}\n-# *Turno: ${duel.ronda}*\n\n-# "La batalla se intensifica lentamente..."`
+        let rivalTeams = "";
 
         if (rivalTeam.length > 1) {
-            rivalTeam.forEach(pj => {
-                rivalTeams = "\n" + `**${pj.Nombre} (ARM: ${pj.nivelMagico})`
-            })
+            for (const pj of rivalTeam) {
+                rivalTeams += `- **${pj.Nombre} \`(ARM: ${pj.nivelMagico})\`**` + `| HP: ${await this.characterComponents(pj, true, true)}\n`
+            }
+        } else if (rivalTeam.length === 1) {
+            for (const pj of rivalTeam) {
+                rivalTeams = `- **${pj.Nombre} \`(ARM: ${pj.nivelMagico})\` **` + `\n-# HP: ${await this.characterComponents(pj, false, true)}`
+            }
+
+        } else {
+            // Opcional: manejar el caso de que no haya rivales
+            rivalTeams = "No hay rivales.";
         }
 
         const userDuelsMini = [
@@ -474,8 +482,21 @@ class InterfazCreate {
                 "spoiler": false,
                 "components": [
                     {
-                        "type": 10,
-                        "content": messageTitle + `\n${rivalTeam.length > 1 ? "Tus rivales:" : "Tu rival:"}`
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": duel.turnoActual.avatarURL
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": `${messageTitle}` + `\n\n${rivalTeam.length > 1 ? "Tus rivales:" : "**Tu rival**"}`
+                            }
+                        ]
                     },
                     {
                         "type": 10,
@@ -488,13 +509,8 @@ class InterfazCreate {
                     },
                     {
                         "type": 10,
-                        "content": `Tu: ${player.Nombre}` + `\n-# HP: ${this.characterComponents(player, false, true)}` +
-                            `\n-# Mana: ${interfazCreate.barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + "\n\nEfectos: [En desarrollo]"
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
+                        "content": `Tu personaje: **${player.Nombre} \`(ARM: ${player.nivelMagico})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
+                            `\n-# Mana: ${this.barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + "\n\nEfectos: [En desarrollo]"
                     },
                     {
                         "type": 14,
@@ -510,7 +526,7 @@ class InterfazCreate {
         ]
 
 
-        if (duel.turnoActual._id === player._id) {
+        if (duel.turnoActual.ID === player.ID) {
             const buttons = this.createActionButtons(duel)
 
             userDuelsMini[0].components.push(...buttons)
@@ -558,34 +574,179 @@ class InterfazCreate {
         return teamJSON
     }
 
-    colorizeText(text, color) {
+    createActionButtons(duel) {
+        let attackDisable = false
+        let defendDisable = false
+        let bagDisable = false
+        let spellsDisable = false
+        let surrenderDisable = false
+
+        if (duel.isNPC) {
+            const npc = duel.personajes.find(p => p.isNPC === true)
+            attackDisable = npc.restrictions.Attack === true
+            defendDisable = npc.restrictions.Defend === true
+            bagDisable = npc.restrictions.Bag === true
+            spellsDisable = npc.restrictions.Spells === true
+            surrenderDisable = npc.restrictions.Surrender === true
+        }
+
+        const buttonJSON = [
+            {
+                "type": 14,
+                "divider": true,
+                "spacing": 1
+            },
+            {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Atacar",
+                        "emoji": {
+                            name: "sword",
+                            id: "1370631600454504498"
+                        },
+                        "disabled": attackDisable,
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-attack-${duel.id}`
+                    },
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Defenderse",
+                        "emoji": {
+                            name: "yellowShield",
+                            id: "1370631300616159233"
+                        },
+                        "disabled": defendDisable,
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-defend-${duel.id}`
+                    },
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Mochila",
+                        "emoji": {
+                            name: "EmuNui",
+                            id: "1370631281028890727"
+                        },
+                        "disabled": bagDisable,
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-bag-${duel.id}`
+                    },
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Hechizos",
+                        "emoji": {
+                            name: "SpellBook",
+                            id: "1370631319910092811"
+                        },
+                        "disabled": spellsDisable,
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-spells-${duel.id}`
+                    },
+                    {
+                        "type": 2,
+                        "style": 4,
+                        "label": "Rendirse",
+                        "emoji": {
+                            name: "whiteflagpepo",
+                            id: "1370631336536047737",
+                        },
+                        "disabled": surrenderDisable,
+                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-surrender-${duel.id}`
+                    }
+                ]
+            }
+        ]
+
+        return buttonJSON
+    }
+    colorizeText(text, colorCode) {
         return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
+    }
+
+    createComponentsTarget(duel, autor, habilidad) {
+
+
+        if (habilidad.scope === "all" || habilidad.scope === "random") {
+            const confirmButton = {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Confirmar acción",
+                        "emoji": null,
+                        "disabled": false,
+                        "custom_id": `accion-${autor.ownerId}-${habilidad.id}-${duel.id}`
+                    }
+                ]
+            }
+
+            return confirmButton
+        }
+
+
+        let potentialTargets = [];
+        const esEquipo1 = duel.equipo1.some(miembro => miembro._id === autor._id);
+
+        if (habilidad.target === 'enemy') {
+            potentialTargets = esEquipo1 ? duel.equipo2 : duel.equipo1;
+        } else if (habilidad.target === 'ally') {
+            potentialTargets = esEquipo1 ? duel.equipo1 : duel.equipo2;
+        } else if (habilidad.target === 'both') {
+            potentialTargets = duel.allCombatientes;
+        }
+
+        const validTargets = potentialTargets.filter(target => {
+        return !target.fueDerrotado() && !target.statusEffect.some(e => e.id === 'estasis');
+        });
+
+        if (validTargets.length === 1 && habilidad.scope === 'single') {
+        const target = validTargets[0];
+        const confirmButton =  {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Confirmar acción",
+                        "emoji": null,
+                        "disabled": false,
+                        "custom_id": `accion-${autor.ownerId}-${habilidad.id}-${duel.id}-${target.ID}`
+                    }
+                ]
+            }
+
+        return confirmButton
+        }
+
+        
     }
 
     async asciiText(accion) {
         switch (accion.tipo) {
             case 'ataque': {
-                const atacante = this.colorize(accion.data.atacante, this.colores.green);
-                const defensor = this.colorize(accion.data.defensor, this.colores.red);
-                const daño = this.colorize(accion.data.daño, this.colores.yellow);
+                const atacante = this.colorizeText(accion.data.atacante, this.colores.green);
+                const defensor = this.colorizeText(accion.data.defensor, this.colores.red);
+                const daño = this.colorizeText(accion.data.daño, this.colores.yellow);
                 return `${atacante} inflige ${daño} de daño a ${defensor}.`;
             }
 
             case 'derrota': {
-                const derrotado = this.colorize(accion.data.derrotado, this.colores.bold);
-                const mensaje = this.colorize(accion.data.mensaje, this.colores.red);
+                const derrotado = this.colorizeText(accion.data.derrotado, this.colores.bold);
+                const mensaje = this.colorizeText(accion.data.mensaje, this.colores.red);
                 return `${derrotado} ha sido vencido. ${mensaje}`;
             }
 
             case 'hechizo': {
-                const lanzador = this.colorize(accion.data.lanzador, this.colores.green);
-                const hechizo = this.colorize(accion.data.nombreHechizo, this.colores.blue);
+                const lanzador = this.colorizeText(accion.data.lanzador, this.colores.green);
+                const hechizo = this.colorizeText(accion.data.nombreHechizo, this.colores.blue);
                 return `${lanzador} lanza el hechizo ${hechizo}.`;
             }
 
             case 'inicioDuelo': {
-                const parte1 = this.colorize('El duelo ha', this.colores.green);
-                const parte2 = this.colorize('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
+                const parte1 = this.colorizeText('El duelo ha', this.colores.green);
+                const parte2 = this.colorizeText('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
                 return `${parte1} ${parte2}`;
             }
 
