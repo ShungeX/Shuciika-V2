@@ -1,10 +1,11 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, Client, } = require(`discord.js`)
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, Client, InteractionWebhook, } = require(`discord.js`)
 const clientdb = require("../../../Server")
 const db2 = clientdb.db("Rol_db")
 const dbpj = db2.collection("Personajes")
 const transaccionCache = require("../../../utils/cache")
 const getXp = require("../../../functions/getXP")
 const { duelSystem } = require("../../../functions/duelManager")
+const interfazCreate = require("../../../functions/interfazCreate")
 
 module.exports = {
     customId: "DuelAct",
@@ -28,6 +29,10 @@ module.exports = {
             await duelSystem.selectEmbed(duel, actions)
             return interaction.deferUpdate()
         }
+
+        
+        const mensajeSelect = await interfazCreate.createComponentsTarget(duel, duel.turnoActual, actions)
+        return interaction.reply({components: mensajeSelect, flags: ["IsComponentsV2"]})
 
         
 

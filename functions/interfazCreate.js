@@ -665,7 +665,19 @@ class InterfazCreate {
     }
 
     createComponentsTarget(duel, autor, habilidad) {
-
+        const cuerpoMensaje = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 10,
+                        "content": "# Selecciona a un enemigo "
+                    }
+                ]
+            }
+        ]
 
         if (habilidad.scope === "all" || habilidad.scope === "random") {
             const confirmButton = {
@@ -682,7 +694,9 @@ class InterfazCreate {
                 ]
             }
 
-            return confirmButton
+            cuerpoMensaje[0].components.push(confirmButton)
+
+            return cuerpoMensaje
         }
 
 
@@ -698,12 +712,12 @@ class InterfazCreate {
         }
 
         const validTargets = potentialTargets.filter(target => {
-        return !target.fueDerrotado() && !target.statusEffect.some(e => e.id === 'estasis');
+            return !target.fueDerrotado() && !target.statusEffect.some(e => e.id === 'estasis');
         });
 
         if (validTargets.length === 1 && habilidad.scope === 'single') {
-        const target = validTargets[0];
-        const confirmButton =  {
+            const target = validTargets[0];
+            const confirmButton = {
                 "type": 1,
                 "components": [
                     {
@@ -717,10 +731,21 @@ class InterfazCreate {
                 ]
             }
 
-        return confirmButton
+            return confirmButton
         }
 
-        
+        const textTarget = validTargets.map(target => {
+            return `-# ${target.nombre} (${target.nivelMagico})`
+        })
+
+        cuerpoMensaje[0].components.push({
+            "type": 10,
+            "content": textTarget.join("\n")
+        })
+
+        console.log(cuerpoMensaje[0].components)
+
+        return cuerpoMensaje
     }
 
     async asciiText(accion) {
