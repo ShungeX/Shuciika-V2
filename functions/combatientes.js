@@ -18,12 +18,19 @@ class Combatiente {
                 ralentizado: 0,
                 acelerado: 0,
             }
-            this.tempo = data.stats.agilidad, // Agilidad del usuario de forma poetica: tempo
+        this.tempo = data.stats.agilidad, // Agilidad del usuario de forma poetica: tempo
             this.compas = 0 // Barra de acción, determinada a 1000 puntos.
         this.isAct = true,
-        this.defeated = false,
-        this.isTurn = false
+            this.defeated = false,
+            this.isTurn = false
         console.log(this.ID)
+
+        const arma = this.equipamiento.find(item => item.tipo === "arma")
+        if(arma) {
+            this.ataquePredeterminado = arma.skillId
+        }else {
+            this.ataquePredeterminado = "default_001"
+        }
     }
 
     aplicarDaño(cantidad) {

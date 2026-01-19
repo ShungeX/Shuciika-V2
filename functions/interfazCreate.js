@@ -6,6 +6,7 @@ const db2 = clientdb.db("Rol_db")
 const characters = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const npcs = db2.collection("NPCs")
+const habilidades = db2.collection("Hechizos_globales")
 const cacheGlobal = require("../utils/cache")
 const getXp = require("../functions/getXP")
 
@@ -664,7 +665,24 @@ class InterfazCreate {
         return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
     }
 
-    createComponentsTarget(duel, autor, habilidad) {
+    async createComponentsTarget(duel, autor, habilidad, accion) {
+
+        if (habilidad) {
+            habilidad = await habilidades.findOne({ _id: habilidad === "attack" ? autor.ataquePredeterminado : habilidad })
+
+            if (!habilidad) {
+                console.log("Habilidad no encontrada, retornando...")
+                return null
+            }
+        }
+
+
+
+
+        const esSingle = habilidad.Mecanicas.alcance.includes('Single') || habilidad.Mecanicas.alcance.includes('primer_objetivo');
+        const esAoE = habilidad.Mecanicas.alcance.includes('AoE') || habilidad.Mecanicas.alcance.includes('All');
+        const esRandom = habilidad.Mecanicas.alcance.includes('Random');
+
         const cuerpoMensaje = [
             {
                 "type": 17,
@@ -673,23 +691,61 @@ class InterfazCreate {
                 "components": [
                     {
                         "type": 10,
-                        "content": "# Selecciona a un enemigo "
+                        "content": esSingle ? "# ¿Estas seguro de realizar la siguiente acción?" : "# Selecciona a un enemigo"
                     }
                 ]
             }
         ]
 
-        if (habilidad.scope === "all" || habilidad.scope === "random") {
+
+        let potentialTargets = [];
+        console.log("Autor:", autor.ID)
+        const esEquipo1 = duel.equipo1.some(miembro => miembro.ID === autor.ID);
+
+        if (habilidad.Mecanicas.objetivo.includes("enemigo")) {
+            potentialTargets = esEquipo1 ? duel.equipo2 : duel.equipo1;
+        } else if (habilidad.Mecanicas.objetivo.includes("aliados")) {
+            const aliadosTotal = esEquipo1 ? duel.equipo1 : duel.equipo2;
+
+            const aliadosSinMi = aliadosTotal.filter(p => p.ID !== autor.ID);
+            potentialTargets.push(...aliadosSinMi);
+        } else if (habilidad.Mecanicas.objetivo.includes("ambos")) {
+            potentialTargets = duel.allCombatientes;
+        }
+
+        if (habilidad.Mecanicas.objetivo.includes('si_mismo') || habilidad.Mecanicas.objetivo.includes('self')) {
+            potentialTargets.push(autor);
+        }
+
+        const validTargets = potentialTargets.filter(target => {
+            return !target.fueDerrotado() && !target.statusEffect.some(e => e.id === 'estasis');
+        });
+
+        if (esAoE || esRandom || esSingle || validTargets.length === 1) {
+            let targetIdParam = 'all';
+
+            if (esSingle && validTargets.length === 1) {
+                targetIdParam = validTargets[0].ID; // O ownerId, lo que uses
+            }
+
             const confirmButton = {
                 "type": 1,
                 "components": [
                     {
                         "type": 2,
-                        "style": 2,
-                        "label": "Confirmar acción",
+                        "style": esAoE ? 4 : esSingle ? 1 : 3,
+                        "label": esRandom ? "Lanzar aleatoriamente" : (esAoE ? "Lanzar a todos" : "Confirmar acción"),
                         "emoji": null,
                         "disabled": false,
-                        "custom_id": `accion-${autor.ownerId}-${habilidad.id}-${duel.id}`
+                        "custom_id": `DuelAct-${autor.ownerId}-${autor.ID}-${habilidad._id}-${duel.id}-${targetIdParam}-cf_${accion}`
+                    },
+                    {
+                        "type": 2,
+                        "style": 4,
+                        "label": "Cancelar acción",
+                        "emoji": null,
+                        "disabled": false,
+                        "custom_id": `DuelAct-${autor.ownerId}-${autor.ID}-cancel-${duel.id}`
                     }
                 ]
             }
@@ -699,49 +755,40 @@ class InterfazCreate {
             return cuerpoMensaje
         }
 
+        console.log(potentialTargets)
+        console.log(validTargets)
 
-        let potentialTargets = [];
-        const esEquipo1 = duel.equipo1.some(miembro => miembro._id === autor._id);
-
-        if (habilidad.target === 'enemy') {
-            potentialTargets = esEquipo1 ? duel.equipo2 : duel.equipo1;
-        } else if (habilidad.target === 'ally') {
-            potentialTargets = esEquipo1 ? duel.equipo1 : duel.equipo2;
-        } else if (habilidad.target === 'both') {
-            potentialTargets = duel.allCombatientes;
-        }
-
-        const validTargets = potentialTargets.filter(target => {
-            return !target.fueDerrotado() && !target.statusEffect.some(e => e.id === 'estasis');
-        });
-
-        if (validTargets.length === 1 && habilidad.scope === 'single') {
-            const target = validTargets[0];
-            const confirmButton = {
-                "type": 1,
-                "components": [
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Confirmar acción",
-                        "emoji": null,
-                        "disabled": false,
-                        "custom_id": `accion-${autor.ownerId}-${habilidad.id}-${duel.id}-${target.ID}`
-                    }
-                ]
-            }
-
-            return confirmButton
+        const selectOptions = {
+            "type": 1,
+            "components": [
+                {
+                    "type": 3,
+                    "custom_id": "duelsAct",
+                    "options": [],
+                    "placeholder": "",
+                    "min_values": 1,
+                    "max_values": 1,
+                    "disabled": false
+                }
+            ]
         }
 
         const textTarget = validTargets.map(target => {
-            return `-# ${target.nombre} (${target.nivelMagico})`
+            selectOptions.components[0].options.push({
+                "label": `-# ${target.Nombre} (${target.nivelMagico})`,
+                "value": `${target.ID}`,
+                "description": null,
+                "emoji": null,
+                "default": false
+            })
+            return `-# ${target.Nombre} (${target.nivelMagico})`
         })
-
         cuerpoMensaje[0].components.push({
             "type": 10,
             "content": textTarget.join("\n")
         })
+
+        cuerpoMensaje[0].components.push(selectOptions)
 
         console.log(cuerpoMensaje[0].components)
 

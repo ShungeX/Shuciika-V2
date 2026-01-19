@@ -12,22 +12,21 @@ class duelManager {
     async createDuel(duelType, team1Data, team2Data, dmMap) {
         const team1Instances = Object.entries(team1Data).map(([id, charData]) => {
             if (charData.isNPC) {
-                return new NPC(id, charData);
+                return new NPC(Number(id), charData);
             } else {
-                return new Personaje(id, charData);
+                return new Personaje(Number(id), charData);
             }
         });
 
         const team2Instances = Object.entries(team2Data).map(([id, charData]) => {
             if (charData.isNPC) {
-                return new NPC(id, charData);
+                return new NPC(Number(id), charData);
             } else {
-                return new Personaje(id, charData);
+                return new Personaje(Number(id), charData);
             }
         });
 
         const duelInstance = await new Duelv2(team1Instances, team2Instances, duelType, dmMap);
-
 
         console.log("Turno actual:", duelInstance.turnoActual.ownerId)
         this.activeDuels.set(duelInstance.id, duelInstance);
@@ -36,10 +35,10 @@ class duelManager {
         return duelInstance;
     }
 
+
     getDuel(duelId) {
 
         console.log(duelId)
-        console.log(this.activeDuels)
         return this.activeDuels.get(duelId);
     }
 
@@ -86,7 +85,7 @@ class duelManager {
                 } else {
                     const sentMessage = await mdChannel.send({ components: message, flags: ["IsComponentsV2"] })
 
-                    duel.activeDMMessages.set(player.ownerID, sentMessage);
+                   await duel.activeDMMessages.set(player.ownerId, sentMessage);
                 }
 
 

@@ -6,6 +6,7 @@ const transaccionCache = require("../../../utils/cache")
 const getXp = require("../../../functions/getXP")
 const { duelSystem } = require("../../../functions/duelManager")
 const interfazCreate = require("../../../functions/interfazCreate")
+const { Duelv2 } = require("../../../functions/duels")
 
 module.exports = {
     customId: "DuelAct",
@@ -17,46 +18,70 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction 
      */
 
-    ejecutar: async(client, interaction, characterId, actions, duelId) => {
-        console.log("Duel ID:", duelId, actions, characterId)
+    ejecutar: async (client, interaction, characterId, actions, duelId, params, extraParams) => {
+
+        console.log("Habilidad", characterId, actions, duelId, params, extraParams)
+        const [select, action] = !extraParams || extraParams === undefined ? [] : extraParams?.split("_")
+        /** @type {Duelv2} */ //
         const duel = await duelSystem.getDuel(duelId)
-       
-        if(!duel)  {
-            return interaction.reply({content: `No se ha podido realizar la acción porque el duelo ya no es valido`, ephemeral: true})
+
+        if (!duel) {
+            return interaction.reply({ content: `No se ha podido realizar la acción porque el duelo ya no es valido`, flags: ["Ephemeral"] })
         }
 
-        if(actions === "cancel") {
-            await duelSystem.selectEmbed(duel, actions)
-            return interaction.deferUpdate()
+        if (actions === "cancel" || select === "cancel") {
+
+            const esDelEquipo1 = duel.equipo1.some(miembro => miembro.ID === duel.turnoActual.ID);
+
+            const rivales = esDelEquipo1 ? duel.equipo2 : duel.equipo1;
+            const mensajeCancel = await interfazCreate.duelBattleMessage(duel, duel.turnoActual, rivales, false)
+            return interaction.update({ components: mensajeCancel, flags: ["IsComponentsV2"] })
         }
 
-        
-        const mensajeSelect = await interfazCreate.createComponentsTarget(duel, duel.turnoActual, actions)
-        return interaction.reply({components: mensajeSelect, flags: ["IsComponentsV2"]})
+        if (action === "attack") {
+            const data = {
+                skillId: actions,
+                targetsId: Number(params),
+            }
+            const result = await duel.processAction(characterId, action, data)
+            console.log(result)
+            return
+        }
 
-        
+        const mensajeSelect = await interfazCreate.createComponentsTarget(duel, duel.turnoActual, actions, action)
+        if (mensajeSelect === null) return interaction.reply({ content: "Ocurrio un error al obtener los objetivos...", flags: ["Ephemeral"] })
+
+        try {
+            await interaction.update({ components: mensajeSelect, flags: ["IsComponentsV2"] })
+        } catch (error) {
+            console.log(error)
+
+        }
+        return
+
+
 
         const act = await duelSystem.processAction(characterId, actions, duel)
-        interaction.reply({content: `${act.message}`, flags: ["Ephemeral"]})
-        if(!act?.gameOver) {
-            if(!act.success) {
-            }else {
+        interaction.reply({ content: `${act.message}`, flags: ["Ephemeral"] })
+        if (!act?.gameOver) {
+            if (!act.success) {
+            } else {
 
                 await duelSystem.selectEmbed(duel, actions)
 
-                if(duel.isNPC && duel.turnoActual.ID === duel.personajes[1].ID) {
+                if (duel.isNPC && duel.turnoActual.ID === duel.personajes[1].ID) {
                     console.log("accion")
                     const results = await duelSystem.ejecutarAccionesNPC(duel)
-                    if(!results.duel.finalizado) {
+                    if (!results.duel.finalizado) {
                         await duelSystem.selectEmbed(duel, results.action)
-                    }else {
-                       await endEmbed()
+                    } else {
+                        await endEmbed()
                     }
                 }
             }
 
         }
-        
+
     }
 
 

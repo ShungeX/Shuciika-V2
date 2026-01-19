@@ -29,7 +29,7 @@ class Duelv2 {
         this.equipo2 = equipo2;
         this.espectador = null // El mensaje del espectador
         this.ronda = 1;
-        this.historialAcciones = [{tipo: "inicioDuelo", data: {esJefe: duelType === "jefe"}}];
+        this.historialAcciones = [{ tipo: "inicioDuelo", data: { esJefe: duelType === "jefe" } }];
         this.finalizado = false;
         this.MDChannels = MDChannelsMap
         this.activeDMMessages = new Map()
@@ -318,119 +318,163 @@ class Duelv2 {
      * @returns {Object} - Resultados: message, gameOver, messageId
      */
     async processAction(playerId, action, actionParams = {}) {
-
-        let result = { success: false, message: "Accion no reconocida" }
+        let result = { success: false, history: null };
         let effects;
 
-        const activeChar = this.personajes.find(p => p.ID === playerId);
-        const targetChar = this.personajes.find(p => p.ID !== playerId);
+        // 1. Identificar al Jugador Activo
+        const activeChar = this.allCombatientes.find(p => p.ID === playerId);
+        if (!activeChar) return { success: false, message: "Jugador no encontrado" };
 
-        this.inactiveCount = 0
+        this.inactiveCount = 0;
 
-        switch (action) {
-            case 'attack':
-                result = await this.handleAttack(activeChar, targetChar, actionParams);
+        try {
+            switch (action) {
+                // CASO A: USAR HABILIDAD (Ataque o Hechizo)
+                case 'attack':
+                case 'spell':
 
-                if (this.mirror.esPosible) {
-                    this.recordarAccionesJugador(1, null)
-                }
+                    // A.1. Determinar qué habilidad es
+                    let skillId;
+                    if (action === 'attack') {
+                        skillId = activeChar.defaultAttackId || 'default_001';
+                    } else {
+                        // Si es hechizo, viene en los parámetros
+                        skillId = actionParams.skillId;
+                    }
 
-                break;
-            case 'defend':
-                result = this.handleDefend(activeChar, actionParams);
+                    const spell = await this.getSpellInfo(skillId);
 
-                if (this.mirror.esPosible) {
-                    this.recordarAccionesJugador(2, null)
-                }
+                    if (!spell) return { success: false, message: "Habilidad no encontrada." };
 
-                break;
-            case 'spells':
-                result = await this.handleSpell(activeChar);
-                break;
-            case 'bag':
-                result = await this.handleItem(activeChar);
-                break;
-            case 'surrender':
-                result = this.handleSurrender(activeChar, targetChar);
-                break;
-        }
 
-        if (result.success && action !== "spells") {
-            effects = await this.nextTurn()
+                    let selectedTargets = null;
+                    if (actionParams.targetsId) {
+                        const ids = Array.isArray(actionParams.targetsId) ? actionParams.targetsId : [actionParams.targetsId];
+                        selectedTargets = this.allCombatientes.filter(p => ids.includes(p.ownerId));
+                    }
 
-            if (effects.gameOver) {
-                return { ...result, message: effects?.message, gameOver: effects?.gameOver, messageId: effects?.messageId }
+                    const esEquipo1 = this.equipo1.some(p => p._id === activeChar._id);
+                    const battleState = {
+                        allies: esEquipo1 ? this.equipo1 : this.equipo2,
+                        enemies: esEquipo1 ? this.equipo2 : this.equipo1
+                    };
+
+                    // A.4. Obtener TODOS los objetivos afectados (Tu función maestra)
+                    const targetsDistribution = await this.getAllTargets(spell, activeChar, selectedTargets, battleState);
+
+                    console.log("Data:", actionParams.targetsId, selectedTargets, targetsDistribution)
+
+                    // Validación: Si no hay nadie a quien afectar
+                    if (Object.keys(targetsDistribution.targets).length === 0 && Object.keys(targetsDistribution.targetsEffects).length === 0) {
+                        return { success: false, message: "No hay objetivos válidos." };
+                    }
+
+                    // A.5. Cobrar Costos (Tu función)
+                    const costResult = await this.deductSpellCost(spell, activeChar);
+                    if (!costResult.success) {
+                        return costResult; // Retorna el error (ej: "No tienes maná")
+                    }
+
+                    const executionResult = await this.applyEffectsSpell(spell, activeChar, targetsDistribution.targets, targetsDistribution.targetsEffects);
+
+                    result = {
+                        success: true,
+                        history: {
+                            tipo: action === 'attack' ? 'ataque' : 'hechizo',
+                            data: {
+                                atacante: activeChar.Nombre,
+                                habilidad: spell.Nombre,
+                                mensaje: executionResult.summaryMessage || "Acción realizada."
+                            }
+                        }
+                    };
+
+                    if (this.mirror.esPosible) {
+                        this.recordarAccionesJugador(1, { skillId, targets: actionParams.targetsId });
+                    }
+                    break;
+
+                case 'defend':
+                    result = this.handleDefend(activeChar); 
+
+                    if (this.mirror.esPosible) {
+                        this.recordarAccionesJugador(2, null);
+                    }
+                    break;
+
+                case 'bag':
+                    result = await this.handleItem(activeChar, actionParams.itemId, targets);
+                    break;
+
+                case 'surrender':
+                    result = this.handleSurrender(activeChar);
+                    break;
+
+                default:
+                    return { success: false, message: "Acción desconocida" };
             }
-        }
 
-        return { ...result, isNexturn: effects?.isNextTurn };
+            // --- FINALIZAR TURNO (Común para todos) ---
+
+            if (result.success) {
+                if (result.history) {
+                    this.historialAcciones.push(result.history);
+                }
+
+                effects = await this.nextTurn();
+
+                if (effects.gameOver) {
+                    return { ...result, gameOver: true, winner: effects.winner };
+                }
+            }
+
+            return { ...result, isNextTurn: effects?.isNextTurn };
+
+        } catch (error) {
+            console.error("Error crítico en processAction:", error);
+            return { success: false, message: "Error interno al procesar la acción." };
+        }
     }
 
-    /**
-     * Procesa un acción de ataque
-     * @param {Personaje} attacker - Jugador que ataca 
-     * @param {Personaje} defender - Jugador que recibe el ataque
-     * @param {null} parametros - Sin valor
-     * @returns {Object} - success, message
-     */
-    async handleAttack(attacker, defender, parametros) {
+
+    async generateAttackSkill(attacker) {
         let equipamiento;
-
-        const dañoBase = Math.floor(Math.random() * (9 - 4) + 2)
-        const characterStrenght = attacker.stats.fuerza || 1;
-        const levelBonus = 1 + (attacker.nivelMagico * 0.2)
-        const chanceCritico = ((attacker.stats.sabiduria * 2) + (attacker.stats.agilidad * 2)) / 100
-        const CritMultip = 1.5;
-        const enemyDefense = (1 + (defender.defenseActual || 1)) * ((defender.stats.resistenciaFisica * 0.6) + (defender.nivelMagico * 0.35))
-        let weaponInfo;
-        let messageAuthor
-        let critico = false
-
         if (attacker.ID !== attacker.Type) {
             equipamiento = attacker?.equipo?.find(i => i.Type === 1)
         }
 
+        let weaponInfo = { atributos: { fuerza: 0 }, nombre: "Emergencia" };
+
         if (equipamiento) {
+
             weaponInfo = await this.getObjetInfo(equipamiento.Region, equipamiento.ID)
         }
 
-        let dañoTotal = (weaponInfo?.atributos?.fuerza || 0) + (dañoBase + (characterStrenght * levelBonus))
+        const randomBase = Math.floor(Math.random() * (9 - 4) + 2);
+        const weaponDamage = weaponInfo?.atribu
 
-        if ((Math.random() < chanceCritico)) {
-            dañoTotal *= CritMultip
-            critico = true
-        }
-
-
-        console.log(dañoTotal, enemyDefense)
-        dañoTotal = Math.max(Math.round(dañoTotal - enemyDefense), 1)
-
-        defender.HP = Math.max(0, defender.HP - dañoTotal)
-        defender.defenseActual = 1
-
-        if (critico) {
-            this.historialAcciones.push(`${attacker.Nombre} atacó a ${defender.Nombre} y le provoco un **daño critico** de **${dañoTotal}**`)
-            messageAuthor = `Atacaste a ${defender.Nombre} y le provocaste un **daño critico** de **${dañoTotal}**`
-        } else {
-            this.historialAcciones.push(`${attacker.Nombre} atacó a ${defender.Nombre} causando **${dañoTotal}** de daño`);
-            messageAuthor = `Atacaste a ${defender.Nombre} causando ${dañoTotal} de daño`
-        }
-
-
-        if (defender.HP <= 0) {
-            this.historialAcciones.push(`**${defender.Nombre} ha sucumbido <:frogdead:1372442995193810985>**`)
-            await this.endDuel("hp0", attacker)
-            return {
-                success: true,
-                message: `¡${attacker.Nombre} ha derrotado a ${defender.Nombre}!`,
-                gameOver: true,
-                messageId: this.channels
+        return {
+            _id: "basic_attack",
+            Nombre: `Ataque (${weaponInfo.Nombre || 'Puños'})`,
+            Tipo: 0, // 0 = Físico (Importante para la defensa)
+            Elemento: weaponInfo.Elemento || "Neutro",
+            Costos: { mana: 0, Vida: 0 },
+            Mecanicas: {
+                damage: {
+                    // Sumamos base aleatoria + daño del arma
+                    base: randomBase + weaponDamage,
+                    // Tu lógica vieja: characterStrenght * levelBonus
+                    // Lo pasamos como scaling para que applyEffectsSpell lo calcule
+                    scaling: {
+                        stats: "fuerza",
+                        // El levelBonus (1 + lvl*0.2) lo calcularemos en el engine o aquí
+                        multi: 1 + (attacker.nivelMagico * 0.2)
+                    },
+                    objetivo: [1], // Enemigo
+                    esFisico: true // Bandera para activar defensa física
+                }
             }
-        }
-
-        await this.getDialogues(this.personajes[0], this.personajes[1], null, null);
-
-        return { success: true, message: `${messageAuthor}` };
+        };
     }
 
     /**
@@ -1085,16 +1129,17 @@ class Duelv2 {
      * @param {*} enemies 
      * @returns 
      */
-    async getTargetsForObjetive(objective, caster, selectedTarget, allies, enemies) {
+    async getTargetsForObjetive(objective, caster, selectedTargets, allies, enemies) {
 
 
 
         switch (objective) {
             case 1: // Enemigo
+                if (selectedTargets && selectedTarget.length > 0) return selectedTargets
                 return selectedTarget || enemies[0];
             case 2: // Aliado
-                return selectedTarget || (allies.find(ally => ally.id !== caster.id) || allies[0]);
-            case 3: // Uno mismo
+                if (selectedTargets && selectedTargets.length > 0) return selectedTargets
+                return allies.filter(a => a.ID !== caster.ID)
                 return caster;
             case 4: // Todos (Aliados y Enemigos)
                 return [...allies, ...enemies];
@@ -1171,7 +1216,7 @@ class Duelv2 {
             otherEffects: []
         };
 
-        const mechanics = spell.Mecanicas
+        const mechanics = spell.Mecanicas || {}
 
         let multipElement = 1
 
@@ -1208,10 +1253,14 @@ class Duelv2 {
                 fuerteContra: [],
                 debilContra: []
             },
+            Neutro: {
+                fuerteContra: [],
+                debilContra: []
+            }
         }
 
         if (!(Object.keys(targets).length === 0)) {
-            if (mechanics?.damage) {
+            if (mechanics?.damage && targets.damage) {
                 let isElemental = { Bonus: false, message: "" }
 
                 let targetDamage = targets.damage
@@ -1221,7 +1270,7 @@ class Duelv2 {
                 }
 
                 for (const target of targetDamage) {
-                    const efecto = efectividadElemental[spell.Elemento];
+                    const efecto = efectividadElemental[spell.Elemento] || efectividadElemental["Neutro"];
 
                     if (efecto.fuerteContra.includes(target.Elemento)) {
                         multipElement = 1.3 // 30% de daño adicional
@@ -1237,31 +1286,44 @@ class Duelv2 {
                     // Calcular daño base + scaling
                     let damageAmount = this.calculateEffectAmount(mechanics.damage, caster, multipElement)
 
+                    const chanceCritico = ((caster.stats.sabiduria * 2) + (caster.stats.agilidad * 2)) / 100;
+                    const esCritico = Math.random() < chanceCritico;
+
+                    if (esCritico) {
+                        damageAmount = Math.floor(damageAmount * 1.5)
+                    }
+
+                    if (spell.Tipo === 0 || mechanics.damage.esFisico) {
+                        const enemyDefense = (1 + (target.defenseActual || 0)) * ((target.stats.resistenciaFisica * 0.6) + (target.nivelMagico * 0.35))
+
+                        damageAmount = Math.max(Math.round(damageAmount - enemyDefense), 1)
+
+                        target.defenseActual = 0;
+                    }
+
+
+
                     target.HP = Math.max(0, target.HP - damageAmount)
 
                     results.damage.push({
                         target: target,
                         effect: 'damage',
                         amount: damageAmount,
-                        isElemental
+                        isElemental: isElemental,
+                        isCritico: esCritico
                     });
                 }
 
             }
 
             if (mechanics?.healing) {
+                const healingTargets = Array.isArray(targets.healing) ? targets.healing : [targets.healing];
 
-                let isElemental = { Bonus: false, message: "" }
 
 
-                let healingTargets = targets.healing
-
-                if (!Array.isArray(healingTargets)) {
-                    healingTargets = [healingTargets];
-                }
                 for (const target of healingTargets) {
-
-                    const efecto = efectividadElemental[spell.Elemento];
+                    let isElemental = { Bonus: false, message: "" }
+                    const tabla = efectividadElemental[spell.Elemento] || efectividadElemental["Neutro"];
 
                     if (efecto.fuerteContra.includes(target.Elemento)) {
                         multipElement = 1.3 // 30% de daño adicional
@@ -1283,49 +1345,52 @@ class Duelv2 {
                         target: target,
                         effect: 'healing',
                         amount: healAmount,
-                        isElemental
+                        isElemental: isElemental
                     });
                 }
             }
         }
 
-        if (!(Object.keys(effectsTargets).length === 0)) {
+        if (mechanics.Efectos && Object.keys(effectsTargets).length > 0) {
             for (const key of Object.keys(mechanics.Efectos)) {
-                let effectTargets = effectsTargets[key]
+                // Obtener targets para ESTE efecto específico
+                let effectTargetsList = effectsTargets[key];
+                if (!effectTargetsList) continue; // Si no hay targets para este efecto, saltar
 
-                if (!Array.isArray(effectTargets)) {
-                    effectTargets = [effectTargets];
-                }
+                if (!Array.isArray(effectTargetsList)) effectTargetsList = [effectTargetsList];
 
-                for (const target of effectTargets) {
+                for (const target of effectTargetsList) {
+                    const efectoDatos = mechanics.Efectos[key];
 
                     target.statusEffect.push({
-                        type: key,
-                        Nombre: mechanics.Efectos[key].Nombre,
-                        base: Math.round(mechanics.Efectos[key].base + (1 + (caster.stats.poderElemental * 2))),
-                        duracion: mechanics.Efectos[key].duracion,
-                        probabilidad: mechanics.Efectos[key].probabilidad || null
-                    })
+                        type: key, // ej: "poison"
+                        Nombre: efectoDatos.Nombre,
+                        // Calculamos la potencia del efecto basada en stats del caster
+                        base: Math.round(efectoDatos.base + (1 + (caster.stats.poderElemental * 2))),
+                        duracion: efectoDatos.duracion,
+                        probabilidad: efectoDatos.probabilidad || 1
+                    });
 
                     results.otherEffects.push({
                         target: target,
                         effect: key,
-                        nombreEfecto: mechanics.Efectos[key].Nombre,
-                        duracion: mechanics.Efectos[key].duracion
+                        nombreEfecto: efectoDatos.Nombre,
+                        duracion: efectoDatos.duracion
                     });
                 }
-
             }
         }
 
 
-        await this.getDialogues(this.personajes[0], this.personajes[1], null, null);
+        if (this.personajes && this.personajes.length >= 2) {
+            await this.getDialogues(this.personajes[0], this.personajes[1], null, null);
+        }
 
         const detailedMessage = this.generateDetailedMessage(spell, caster, results);
         const summaryMessage = this.generateSummaryMessage(spell, caster, results);
-        this.activeduels.set(this.id, activeDuel);
 
         return {
+            success: true,
             results: results,
             detailedMessage: detailedMessage,
             summaryMessage: summaryMessage
