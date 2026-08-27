@@ -9,247 +9,11 @@ const npcs = db2.collection("NPCs")
 const habilidades = db2.collection("Hechizos_globales")
 const cacheGlobal = require("../utils/cache")
 const getXp = require("../functions/getXP")
-
+const tokenManager = require('./Tokens/Ticket');
+const PayloadBuilder = require('./Tokens/payloads');
+const { crearCustomId } = require("../utils/constructores/customId")
 
 class InterfazCreate {
-    constructor() {
-        this.colores = {
-            reset: '[0m',
-            bold: '[1m',
-            red: '[2;31m',
-            green: '[2;32m',
-            yellow: '[2;33m',
-            blue: '[2;34m',
-            // ... los colores que Discord soporte
-        };
-        this.ESC = '\u001b';
-    }
-
-
-    /**
-         * Crea el componente (mensaje) de la sala de duelos.
-         * @param {object} salaData - El objeto completo de la sala.
-         * @param {string} type - Global, Autor, All
-         * @param {string} interactionAutor - la ID del autor de la interacción, esta es opcional
-         * @returns {object} - Componente JSON usando V2 components
-         */
-    async salaDueloMessage(dataSala, type = "global", interactionAutor = null) {
-
-        const privateSala = dataSala.isPrivate ? "\n-# `Codigo de sala:` (Privada)" : "\n-# `Codigo de sala:` " + `||${dataSala.code}||`
-
-        const data = Object.values(dataSala.team1)
-        const data2 = Object.values(dataSala.team2)
-
-        const listaNombresEq1 = data.map(ch => {
-            return `- -# **${ch.perfil.Nombre}**`
-        }).join("\n")
-
-
-        const listaNombresEq2 = data2.map(ch => {
-            return `- -# **${ch.perfil.Nombre}**`
-        }).join("\n")
-
-        const batallaEquilibrada = dataSala?.restricted?.equilibrated ? !(data.length === data2.length) : false
-
-
-        const serverMessage = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": "https://i.pinimg.com/1200x/16/f7/00/16f70096006f074ddba8b9d390e52ac6.jpg"
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# Sala de duelo | ${dataSala.autorCharacter}`
-                            },
-                            {
-                                "type": 10,
-                                "content": "-# `Estado:`" + `*${dataSala.estado}*` + "\n-# `Creador:` " + `<@!${dataSala.autor}>` + privateSala
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Retadores (${data.length}/${dataSala.limitTeam1}):**\n${listaNombresEq1}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Contrincantes (${data2.length}/${dataSala.limitTeam2}):**\n${listaNombresEq2}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# Sistema de combate V3 - Creado hace: <t:${dataSala.creado}:R>`
-                    }
-                ]
-            }
-        ]
-        const salaMessage = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": "https://i.pinimg.com/1200x/16/f7/00/16f70096006f074ddba8b9d390e52ac6.jpg"
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `# Sala de duelo | ${dataSala.autorCharacter}`
-                            },
-                            {
-                                "type": 10,
-                                "content": "-# `Estado:`" + `*${dataSala.estado}*` + "\n-# `Creador:` " + `<@!${dataSala.autor}>` + "\n-# `Codigo de sala:` " + `||${dataSala.code}||`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Retadores (${data.length}/${dataSala.limitTeam1}):**\n${listaNombresEq1}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `**Contrincantes (${data2.length}/${dataSala.limitTeam2}):**\n${listaNombresEq2}`
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# Sistema de combate V3 - Creado hace: <t:${dataSala.creado}:R>`
-                    }
-                ]
-            },
-            {
-                "type": 1,
-                "components": [
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": dataSala.isPrivate ? "Privada" : "Publica",
-                        "emoji": null,
-                        "disabled": false,
-                        "custom_id": dataSala.isPrivate ? `preDuel-${dataSala.autor}-publica-${dataSala.code}` : `preDuel-${dataSala.autor}-privada-${dataSala.code}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 3,
-                        "label": "Iniciar Duelo",
-                        "emoji": null,
-                        "disabled": (data2.length < 1 || data.length < 1) || batallaEquilibrada,
-                        "custom_id": `preDuel-${dataSala.autor}-start-${dataSala.code}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 4,
-                        "label": "Eliminar sala",
-                        "emoji": null,
-                        "disabled": false,
-                        "custom_id": `preDuel-${dataSala.autor}-delete-${dataSala.code}`
-                    }
-                ]
-            }
-        ]
-        const inviteMessage = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": "https://i.pinimg.com/736x/77/23/82/7723822ab96ea5be434c8b9f6d42c7f7.jpg"
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": "# Esperando combate..."
-                            },
-                            {
-                                "type": 10,
-                                "content": "-# Aqui deberia ir un mensaje curioso, sin embargo... Aun no hay nada "
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 1,
-                        "components": [
-                            {
-                                "type": 2,
-                                "style": 4,
-                                "label": "Salir de la sala",
-                                "emoji": null,
-                                "disabled": false,
-                                "custom_id": `preDuel-${interactionAutor}-salirse-${dataSala.code}`
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-
-        return (type === "all") ? [serverMessage, salaMessage, inviteMessage] : type === "global" ? serverMessage : type === "sala" ? salaMessage : inviteMessage
-
-
-
-
-    }
 
     async personajeOcupado(characterId) {
         const ocupado = await cacheGlobal.getStatus(characterId)
@@ -299,9 +63,17 @@ class InterfazCreate {
                 cacheGlobal.deleteStatus(characterId)
                 return null
             }
+            const serverLink = salaData.messageServer
+                ? `https://discord.com/channels/${salaData.messageServer.guild}/${salaData.messageServer.channel}/${salaData.messageServer.message}`
+                : (salaData.messageAutor
+                    ? `https://discord.com/channels/@me/${salaData.messageAutor.channel}/${salaData.messageAutor.message}`
+                    : null);
+
+            const linkContent = serverLink ? `\n-# [Haz click aqui para ir al mensaje de la sala](${serverLink})` : '';
+
             mensajeGlobal[0].components.push({
                 "type": 10,
-                "content": "Tu personaje se encuentra dentro de una sala. Para poder realizar esta acción debes salirte.\n" + `-# [Haz click aqui para ir al mensaje de la sala](https://discord.com/channels/${salaData.messageServer.guild}/${salaData.messageServer.channel}/${salaData.messageServer.message})`
+                "content": "Tu personaje se encuentra dentro de una sala. Para poder realizar esta acción debes salirte." + linkContent
             })
         }
 
@@ -315,225 +87,6 @@ class InterfazCreate {
         }
 
         return mensajeGlobal
-    }
-
-    /**
-     * Formatea la vida en simbolos: [Emoji] hpactual/hpmax
-     * @param {Number} current - valor actual del jugador
-     * @param {Number} max - valor maximo del jugador
-     * @param {Number | Object} emoji - [Predeterminado: 1 = vida, 2 = mana] o custom {vacio: id_emoji o texto, lleno: [ID_emoji o texto]}
-     * @param {Number} barraLenght - Tamaño de la barra a mostrar (Predeterminado: 10) 
-     * @returns Texto formateado
-     */
-    barraCustom(current, max, emoji, barraLenght = 10) {
-        let emojiSet;
-
-        switch (emoji) {
-            case 1: // Vida
-                emojiSet = {
-                    lleno: "❤︎",
-                    vacio: "𖹭",
-                    especial: '<a:AttencionHeart:1345256576167968828>'
-                };
-                break;
-            case 2: //mana
-                emojiSet = {
-                    lleno: '<:iconMana:1370897534083534978>',
-                    vacio: ".",
-                }
-            default:
-                if (typeof emoji === "object" && emoji.lleno && emoji.vacio) {
-                    emojiSet = emoji
-                } else {
-                    emojiSet = {
-                        lleno: '█',
-                        vacio: '░',
-                    }
-                }
-        }
-
-        const porcentaje = (current / max) * 100
-        let filledBars = Math.round((current / max) * barraLenght);
-
-        if (current > 0 && filledBars === 0) {
-            filledBars = 1
-        }
-
-        if (current <= 0) {
-            filledBars = 0
-        }
-
-        const emptyBars = barraLenght - filledBars;
-
-        let barraLlena = '';
-        const barraVacia = emojiSet.vacio.repeat(emptyBars);
-
-        if (emojiSet.especial && porcentaje < 10 && filledBars > 0) {
-            barraLlena = emojiSet.lleno.repeat(filledBars - 1) + emojiSet.especial
-        } else {
-            barraLlena = emojiSet.lleno.repeat(filledBars)
-        }
-        return `[${barraLlena}${barraVacia}] **(${current}/${max})**`;
-    }
-
-    async duelBattleMessage(duel, player, rivalTeam, isEspectador = false) {
-        const lastActions = await this.asciiText(duel.historialAcciones[duel.historialAcciones.length - 1])
-
-        let effectsActivesR;
-        let effectsActivesU;
-
-        const imagesTeams = []
-
-
-        if (isEspectador) {
-            const sup = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": "# ¡El duelo ha comenzado!:\n- *Es el turno de: " + `<@!${duel.turnoActual.ownerId}>*`
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": player.length > 1 ? `${imagesTeams[0]}` : `${player[0].avatarURL}`
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": await this.characterComponents(player, player.length > 1)
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": rivalTeam.length > 1 ? `${imagesTeams[1]}` : `${rivalTeam[0].avatarURL}`
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": await this.characterComponents(rivalTeam, rivalTeam.length > 1)
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
-                        }
-                    ]
-                }
-            ]
-
-
-            return sup
-        }
-
-        if (player.statusEffect?.length > 0) {
-            const efectosActivos = player.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesU = `${efectosActivos}`
-        }
-
-        if (rivalTeam.statusEffect?.length > 0) {
-            const efectosActivos = rivalTeam.statusEffect.map(effect => `- -# ${effect.Nombre} [Duracion: ${effect.duracion}]`).join('\n');
-            effectsActivesR = `${efectosActivos}`
-        }
-
-        const isTurn = duel.turnoActual.ID === player.ID ? "¡Es tu turno!" : "Esperando la acción del rival..."
-
-        const messageTitle = `# ${isTurn}\n-# *Turno: ${duel.ronda}*\n\n-# "La batalla se intensifica lentamente..."`
-        let rivalTeams = "";
-
-        if (rivalTeam.length > 1) {
-            for (const pj of rivalTeam) {
-                rivalTeams += `- **${pj.Nombre} \`(ARM: ${pj.nivelMagico})\`**` + `| HP: ${await this.characterComponents(pj, true, true)}\n`
-            }
-        } else if (rivalTeam.length === 1) {
-            for (const pj of rivalTeam) {
-                rivalTeams = `- **${pj.Nombre} \`(ARM: ${pj.nivelMagico})\` **` + `\n-# HP: ${await this.characterComponents(pj, false, true)}`
-            }
-
-        } else {
-            // Opcional: manejar el caso de que no haya rivales
-            rivalTeams = "No hay rivales.";
-        }
-
-        const userDuelsMini = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": duel.turnoActual.avatarURL
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": `${messageTitle}` + `\n\n${rivalTeam.length > 1 ? "Tus rivales:" : "**Tu rival**"}`
-                            }
-                        ]
-                    },
-                    {
-                        "type": 10,
-                        "content": rivalTeams
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": `Tu personaje: **${player.Nombre} \`(ARM: ${player.nivelMagico})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
-                            `\n-# Mana: ${this.barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + "\n\nEfectos: [En desarrollo]"
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${lastActions}\`\`\``
-                    },
-                ]
-            }
-        ]
-
-
-        if (duel.turnoActual.ID === player.ID) {
-            const buttons = this.createActionButtons(duel)
-
-            userDuelsMini[0].components.push(...buttons)
-        }
-
-        return userDuelsMini
     }
 
     async characterComponents(team, small = false, isOnePlayer = false) {
@@ -562,7 +115,7 @@ class InterfazCreate {
                 teamJSON.push(
                     {
                         "type": 10,
-                        "content": `**${pj.Nombre} (LV: ${pj.nivelMagico})**`
+                        "content": `**${pj.Nombre} (${pj.isNPC ? `LV: ${pj.nivelMagico}` : `FE: ${pj.StelarFragmentsTotal ?? pj.StelarFragments ?? pj.nivelMagico}`})**`
                     },
                     {
                         "type": 10,
@@ -575,97 +128,9 @@ class InterfazCreate {
         return teamJSON
     }
 
-    createActionButtons(duel) {
-        let attackDisable = false
-        let defendDisable = false
-        let bagDisable = false
-        let spellsDisable = false
-        let surrenderDisable = false
+    async createComponentsTarget(duel, autor, accion, habilidad) {
 
-        if (duel.isNPC) {
-            const npc = duel.personajes.find(p => p.isNPC === true)
-            attackDisable = npc.restrictions.Attack === true
-            defendDisable = npc.restrictions.Defend === true
-            bagDisable = npc.restrictions.Bag === true
-            spellsDisable = npc.restrictions.Spells === true
-            surrenderDisable = npc.restrictions.Surrender === true
-        }
-
-        const buttonJSON = [
-            {
-                "type": 14,
-                "divider": true,
-                "spacing": 1
-            },
-            {
-                "type": 1,
-                "components": [
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Atacar",
-                        "emoji": {
-                            name: "sword",
-                            id: "1370631600454504498"
-                        },
-                        "disabled": attackDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-attack-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Defenderse",
-                        "emoji": {
-                            name: "yellowShield",
-                            id: "1370631300616159233"
-                        },
-                        "disabled": defendDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-defend-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Mochila",
-                        "emoji": {
-                            name: "EmuNui",
-                            id: "1370631281028890727"
-                        },
-                        "disabled": bagDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-bag-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "Hechizos",
-                        "emoji": {
-                            name: "SpellBook",
-                            id: "1370631319910092811"
-                        },
-                        "disabled": spellsDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-spells-${duel.id}`
-                    },
-                    {
-                        "type": 2,
-                        "style": 4,
-                        "label": "Rendirse",
-                        "emoji": {
-                            name: "whiteflagpepo",
-                            id: "1370631336536047737",
-                        },
-                        "disabled": surrenderDisable,
-                        "custom_id": `DuelAct-${duel.turnoActual.ownerId}-${duel.turnoActual.ID}-surrender-${duel.id}`
-                    }
-                ]
-            }
-        ]
-
-        return buttonJSON
-    }
-    colorizeText(text, colorCode) {
-        return `${this.ESC}${colorCode}${text}${this.ESC}${this.colores.reset}`;
-    }
-
-    async createComponentsTarget(duel, autor, habilidad, accion) {
+        console.log(accion)
 
         if (habilidad) {
             habilidad = await habilidades.findOne({ _id: habilidad === "attack" ? autor.ataquePredeterminado : habilidad })
@@ -699,7 +164,7 @@ class InterfazCreate {
 
 
         let potentialTargets = [];
-        console.log("Autor:", autor.ID)
+        console.log("[InterfazCreate.js]-Autor:", autor.ID)
         const esEquipo1 = duel.equipo1.some(miembro => miembro.ID === autor.ID);
 
         if (habilidad.Mecanicas.objetivo.includes("enemigo")) {
@@ -713,7 +178,7 @@ class InterfazCreate {
             potentialTargets = duel.allCombatientes;
         }
 
-        if (habilidad.Mecanicas.objetivo.includes('si_mismo') || habilidad.Mecanicas.objetivo.includes('self')) {
+        if (habilidad.Mecanicas.objetivo.includes('si_mismo') || habilidad.Mecanicas.objetivo.includes('self') || habilidad.Mecanicas.objetivo.includes('mismo')) {
             potentialTargets.push(autor);
         }
 
@@ -728,6 +193,9 @@ class InterfazCreate {
                 targetIdParam = validTargets[0].ID; // O ownerId, lo que uses
             }
 
+            const datosLanzarAccion = PayloadBuilder.duelToken(duel.id, autor.ID, accion, habilidad._id, targetIdParam)
+            const idToken = tokenManager.create("DUEL", datosLanzarAccion)
+
             const confirmButton = {
                 "type": 1,
                 "components": [
@@ -737,7 +205,7 @@ class InterfazCreate {
                         "label": esRandom ? "Lanzar aleatoriamente" : (esAoE ? "Lanzar a todos" : "Confirmar acción"),
                         "emoji": null,
                         "disabled": false,
-                        "custom_id": `DuelAct-${autor.ownerId}-${autor.ID}-${habilidad._id}-${duel.id}-${targetIdParam}-cf_${accion}`
+                        "custom_id": `DuelAct-${autor.ownerId}-${idToken}-confirm`
                     },
                     {
                         "type": 2,
@@ -745,7 +213,7 @@ class InterfazCreate {
                         "label": "Cancelar acción",
                         "emoji": null,
                         "disabled": false,
-                        "custom_id": `DuelAct-${autor.ownerId}-${autor.ID}-cancel-${duel.id}`
+                        "custom_id": `DuelAct-${autor.ownerId}-${idToken}-cancel`
                     }
                 ]
             }
@@ -774,14 +242,15 @@ class InterfazCreate {
         }
 
         const textTarget = validTargets.map(target => {
+            const labelNivel = target.isNPC ? `LV: ${target.nivelMagico}` : `FE: ${target.StelarFragmentsTotal ?? target.StelarFragments ?? target.nivelMagico}`;
             selectOptions.components[0].options.push({
-                "label": `-# ${target.Nombre} (${target.nivelMagico})`,
+                "label": `-# ${target.Nombre} (${labelNivel})`,
                 "value": `${target.ID}`,
                 "description": null,
                 "emoji": null,
                 "default": false
             })
-            return `-# ${target.Nombre} (${target.nivelMagico})`
+            return `-# ${target.Nombre} (${labelNivel})`
         })
         cuerpoMensaje[0].components.push({
             "type": 10,
@@ -795,36 +264,810 @@ class InterfazCreate {
         return cuerpoMensaje
     }
 
-    async asciiText(accion) {
-        switch (accion.tipo) {
-            case 'ataque': {
-                const atacante = this.colorizeText(accion.data.atacante, this.colores.green);
-                const defensor = this.colorizeText(accion.data.defensor, this.colores.red);
-                const daño = this.colorizeText(accion.data.daño, this.colores.yellow);
-                return `${atacante} inflige ${daño} de daño a ${defensor}.`;
-            }
+    /**
+     * Genera y edita el mensaje V2 de selección de subzonas dentro de una región de exploración.
+     * @param {import('discord.js').Client} client 
+     * @param {import('discord.js').ChatInputCommandInteraction} interaction 
+     * @param {string} key - Clave de la zona
+     * @param {Object} soul - Alma del personaje
+     */
+    async zonaMessage(client, interaction, key, soul) {
+        const transaccionCache = require("../utils/cache");
+        const clientdb = require("../Server");
+        const db2 = clientdb.db("Rol_db");
+        const regiones = db2.collection("Regiones");
+        const configServer = require("../config");
+        const { barrasDeEnergia, editarOMandarMensaje } = require("../utils/utilidadesTexto");
 
-            case 'derrota': {
-                const derrotado = this.colorizeText(accion.data.derrotado, this.colores.bold);
-                const mensaje = this.colorizeText(accion.data.mensaje, this.colores.red);
-                return `${derrotado} ha sido vencido. ${mensaje}`;
-            }
+        const userCache = transaccionCache.getUser(interaction.user.id);
+        const exploracionCache = transaccionCache.get(userCache?.explorarID);
 
-            case 'hechizo': {
-                const lanzador = this.colorizeText(accion.data.lanzador, this.colores.green);
-                const hechizo = this.colorizeText(accion.data.nombreHechizo, this.colores.blue);
-                return `${lanzador} lanza el hechizo ${hechizo}.`;
-            }
-
-            case 'inicioDuelo': {
-                const parte1 = this.colorizeText('El duelo ha', this.colores.green);
-                const parte2 = this.colorizeText('comenzado', accion.data.esJefe ? this.colores.red : this.colores.green);
-                return `${parte1} ${parte2}`;
-            }
-
-            default:
-                return 'Acción desconocida.';
+        if (!exploracionCache) {
+            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
         }
+
+        if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
+            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+        }
+
+        const regionDoc = await regiones.findOne({ _id: exploracionCache.regionSelect });
+        if (!regionDoc) {
+            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", ephemeral: true });
+        }
+
+        let zonaKey = key || exploracionCache.zona;
+        let zonaSelect = regionDoc.areas?.[zonaKey];
+
+        if (!zonaSelect && regionDoc.areas) {
+            for (const [k, area] of Object.entries(regionDoc.areas)) {
+                if (area.subzonas?.[zonaKey]) {
+                    zonaSelect = area;
+                    zonaKey = k;
+                    break;
+                }
+            }
+        }
+
+        if (!zonaSelect) {
+            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", ephemeral: true });
+        }
+
+        exploracionCache.zona = zonaKey;
+        const options = [];
+
+        const components = [
+            {
+                "type": 10,
+                "content": "# Sistema de exploración \n-# *Región Seleccionada:* `" + exploracionCache.regionNombre + "`" +
+                    "\n-# *Zona Seleccionada:* `" + zonaSelect.Nombre + "`" +
+                    `\n-# *Energía:*  ${barrasDeEnergia((soul?.nucleo?.energy ?? 0), configServer.maxEnergy)}` +
+                    `\n-# *Nivel de profundidad:* ${exploracionCache.profundidad}`
+            },
+            {
+                "type": 10,
+                "content": "*¿Qué sub-zona vamos a explorar hoy?* ( •̀ ω •́ )y"
+            },
+            {
+                "type": 14,
+                "divider": true,
+                "spacing": 2
+            }
+        ];
+
+        if (zonaSelect.subzonas && typeof zonaSelect.subzonas === 'object') {
+            Object.keys(zonaSelect.subzonas).forEach(subKey => {
+                const subzona = zonaSelect.subzonas[subKey];
+                const isHabilitado = subzona.habilitado ? "`" + `(⚡${subzona.energiaNecesaria})` + "`" : "[Deshabilitado]";
+
+                if (subzona.habilitado) {
+                    options.push({
+                        "label": `${subzona.nombre}`,
+                        "value": `${subKey}`,
+                        "description": `${subzona?.descripcion || ""}`,
+                        "emoji": null,
+                        "default": false
+                    });
+
+                    components.push({
+                        "type": 10,
+                        "content": `-# - **${subzona.nombre} ${isHabilitado}**`
+                    });
+                }
+            });
+        }
+
+        components.push(
+            {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 3,
+                        "custom_id": crearCustomId({
+                            action: "selectExplorar",
+                            userId: interaction.user.id,
+                            characterId: null,
+                            extras: ["subzona"]
+                        }),
+                        "options": options,
+                        "placeholder": "Selecciona una opción...",
+                        "min_values": 1,
+                        "max_values": 1,
+                        "disabled": false
+                    }
+                ]
+            },
+            {
+                "type": 14,
+                "divider": true,
+                "spacing": 1
+            },
+            {
+                "type": 12,
+                "items": [
+                    {
+                        "media": {
+                            "url": "https://i.pinimg.com/originals/b9/69/02/b96902ca778bdd612e49f137f71dfa28.gif"
+                        },
+                        "description": null,
+                        "spoiler": false
+                    }
+                ]
+            },
+            {
+                "type": 10,
+                "content": "-# Puedes actualizar tu energía con el botón de actualizar. (10 min > 1 punto de energía.)"
+            }
+        );
+
+        const v2Exploracion = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": components
+            }
+        ];
+
+        try {
+            await interaction.deferUpdate().catch(() => { });
+            let msg;
+            try {
+                msg = await interaction.channel.messages.fetch(exploracionCache.message.id);
+            } catch (e) { }
+            await editarOMandarMensaje(interaction, exploracionCache, msg, { components: v2Exploracion, flags: ["IsComponentsV2"] });
+        } catch (error) {
+            console.error("Error en zonaMessage [interfazCreate]:", error);
+            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true }).catch(() => { });
+        }
+    }
+
+    /**
+     * 
+     * @param {import('discord.js').Client} client  
+     * @param {import('discord.js').ChatInputCommandInteraction} interaction 
+     * @param {string} key - Clave de la zona
+     * @param {Object} soul - Alma del personaje
+     */
+    async faroExploración(client, interaction, key, soul) {
+        const dialogosFaroData = require("../data/dialogosExploracion/dialogosFaro.json");
+        const randomDialogue = dialogosFaroData.dialogosFaro[Math.floor(Math.random() * dialogosFaroData.dialogosFaro.length)];
+
+        const charId = soul?._id ?? soul?.id ?? soul?.ID;
+        const pj = await characters.findOne({ _id: Number(charId) });
+
+        const inv = pj?.economia?.Inventario || [];
+        const talisman = inv.find(i => Number(i.ID) === 83 || Number(i.ID) === 85);
+        const talismanText = talisman 
+            ? `- **${talisman.Nombre || (`Talismán [${talisman.ID}]`)}** *(x${talisman.Cantidad || talisman.cantidad || 1})*`
+            : "- *No posees ningún Talismán registrado*";
+
+        const mensajeFaro = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": "https://i.pinimg.com/1200x/9e/eb/e7/9eebe7bb35bf35b2921ddda249dd1b8e.jpg"
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": "### Faro de sintonía"
+                            },
+                            {
+                                "type": 10,
+                                "content": `*${randomDialogue}*`
+                            }
+                        ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": `**Talismán de resguardo**\n-# ${talismanText}`
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 3,
+                                "custom_id": `selectExplorar-${interaction.user.id}`,
+                                "options": [
+                                    {
+                                        "label": "Abrir mochila",
+                                        "value": `mochila*abrir*${key}`,
+                                        "description": "Revisa y organiza lo que llevas contigo",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "Purificar objetos",
+                                        "value": `purificar*abrir*${key}`,
+                                        "description": "Permite guardar los objetos del talismán",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "Continuar explorando",
+                                        "value": `continue*${key}`,
+                                        "description": "Más profundo, mejor loot",
+                                        "emoji": null,
+                                        "default": false
+                                    },
+                                    {
+                                        "label": "Retirarse",
+                                        "value": `surrend*${key}`,
+                                        "description": "Vuelve a casa con lo que ya aseguraste",
+                                        "emoji": null,
+                                        "default": false
+                                    }
+                                ],
+                                "placeholder": "Selecciona una opción",
+                                "min_values": 1,
+                                "max_values": 1,
+                                "disabled": false
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        return mensajeFaro;
+    }
+
+    async mochilaExploración(client, interaction, key, soul, page = 1) {
+        const charId = soul?._id ?? soul?.id ?? soul?.ID;
+        const pj = await characters.findOne({
+                 _id: Number(charId)
+            
+        });
+
+        const equipoList = soul?.equipo || soul?.dominio?.equipo || pj?.equipo || pj?.dominio?.equipo || [];
+        const mochilaEquipada = equipoList.find(i => String(i.Type || i.tipo || '').toLowerCase() === "mochila");
+        let capacidadMax = 0;
+        let mochilaName = null;
+
+        if (mochilaEquipada) {
+            const dbobjetos = db2.collection("Objetos_globales");
+            const mochilaIdNum = Number(mochilaEquipada.ID);
+            const objDoc = await dbobjetos.findOne({ "Objetos.ID": mochilaIdNum });
+            const itemDef = objDoc?.Objetos?.find(o => Number(o.ID) === mochilaIdNum);
+            capacidadMax = itemDef?.atributos?.capacidad ?? 20;
+            mochilaName = itemDef?.Nombre || itemDef?.nombre || `Mochila [${mochilaEquipada.ID}]`;
+        }
+
+        const rawMochila = pj?.economia?.Mochila || [];
+        rawMochila.sort((a, b) => Number(a.ID) - Number(b.ID));
+
+        let pesoActual = 0;
+        rawMochila.forEach(item => {
+            const cant = Number(item.Cantidad || item.cantidad || 1);
+            const pesoUnid = Number(item.atributos?.peso ?? 1);
+            pesoActual += cant * pesoUnid;
+        });
+
+        const itemsPorPagina = 10;
+        const totalItems = rawMochila.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPorPagina));
+        const currentPagina = Math.max(1, Math.min(page, totalPages));
+
+        const startIndex = (currentPagina - 1) * itemsPorPagina;
+        const itemsPagina = rawMochila.slice(startIndex, startIndex + itemsPorPagina);
+
+        const contenidoTexto = itemsPagina.length > 0
+            ? itemsPagina.map(item => {
+                const cant = Number(item.Cantidad || item.cantidad || 1);
+                const pesoUnid = Number(item.atributos?.peso ?? 1);
+                const formattedId = String(item.ID).padStart(3, ' ');
+                return `- -# \`[${formattedId}]\` **${item.Nombre || ('Objeto ' + item.ID)}** x${cant} *(Peso: ${pesoUnid * cant})*`;
+            }).join("\n")
+            : "-# *Tu mochila no contiene ningún objeto por ahora.*";
+
+        const infoMochilaTexto = mochilaEquipada
+            ? `-# **Mochila equipada:** \`[${String(mochilaEquipada.ID).padStart(3, ' ')}]\` ${mochilaName}\n-# **Capacidad:** *${pesoActual}/${capacidadMax}*\n\n-# Puedes mejorar la capacidad de la mochila comprando una de mejor calidad dentro de la tienda o consiguiéndola en exploraciones y eventos (✿◡‿◡)`
+            : `-# ⚠️ *No tienes una mochila equipada.*\n-# **Capacidad:** *0/0*\n\n-# Necesitas equipar un objeto de tipo "mochila" para poder transportar objetos durante tus exploraciones.`;
+
+        const mensajeMochila = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": "https://i.pinimg.com/1200x/9a/ad/4d/9aad4d0ed76d36438c5771b2f4865cc9.jpg"
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": "# Tu mochila"
+                            },
+                            {
+                                "type": 10,
+                                "content": infoMochilaTexto
+                            }
+                        ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 2,
+                            "style": 2,
+                            "label": "Añadir objetos",
+                            "emoji": null,
+                            "disabled": !mochilaEquipada,
+                            "custom_id": crearCustomId({
+                                action: "exOp",
+                                userId: interaction.user.id,
+                                characterId: soul._id,
+                                extras: ["mochila", "añadirObjetos"]
+                            })
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": `**Contenido:** \n${contenidoTexto}`
+                            }
+                        ]
+                    },
+                    {
+                        "type": 10,
+                        "content": `-# Página: ${currentPagina}/${totalPages}`
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 3,
+                                "custom_id": crearCustomId({
+                                    action: "mochilaRemoveSelect",
+                                    userId: interaction.user.id,
+                                    characterId: pj._id,
+                                    extras: [key || "zone"]
+                                }),
+                                "options": itemsPagina.length > 0 ? itemsPagina.map(item => ({
+                                    "label": `[${String(item.ID).padStart(3, ' ')}] ${item.Nombre || ('Objeto ' + item.ID)} (x${item.Cantidad || 1})`,
+                                    "value": `${item.ID}*${item.Region || 'Global'}`,
+                                    "description": `Peso unid: ${item.atributos?.peso || 1}`,
+                                    "emoji": null,
+                                    "default": false
+                                })) : [
+                                    {
+                                        "label": "Mochila vacía",
+                                        "value": "none*none",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": false
+                                    }
+                                ],
+                                "placeholder": "Eliminar objeto...",
+                                "min_values": 1,
+                                "max_values": 1,
+                                "disabled": itemsPagina.length === 0
+                            }
+                        ]
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": "<",
+                                "emoji": null,
+                                "disabled": currentPagina <= 1,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: interaction.user.id,
+                                    characterId: soul._id,
+                                    extras: ["mochila", `prev*${currentPagina}*${key}`]
+                                })
+                            },
+                            {
+                                "type": 2,
+                                "style": 3,
+                                "label": "Comenzar exploración",
+                                "emoji": null,
+                                "disabled": false,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: interaction.user.id,
+                                    characterId: soul._id,
+                                    extras: ["mochila", `confirmar*${key}`]
+                                })
+                            },
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": ">",
+                                "emoji": null,
+                                "disabled": currentPagina >= totalPages,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: interaction.user.id,
+                                    characterId: soul._id,
+                                    extras: ["mochila", `next*${currentPagina}*${key}`]
+                                })
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        return mensajeMochila;
+    }
+
+    async mochilaInventarioMensaje(client, interaction, character, page = 1, key = "", filtros = ["fullbag"]) {
+        const ctxOverrides = {
+            action: "mochilaInventario",
+            baseExtras: [key || "zone"]
+        };
+        const baseComponents = this.inventarioMensaje(interaction, character, page, filtros, ctxOverrides);
+        const mainContainer = baseComponents[0];
+        const inventarioRaw = character?.economia?.Inventario || character?.Inventario || [];
+        console.log("mochilaInventarioMensaje", key)
+
+        const rowBotonCerrar = {
+            "type": 1,
+            "components": [
+                {
+                    "type": 2,
+                    "style": 4,
+                    "label": "Cerrar inventario",
+                    "emoji": null,
+                    "disabled": false,
+                    "custom_id": crearCustomId({
+                        action: "exOp",
+                        userId: interaction.user.id,
+                        characterId: character._id,
+                        extras: ["mochila", "cerrarInventario"]
+                    })
+                }
+            ]
+        };
+
+        const sortedInv = [...inventarioRaw].sort((a, b) => Number(a.ID) - Number(b.ID));
+        const optionsSelect = sortedInv.slice(0, 25).map(item => ({
+            "label": `[${String(item.ID).padStart(3, ' ')}] ${item.Nombre || ('Objeto ' + item.ID)} (x${item.Cantidad || 1})`,
+            "value": `${item.ID}*${item.Region || 'Global'}`,
+            "description": `Peso unid: ${item.atributos?.peso || 1}`,
+            "emoji": null,
+            "default": false
+        }));
+
+        const selectCustomId = crearCustomId({
+            action: "mochilaAddSelect",
+            userId: interaction.user.id,
+            characterId: character._id,
+            extras: [key || "zone"]
+        });
+
+        const rowSelect = {
+            "type": 1,
+            "components": [
+                {
+                    "type": 3,
+                    "custom_id": selectCustomId,
+                    "options": optionsSelect.length > 0 ? optionsSelect : [
+                        {
+                            "label": "Sin objetos en inventario",
+                            "value": "none*none",
+                            "description": null,
+                            "emoji": null,
+                            "default": false
+                        }
+                    ],
+                    "placeholder": "Selecciona un objeto para meter a la mochila...",
+                    "min_values": 1,
+                    "max_values": 1,
+                    "disabled": optionsSelect.length === 0
+                }
+            ]
+        };
+
+        mainContainer.components.push(rowSelect, rowBotonCerrar);
+        return baseComponents;
+    }
+
+    filtrarInventario(rawInventario, filtros) {
+        const normalize = (str) => String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const esFullbag = !filtros || !filtros.length || filtros.includes("fullbag");
+        if (esFullbag) return rawInventario;
+
+        const categoryMap = {
+            consumibles: ['consumibles', 'consumible', 'bebible', 'comestible', 'alimento', 'unguento'],
+            equipamiento: ['equipamiento', 'equipo', 'artefacto'],
+            herramientas: ['herramientas', 'herramienta'],
+            compañeros: ['compañeros', 'companeros', 'huevo', 'mascota'],
+            materiales: ['materiales', 'polvo', 'miscelaneo', 'miscelanea', 'otro'],
+            social: ['social', 'regalo', 'pergamino'],
+            lore: ['lore'],
+            coleccionables: ['coleccionables', 'coleccionable'],
+            mision: ['mision', 'misión']
+        };
+
+        const activeFiltros = Array.isArray(filtros) ? filtros : [filtros];
+        const allowedTypes = new Set();
+        activeFiltros.forEach(f => {
+            const normF = normalize(f);
+            allowedTypes.add(normF);
+            if (categoryMap[normF]) {
+                categoryMap[normF].forEach(sub => allowedTypes.add(normalize(sub)));
+            }
+        });
+
+        return rawInventario.filter(item => {
+            if (!item.Tipo) return false;
+            const itemTypes = Array.isArray(item.Tipo)
+                ? item.Tipo.map(t => normalize(t))
+                : [normalize(item.Tipo)];
+            return itemTypes.some(t => allowedTypes.has(t));
+        });
+    }
+
+    inventarioMensaje(interaction, character, pageOrTotal = 1, filtrosParam = ["fullbag"], ctxOverrides = null) {
+        let pagina = 1;
+        let filtros = ["fullbag"];
+
+        if (typeof pageOrTotal === 'number') {
+            pagina = pageOrTotal;
+            if (Array.isArray(filtrosParam)) {
+                filtros = filtrosParam;
+            } else if (typeof filtrosParam === 'string') {
+                filtros = [filtrosParam];
+            }
+        } else if (typeof arguments[3] === 'number') {
+            pagina = arguments[3];
+            filtros = Array.isArray(arguments[4]) ? arguments[4] : (typeof arguments[4] === 'string' ? [arguments[4]] : ["fullbag"]);
+        }
+
+        // ctxOverrides: { action, baseExtras } — permite que mochilaInventarioMensaje inyecte su acción propia
+        const ctxAction = ctxOverrides?.action || "inventario";
+        const ctxBase = ctxOverrides?.baseExtras || [];
+
+        const rawInventario = character.economia?.Inventario || character.Inventario || [];
+
+        const esFullbag = !filtros.length || filtros.includes("fullbag");
+        const activeFiltros = esFullbag ? ["fullbag"] : filtros;
+
+        const inventarioFiltrado = this.filtrarInventario(rawInventario, activeFiltros);
+        inventarioFiltrado.sort((a, b) => Number(a.ID) - Number(b.ID));
+
+        const itemsPorPagina = 10;
+        const totalItems = inventarioFiltrado.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPorPagina));
+
+        let currentPagina = Math.max(1, Math.min(pagina, totalPages));
+
+        const startIndex = (currentPagina - 1) * itemsPorPagina;
+        const itemsPagina = inventarioFiltrado.slice(startIndex, startIndex + itemsPorPagina);
+
+        const itemsContent = itemsPagina.length > 0
+            ? itemsPagina.map(item => {
+                const formattedId = String(item.ID).padStart(3, ' ');
+                return `- -# \`[${formattedId}]\` - **${item.Nombre}** x ${item.Cantidad}`;
+            }).join("\n")
+            : "- -# *No tienes objetos con este filtro.*";
+
+        const filterMap = {
+            fullbag: "Mochila completa",
+            consumibles: "Consumibles",
+            compañeros: "Compañeros",
+            equipamiento: "Equipamiento",
+            herramientas: "Herramientas",
+            materiales: "Materiales",
+            lore: "Lore",
+            mision: "Misión",
+            coleccionables: "Coleccionables"
+        };
+
+        const filtrosTexto = activeFiltros.map(f => filterMap[f] || f).join(", ");
+        const filtrosJoined = activeFiltros.join("_");
+
+        return [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": "https://i.pinimg.com/736x/65/20/7a/65207a6c33da94bae389d05dae46715f.jpg"
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": `# Inventario de ${character.Nombre || 'Personaje'}`
+                            },
+                            {
+                                "type": 10,
+                                "content": "-# Consume un item con /usar\n-# Compra nuevos items con /tienda\n\n**Un espacio que no está aquí ni en ninguna otra parte.**"
+                            }
+                        ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": itemsContent
+                    },
+                    {
+                        "type": 10,
+                        "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}\n-# Filtros aplicados: ${filtrosTexto}`
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": "<",
+                                "emoji": null,
+                                "disabled": currentPagina <= 1,
+                                "custom_id": crearCustomId({
+                                    action: ctxAction,
+                                    userId: interaction.user.id,
+                                    characterId: character._id,
+                                    extras: [...ctxBase, "prev", currentPagina, filtrosJoined]
+                                })
+                            },
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": "Saltar pag.",
+                                "emoji": null,
+                                "disabled": totalPages <= 1,
+                                "custom_id": crearCustomId({
+                                    action: ctxAction,
+                                    userId: interaction.user.id,
+                                    characterId: character._id,
+                                    extras: [...ctxBase, "jump", currentPagina, filtrosJoined]
+                                })
+                            },
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": ">",
+                                "emoji": null,
+                                "disabled": currentPagina >= totalPages,
+                                "custom_id": crearCustomId({
+                                    action: ctxAction,
+                                    userId: interaction.user.id,
+                                    characterId: character._id,
+                                    extras: [...ctxBase, "next", currentPagina, filtrosJoined]
+                                })
+                            }
+                        ]
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 3,
+                                "custom_id": crearCustomId({
+                                    "action": ctxAction,
+                                    "userId": interaction.user.id,
+                                    "characterId": character._id,
+                                    "extras": [...ctxBase, "filter", currentPagina, filtrosJoined]
+                                }),
+                                "options": [
+                                    {
+                                        "label": "Mochila completa",
+                                        "value": "fullbag",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("fullbag")
+                                    },
+                                    {
+                                        "label": "Consumibles",
+                                        "value": "consumibles",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("consumibles")
+                                    },
+                                    {
+                                        "label": "Compañeros",
+                                        "value": "compañeros",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("compañeros")
+                                    },
+                                    {
+                                        "label": "Equipamiento",
+                                        "value": "equipamiento",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("equipamiento")
+                                    },
+                                    {
+                                        "label": "Herramientas",
+                                        "value": "herramientas",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("herramientas")
+                                    },
+                                    {
+                                        "label": "Materiales",
+                                        "value": "materiales",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("materiales")
+                                    },
+                                    {
+                                        "label": "Lore",
+                                        "value": "lore",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("lore")
+                                    },
+                                    {
+                                        "label": "Misión",
+                                        "value": "mision",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("mision")
+                                    },
+                                    {
+                                        "label": "Coleccionables",
+                                        "value": "coleccionables",
+                                        "description": null,
+                                        "emoji": null,
+                                        "default": activeFiltros.includes("coleccionables")
+                                    }
+                                ],
+                                "placeholder": "Selecciona un filtro",
+                                "min_values": 1,
+                                "max_values": 4,
+                                "disabled": false
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 }
 

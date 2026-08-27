@@ -46,7 +46,8 @@ class MailSystem {
             isEspecial: false,
         }
 
-        await characters.updateOne({ID: data.personajeSend}, 
+        const destId = Number(data.personajeSend) || data.personajeSend;
+        await characters.updateOne({ _id: destId }, 
             {
                 $push: { buzon: { $each: [newMail], $slice: -100}}
             },

@@ -1,12 +1,14 @@
-const { devs, guild, } = require("../../configslash.json");
+const { devs, guild, } = require("../../config/configslash.json");
 const clientdb = require("../../Server");
 const getLocalButtons = require("../../utils/getLocalButtons");
 const getLocalCommands = require("../../utils/getLocalCommands");
 const getLocalModals = require("../../utils/getLocalModals");
-const getLocalSelect = require("../../utils/getLocalSelectMenus")
+const getLocalSelect = require("../../utils/getLocalSelectMenus");
+const { manejarComponente} = require("../../interaction/manejarComponente")
 const { ChatInputCommandInteraction, InteractionWebhook, Client, ChannelType, EmbedBuilder } = require("discord.js")
 const db1 = clientdb.db("Rol_db")
 const db2 = clientdb.db("Server_db")
+
 const userdbs = db2.collection("usuarios_server")
 const Cachedb = db1.collection("CachePJ")
 const chars = db1.collection("Personajes")
@@ -14,9 +16,8 @@ const objetosdb = db1.collection("Objetos_globales")
 
 /**
  * @param {Client} client 
- * @param {ChatInputCommandInteraction} interaction
+ * @param {import('discord.js').ChatInputCommandInteraction | import('discord.js').AutocompleteInteraction} interaction
  */
-
 
 //Los ejecutar ahora funcionan entre llaves, tienes que llamar al contenido tal y cómo esta
 //Es posible renombrarlos una vez solicitados, algo asi cómo: ejecutar: async(options: {option1: data}) ahora la primera opción se llama data
@@ -164,18 +165,9 @@ module.exports = async (client, interaction) => {
 
     if (interaction.isModalSubmit()) {
         const modalHandlers = await getLocalModals()
-        const modalId = interaction.customId
-        const [action, options, options2, options3] = interaction.customId.split("-")
-        const modalfind = await modalHandlers.find((modal) => modal.customId === action);
-
-        if (!modalfind) {
-            return interaction.reply({ content: "Este modal no tiene ninguna funcion!" })
-        }
-
-        const character = await chars.findOne({ _id: interaction.user.id }) || await Cachedb.findOne({ _id: interaction.user.id })
 
         try {
-            await modalfind.ejecutar(client, interaction, options, options2, options3, { character })
+            manejarComponente(client, interaction, modalHandlers, "modal")
         } catch (e) {
             console.log("Ocurrio un error al ejecutar el modal!", e)
         }
@@ -183,44 +175,9 @@ module.exports = async (client, interaction) => {
 
     if (interaction.isStringSelectMenu()) {
         const selectHandlers = await getLocalSelect();
-        const [CustomId, userAuthor, option1, option2, option3] = interaction.customId.split("-")
-        const componentData = interaction.values[0]
-        const selectfind = await selectHandlers.find((select) => select.customId === `${CustomId}`);
-
-        if (!selectfind) {
-            return interaction.reply({ content: "Este selectMenu no tiene ninguna funcion!", flags: ["Ephemeral"]})
-        }
-        const character = await chars.findOne({ _id: userdb?.nix?.personajeActivo}) || await Cachedb.findOne({ _id: interaction.user.id })
 
         try {
-            if (selectfind.selectAutor) {
-                if (userAuthor !== `${interaction.user.id}`) {
-                    const embed = new EmbedBuilder()
-                        .setDescription(`<@!${userAuthor}> Solo puede responder a esta interacción /(ㄒoㄒ)/~~`)
-                        .setColor("Red")
-                    return interaction.reply({ embeds: [embed], flags: ["Ephemeral"]})
-                } else {
-                    await selectfind.ejecutar(
-                        {
-                            client,
-                            interaction,
-                            character,
-                            componentData,
-                            options: {option1, option2, option3}
-                        }
-                    )
-                }
-            } else {
-                    await selectfind.ejecutar(
-                        {
-                            client,
-                            interaction,
-                            character,
-                            componentData,
-                            options: {option1, option2, option3}
-                        }
-                    )
-            }
+            manejarComponente(client, interaction, selectHandlers, "selectMenu")
         } catch (e) {
             console.log("Ocurrio un error al ejecutar el select!", e)
         }
@@ -228,16 +185,7 @@ module.exports = async (client, interaction) => {
 
     if (interaction.isButton()) {
         const buttonHandlers = await getLocalButtons();
-        const buttonID = interaction.customId
-        const [action, userId, option1, extras1, extras2, extras3, extras4] = splitCustomId(buttonID)
-
-        let characterId = Number(option1)
-
-        if (isNaN(characterId)) {
-            characterId = option1
-        }
-
-        const buttonfind = await buttonHandlers.find((btn) => btn.customId === action);
+        const buttonID = interaction.customId;
 
         if (buttonID === "Noresponse" || buttonID === "Noresponser") {
             const messages = ["Algo te impide responder...", "No sale ni una palabra de tu boca", "Tus manos tiemblan", "Estas perdido/a en tu mente", "Estas congelado/a"]
@@ -246,31 +194,8 @@ module.exports = async (client, interaction) => {
             return interaction.reply({ content: random, flags: ["Ephemeral"] })
         }
 
-
-        if (!buttonfind) {
-            return interaction.reply({ content: "Este boton no tiene ninguna funcion!", flags: ["Ephemeral"] })
-        }
-
-
         try {
-
-            if (buttonfind.buttonAuthor) {
-
-                if (`${action}-${userId}` !== `${action}-${interaction.user.id}`) {
-                    const embed = new EmbedBuilder()
-                        .setDescription(`<@!${userId}> Solo puede responder a esta interacción /(ㄒoㄒ)/~~`)
-                        .setColor("Red")
-                    return interaction.reply({ embeds: [embed], flags: ["Ephemeral"] })
-                } else {
-                    await buttonfind.ejecutar(client, interaction, characterId, extras1, extras2, extras3, extras4)
-                }
-
-
-            } else {
-                await buttonfind.ejecutar(client, interaction, characterId, extras1, extras2, extras3, extras4)
-            }
-
-
+            manejarComponente(client, interaction, buttonHandlers, "button")
         } catch (e) {
             console.log("Ocurrio un error al ejecutar el boton!", e)
         }

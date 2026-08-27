@@ -3,7 +3,6 @@ const clientdb = require("../../../Server")
 const cloudinary = require("cloudinary").v2
 const Discord = require("discord.js")
 const db = clientdb.db("rol_db")
-var intervalo = require("../../../activbd")
 
      /**
      * 

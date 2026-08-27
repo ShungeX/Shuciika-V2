@@ -7,9 +7,9 @@ const souls = db2.collection("Soul")
 const userdb = db.collection("usuarios_server")
 const updateInventario = require("../../../../functions/updateInventario")
 const versionEcon = require("../../../../config")
-const { createJobDisplayMessage } = require("../../../../interactionFuncions/selectMenus/Rol/trabajar")
+const { createJobDisplayMessage } = require("../../../../interaction/selectMenus/Rol/trabajar")
 const { errorMessage } = require("../../../../functions/verifMD")
-const { trabajos } = require("../../../../economia")
+const { trabajos } = require("../../../../data/economia/economia")
 const { recargarEnergia } = require("../../../../functions/dataCharacters")
 
 
@@ -50,7 +50,7 @@ module.exports = {
             return await interaction.reply({ components: trabajos2.component, flags: ["IsComponentsV2", "SuppressNotifications"] })
         }
 
-        soul.energy = await recargarEnergia(soul?.energy, soul)
+        soul.nucleo.energy = await recargarEnergia(soul.nucleo?.energy, soul)
 
         if (this.activeGames.get(interaction.user.id)) return interaction.reply({ content: "ya estas trabajando en este momento. (┬┬﹏┬┬)", flags: ["Ephemeral"] })
 
@@ -204,9 +204,9 @@ module.exports = {
         }
 
         const trabajo = trabajos[character.trabajo.code]
-        if (soul.energy < trabajo.energia) return interaction.reply({
+        if (soul.nucleo.energy < trabajo.energia) return interaction.reply({
             content: "No tienes suficiente energia para realizar este trabajo\n-# Tu energia:"
-                + `${soul.energy}\n-# Energia necesaria: ${trabajo.energia}`
+                + `${soul.nucleo.energy}\n-# Energia necesaria: ${trabajo.energia}`
         })
 
         switch (character.trabajo.code) {
@@ -264,7 +264,7 @@ module.exports = {
      */
 
     bibliotecaCreate: async function (interaction, character, soul, boost) {
-        const { bibliotecaMinigame, minigameMessage, deliveryMinigame } = require("../../../../interactionFuncions/buttons/Rol/trabajar")
+        const { bibliotecaMinigame, minigameMessage, deliveryMinigame } = require("../../../../interaction/buttons/Rol/trabajar")
         const librosColores = ["Rojo", "Morado", "Verde", "Azul", "Naranja", "Amarillo", "Rosa"]
         const maxSecuencia = 5 // Maxima secuencia a recordar :b
         const gameTimeOut = 10_000 // Maximo de tiempo por secuencia para responder :b
@@ -397,7 +397,7 @@ module.exports = {
      * @param {ChatInputCommandInteraction} interaction 
      */
     deliveryCreate: async function (interaction, character, soul, boost) {
-        const { minigameMessage, deliveryMinigame } = require("../../../../interactionFuncions/buttons/Rol/trabajar")
+        const { minigameMessage, deliveryMinigame } = require("../../../../interaction/buttons/Rol/trabajar")
         const deliveryporPagina = 4
         const deliveryTime = 20_000
         const tutorial = character.trabajo.veces === 0 ? "-# ¡Hola! parece ser que es tu primera vez trabajando... No te preocupes, te explicare lo escencial\n-# Recibirás paquetes etiquetados con letras del abecedario, Cada letra representa a una persona diferente. Por ejemplo: \n\n A = Axel.\n\n-# Cuando te toque entregar un paquete a alguien, solo busca la letra que le corresponde y entrégaselo.\n\n" : "Hola, es bueno verte de nuevo por aqui. Aqui estan los pedidos de hoy:\n\n"

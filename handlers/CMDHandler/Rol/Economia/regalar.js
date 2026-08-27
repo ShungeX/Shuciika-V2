@@ -5,7 +5,7 @@ const db2 = clientdb.db("Rol_db")
 const characters = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const version = require("../../../../config")
-const { duelSystem } = require("../../../../functions/duelManager")
+const { duelSystem } = require("../../../../functions/Duelo/duelManager")
 const transaccionCache = require("../../../../utils/cache")
 const { v4: uuidv4 } = require('uuid')
 
@@ -115,31 +115,70 @@ module.exports = {
 
 
 
+        const romanToInt = (roman) => {
+            if (!roman) return 0;
+            if (typeof roman === 'number') return roman;
+            const map = { 'i': 1, 'v': 5, 'x': 10, 'l': 50, 'c': 100, 'd': 500, 'm': 1000 };
+            let total = 0, prev = 0;
+            const str = String(roman).toLowerCase().trim();
+            for (let i = str.length - 1; i >= 0; i--) {
+                const current = map[str[i]] || 0;
+                if (current < prev) total -= current;
+                else total += current;
+                prev = current;
+            }
+            return total;
+        };
+
         const validarRestricciones = async (usuario, soul, item) => {
-            const restricciones = item;
-            console.log(restricciones)
+            const restricciones = item || {};
             const errores = [];
+
+            const userFE = Number(
+                soul?.sendero?.StelarFragmentsTotal 
+                ?? soul?.fragmentos?.StelarFragmentsTotal 
+                ?? soul?.sendero?.StelarFragments 
+                ?? soul?.fragmentos?.StelarFragments 
+                ?? soul?.StelarFragments 
+                ?? 0
+            );
+            const userResplandor = romanToInt(soul?.sendero?.resplandor ?? soul?.resplandor ?? 'I');
+
+            const feMin = Number(restricciones.fe_min ?? restricciones.nivel_minimo ?? 0);
+            const feMax = Number(restricciones.fe_max ?? restricciones.nivel_maximo ?? 0);
+            const respMin = Number(restricciones.resplandor_min ?? 0);
+            const respMax = Number(restricciones.resplandor_max ?? 0);
 
             const validadores = [
                 {
-                    condicion: restricciones.nivel_minimo > 0,
-                    validador: soul.nivelMagico >= restricciones.nivel_minimo,
-                    mensaje: "**`" + `${usuario.Nombre}` + "`** Necesita el nivel minimo del objeto **`" + `(lv: ${restricciones.nivel_minimo})` + "`**"
+                    condicion: feMin > 0,
+                    validador: userFE >= feMin,
+                    mensaje: `**\`${usuario.Nombre}\`** Necesita la FE mínima del objeto **\`(FE: ${feMin})\`**`
                 },
                 {
-                    condicion: restricciones.nivel_maximo > 0,
-                    validador: soul.nivelMagico <= restricciones.nivel_maximo,
-                    mensaje: "**`" + `**${usuario.Nombre}` + "`** Necesita ser más bajo que el nivel maximo **`" + `(lv: ${restricciones.nivel_maximo})` + "`**"
+                    condicion: feMax > 0,
+                    validador: userFE <= feMax,
+                    mensaje: `**\`${usuario.Nombre}\`** Supera la FE máxima del objeto **\`(FE: ${feMax})\`**`
+                },
+                {
+                    condicion: respMin > 0,
+                    validador: userResplandor >= respMin,
+                    mensaje: `**\`${usuario.Nombre}\`** Necesita el Resplandor mínimo requerido **\`(Resplandor: ${respMin})\`**`
+                },
+                {
+                    condicion: respMax > 0,
+                    validador: userResplandor <= respMax,
+                    mensaje: `**\`${usuario.Nombre}\`** Supera el Resplandor máximo permitido **\`(Resplandor: ${respMax})\`**`
                 },
                 {
                     condicion: restricciones.clase,
-                    validador: soul?.Clase === restricciones.clase,
-                    mensaje: "**`" + `**${usuario.Nombre}` + "`** Necesita ser de una clase especifica **`" + `(clase: ${restricciones.clase})` + "`**"
+                    validador: String(soul?.Clase || usuario?.Clase || usuario?.clase || '').toLowerCase() === String(restricciones.clase).toLowerCase(),
+                    mensaje: `**\`${usuario.Nombre}\`** Necesita ser de una clase específica **\`(clase: ${restricciones.clase})\`**`
                 },
                 {
                     condicion: restricciones.reputacion,
-                    validador: usuario.Reputacion >= restricciones.reputacion,
-                    mensaje: "**`" + `${usuario.Nombre}` + "`** Necesita una reputacion superior **`" + `(Rep: ${restricciones.Reputacion})` + "`**"
+                    validador: Number(usuario.Reputacion || usuario.reputacion || 0) >= Number(restricciones.reputacion),
+                    mensaje: `**\`${usuario.Nombre}\`** Necesita una reputación superior **\`(Rep: ${restricciones.reputacion})\`**`
                 }
             ];
 

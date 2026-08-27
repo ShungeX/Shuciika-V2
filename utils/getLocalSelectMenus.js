@@ -1,26 +1,22 @@
-const fs = require('fs')
-const path = require("path")
-const getAllFiles = require('./getAllFiles')
+const path = require("path");
+const getAllFiles = require('./getAllFiles');
 
 module.exports = (exceptions = []) => {
-        let buttons = []
-        const buttonsCategories = getAllFiles(
-            path.join(__dirname, "..", "interactionFuncions", "selectMenus"),
-            true
-        )
+    let selectMenus = [];
+    const selectDir = path.join(__dirname, "..", "interaction", "selectMenus");
+    const selectFiles = getAllFiles(selectDir, false);
 
-    
-        for(const buttonsCategory of buttonsCategories) {
-                const buttonsFiles = getAllFiles(buttonsCategory)
-                for(const buttonsFile of buttonsFiles) {
-                    const buttonsObject = require(buttonsFile)
-                    if(exceptions.includes(buttonsObject.name)) {
-                        continue;
-                    }
-                    buttons.push(buttonsObject);
-                }
-                
-                
+    for (const selectFile of selectFiles) {
+        if (!selectFile.endsWith('.js')) continue;
+        try {
+            const selectObject = require(selectFile);
+            if (exceptions.includes(selectObject.name) || exceptions.includes(selectObject.customId)) {
+                continue;
             }
-    return buttons;
-}
+            selectMenus.push(selectObject);
+        } catch (err) {
+            console.error(`⚠️ Error al cargar selectMenu desde '${selectFile}':`, err.message);
+        }
+    }
+    return selectMenus;
+};

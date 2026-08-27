@@ -1,0 +1,55 @@
+{
+  "dialogosFaro": [
+    "El ruido de allá afuera se detiene aquí. Toma el tiempo que necesites.",
+    "Un punto conocido en medio de tanto que no lo es.",
+    "Aquí la señal es limpia. Respira.",
+    "El Faro no juzga cuánto tardas en decidir.",
+    "Por un momento, nada te sigue buscando.",
+    "El Instituto construyó esto para que nadie tenga que caminar sin descanso.",
+    "Un respiro breve. El sendero sigue esperando afuera.",
+    "La paz aquí es efímera. Aprovecha mientras dura.",
+    "El Faro no tiene prisa. Tú tampoco deberías.",
+    "Cada decisión que tomes afuera, empieza aquí.",
+    "El viento trae ecos de lo que dejaste atrás. Escúchalos.",
+    "Aquí, el tiempo parece detenerse. Afuera, todo sigue su curso.",
+    "El Faro es un recordatorio de que incluso en la oscuridad, hay luz."
+  ],
+  "dialogosPurificacion": [
+    "Asegurar lo encontrado tiene un precio. Nadie trabaja gratis, ni siquiera la calma.",
+    "El Faro puede afinar esto por ti. Solo dilo.",
+    "Cuanto más lejos llegaste, más pesa lo que traes contigo.",
+    "¿Vale la pena pagar por dormir tranquilo esta noche?"
+  ],
+  "dialogosInventario": [
+    "Es tuyo. Solo tenías que pedirlo.",
+    "El Faro no cobra por devolverte lo que ya era tuyo.",
+    "Ahí está, esperándote desde donde lo dejaste."
+  ],
+  "dialogosRetirada": [
+    "A veces, retirarse es la mejor estrategia.",
+    "El camino de vuelta ya está hecho. Solo falta que lo tomes.",
+    "Cada paso atrás es un paso hacia adelante en otra dirección.",
+    "No todos los caminos llevan a la victoria. Algunos llevan a la sabiduría.",
+    "Nadie pierde nada por saber cuándo detenerse.",
+    "Vuelves con las manos llenas y las piernas cansadas. Está bien así.",
+    "El Sendero seguirá ahí mañana."
+  ],
+    "dialogosContinuar": [
+        "El Faro no juzga tu ambición. Solo te observa.",
+        "El Faro se queda quieto. Tú no.",
+        "La oscuridad afuera es profunda, pero tu luz interior es más fuerte.",
+        "Sigue adelante.",
+        "El sendero se estrecha, pero tu determinación lo hace más ancho.",
+        "Cada decisión que tomas aquí tiene eco en lo que viene.",
+        "Lo que sigue no promete ser tan tranquilo.",
+        "Un paso más allá del último lugar seguro.",
+        "El silencio de aquí no llega muy lejos."
+    ],
+    "dialogosEspeciales": [
+        "Hay una quietud aquí que no viene del Instituto.",
+        "Sientes una paz que no habías sentido en mucho tiempo.",
+        "Un brillo te protege",
+        "El Faro parece susurrarte secretos que no entiendes del todo.",
+        "El viento trae consigo un aroma que te resulta familiar, pero no puedes ubicarlo"
+    ]
+}

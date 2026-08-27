@@ -90,7 +90,8 @@ module.exports = {
 
 
         async function comprarObjeto() {
-            await characters.updateOne({ _id: interaction.user.id }, {
+            const charId = character._id ?? character.ID;
+            await characters.updateOne({ _id: charId }, {
                 $inc: {
                     Dinero: -newLumens
                 }

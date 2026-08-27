@@ -2,22 +2,30 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (directory, foldersOnly = false) => {
-    let fileNames = []
+    let fileNames = [];
+    if (!fs.existsSync(directory)) return fileNames;
 
-    const files = fs.readdirSync(directory, { withFileTypes: true});
+    const files = fs.readdirSync(directory, { withFileTypes: true });
 
     for (const file of files) {
         const filePath = path.join(directory, file.name);
+        const nameLower = file.name.toLowerCase();
 
-        if(foldersOnly) {
-            if(file.isDirectory()) {
+        // Omitir carpetas históricas o archivadas
+        if (nameLower === 'old' || nameLower === 'olds') continue;
+
+        if (foldersOnly) {
+            if (file.isDirectory()) {
                 fileNames.push(filePath);
             }
         } else {
-            if(file.isFile()) {
-                fileNames.push(filePath)
+            if (file.isDirectory()) {
+                // Escaneo recursivo de subcarpetas
+                fileNames = fileNames.concat(module.exports(filePath, false));
+            } else if (file.isFile()) {
+                fileNames.push(filePath);
             }
         }
     }
-    return fileNames
-}
+    return fileNames;
+};

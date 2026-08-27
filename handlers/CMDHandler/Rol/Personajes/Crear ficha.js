@@ -1,7 +1,7 @@
 const { EmbedBuilder, ChatInputCommandInteraction, SlashCommandSubcommandBuilder } = require(`discord.js`)
 const clientdb = require("../../../../Server")
 const { Client } = require("discord.js")
-const { formatearTextoLim } = require("../../../../interactionFuncions/modals/Rol/Modal crearFicha")
+const { formatearTextoLim } = require("../../../../interaction/modals/Rol/Modal crearFicha")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 

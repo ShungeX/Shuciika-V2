@@ -1,59 +1,541 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle, ChatInputCommandInteraction } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { despertarAlma } = require('../interactionFuncions/selectMenus/Rol/Despertar options');
+const { despertarAlma } = require('../interaction/selectMenus/Rol/Despertar options.js');
+const { crearCustomId } = require('../utils/constructores/customId');
 
 class DialogueSystem {
-
 
     constructor() {
         try {
             this.dialogues = {
-                general: require('./../dialogos/generales.json'),
-                missions: require('./../dialogos/misiones.json'),
-                events: require('./../dialogos/eventos.json')
+                general: require('./../data/dialogos/generales.json'),
+                missions: require('./../data/dialogos/misiones.json'),
+                events: require('./../data/dialogos/eventos.json')
             };
         } catch (error) {
-            console.log(error)
+            console.error("Error al cargar archivos JSON estáticos de diálogos:", error.message);
+            this.dialogues = { general: [], missions: [], events: [] };
         }
 
+        // Caché en memoria de diálogos procedentes de MongoDB (Rol_db.Dialogos)
+        this.dbDialogues = new Map();
 
         this.activeDialogues = new Map();
+        this.client = null;
+
+        // Tabla de despacho (objeto/mapa comando -> handler) para parámetros/comandos especiales de diálogos
+        this.commandHandlers = new Map();
+
+        // Registrar los handlers por defecto
+        this.registerCommandHandler('show_inventory', this.handleShowInventory.bind(this));
+        this.registerCommandHandler('close_inventory', this.handleCloseInventory.bind(this));
+        this.registerCommandHandler('resume_exploracion', this.handleResumeExploracion.bind(this));
+        this.registerCommandHandler('dar_item', this.handleDarItem.bind(this));
+        this.registerCommandHandler('ephemeral', async () => '');
+    }
+
+    init(client) {
+        this.client = client;
+        console.log("💬 [DialogueSystem] Conectado al Client exitosamente.");
     }
 
     /**
-     * Inicia un diálogo con un usuario
-     * @param {string} type - Tipo de diálogo ('general', 'missions', 'events')
-     * @param {string} dialogueId - ID del diálogo
-     * @param {ChatInputCommandInteraction} interaction - Interacción de Discord
-     * @param {Object} options - Opciones adicionales
+     * Carga todos los diálogos almacenados en Rol_db.Dialogos desde MongoDB a la memoria local.
      */
+    async cargarDialogosDesdeDB(dbClient) {
+        if (!dbClient) return;
+        try {
+            const dbRol = dbClient.db("Rol_db");
+            const col = dbRol.collection("Dialogos");
+            const docs = await col.find({}).toArray();
 
+            this.dbDialogues.clear();
+            for (const doc of docs) {
+                const idKey = String(doc._id || doc.id);
+                this.dbDialogues.set(idKey, doc);
+            }
+            console.log(`💬 [DialogueSystem] ${this.dbDialogues.size} eventos de diálogo cargados localmente desde MongoDB (Rol_db.Dialogos).`);
+        } catch (err) {
+            console.error("⚠️ [DialogueSystem] Error cargando diálogos desde MongoDB:", err.message);
+        }
+    }
 
-    async startDialogue(type, dialogueId, interaction, member, options = {}) {
+    /**
+     * Refresca un diálogo en la memoria local en tiempo real cuando se guarda desde el Dashboard.
+     */
+    refrescarDialogoLocal(dialogoId, data) {
+        if (!dialogoId) return;
+        if (data) {
+            const idKey = String(dialogoId);
+            this.dbDialogues.set(idKey, data);
+            console.log(`🔄 [DialogueSystem] Diálogo local '${idKey}' actualizado dinámicamente.`);
+        }
+    }
 
-        const user = interaction?.user || member
+    /**
+     * Elimina un diálogo de la memoria local cuando se elimina en el Dashboard.
+     */
+    eliminarDialogoLocal(dialogoId) {
+        if (!dialogoId) return;
+        const idKey = String(dialogoId);
+        this.dbDialogues.delete(idKey);
+        console.log(`🗑️ [DialogueSystem] Diálogo local '${idKey}' eliminado dinámicamente.`);
+    }
 
-        const dialogue = this.dialogues[type].find(d => d.id === dialogueId);
+    /**
+     * Busca un diálogo por su ID (dando prioridad a la caché de MongoDB).
+     */
+    obtenerDialogoPorId(type, dialogueId) {
+        const idStr = String(dialogueId);
+        if (this.dbDialogues.has(idStr)) {
+            return this.dbDialogues.get(idStr);
+        }
+        if (type && this.dialogues[type]) {
+            return this.dialogues[type].find(d => String(d.id || d._id) === idStr);
+        }
+        for (const cat in this.dialogues) {
+            const found = this.dialogues[cat]?.find(d => String(d.id || d._id) === idStr);
+            if (found) return found;
+        }
+        return null;
+    }
 
-        if (!dialogue) {
-            console.error(`Dialogo no encontrado: ${dialogueId} en ${type}`)
+    registerCommandHandler(commandName, handlerFn) {
+        this.commandHandlers.set(commandName, handlerFn);
+    }
+
+    // ==========================================
+    // HANDLERS DE LA TABLA DE DESPACHO
+    // ==========================================
+
+    async handleDarItem(param, { interaction, user }) {
+        if (!param) return '';
+        try {
+            const lastUnderscore = param.lastIndexOf('_');
+            if (lastUnderscore === -1) return '';
+            const region = param.substring(0, lastUnderscore);
+            const itemId = Number(param.substring(lastUnderscore + 1));
+
+            const clientdb = require('../Server');
+            const dbRol = clientdb.db("Rol_db");
+            const bdobjeto = dbRol.collection("Objetos_globales");
+            const personajes = dbRol.collection("Personajes");
+
+            const objetoDoc = await bdobjeto.findOne({ _id: region, "Objetos.ID": Number(itemId) });
+            const objfind = objetoDoc?.Objetos?.find(o => Number(o.ID) === Number(itemId));
+
+            const charDoc = await this.obtenerPersonajeActivo(user.id, userData?.charId);
+            if (charDoc) {
+                const updateInventario = require('./updateInventario');
+                const clientObj = this.client || interaction?.client || require('../bot');
+                await updateInventario(clientObj, interaction, charDoc._id, {
+                    isItem: true,
+                    ID: itemId,
+                    Region: region,
+                    Nombre: objfind?.Nombre || 'Objeto',
+                    Tipo: objfind?.Tipo || [],
+                    cantidad: 1
+                });
+                console.log(`[dialogoManager] {dar_item} Objeto ${region}_${itemId} otorgado a personaje activo ${charDoc._id}`);
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler dar_item:', err);
+        }
+        return '';
+    }
+
+    async handleShowInventory(param, { interaction, user, userData }) {
+        try {
+            const clientdb = require('../Server');
+            const dbRol = clientdb.db("Rol_db");
+            const personajes = dbRol.collection("Personajes");
+
+            const charDoc = await this.obtenerPersonajeActivo(user.id, userData?.charId);
+            const inventario = charDoc?.economia?.Inventario || charDoc?.Inventario || [];
+            const itemsValidos = inventario.filter(i => Number(i.Cantidad ?? i.cantidad ?? 0) > 0);
+
+            let descText = "";
+            if (itemsValidos.length === 0) {
+                descText = "🎒 **Inventario:** *(Vacío)*";
+            } else {
+                descText = "🎒 **Objetos en tu inventario:**\n\n" + itemsValidos.slice(0, 15).map(item => {
+                    const qty = item.Cantidad ?? item.cantidad ?? 1;
+                    return `• **${item.Nombre}** (x${qty}) — *[${item.Region || 'Global'} / ID: ${item.ID}]*`;
+                }).join('\n');
+                if (itemsValidos.length > 15) {
+                    descText += `\n\n*...y ${itemsValidos.length - 15} objeto(s) más.*`;
+                }
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📦 Inventario de ${charDoc?.Nombre || user.username}`)
+                .setDescription(descText)
+                .setColor('#8ee5f5')
+                .setTimestamp();
+
+            const md = await user.createDM();
+            const invMsg = await md.send({ embeds: [embed] });
+
+            if (invMsg?.id && userData) {
+                userData.savedMessages['inventory_ref'] = invMsg.id;
+                this.activeDialogues.set(user.id, userData);
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler show_inventory:', err);
+        }
+        return '';
+    }
+
+    async handleCloseInventory(param, { user, userData }) {
+        try {
+            const invMsgId = userData?.savedMessages?.['inventory_ref'];
+            if (invMsgId) {
+                const md = await user.createDM();
+                try {
+                    const invMsg = await md.messages.fetch(invMsgId);
+                    if (invMsg) await invMsg.delete();
+                } catch (e) {
+                    console.error('[dialogoManager] No se pudo borrar el mensaje de inventario:', e.message);
+                }
+                delete userData.savedMessages['inventory_ref'];
+                if (userData) {
+                    this.activeDialogues.set(user.id, userData);
+                }
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler close_inventory:', err);
+        }
+        return '';
+    }
+
+    async crearMensajeExploracionSilencioso(interaction, user, areaExplorar = "TOB-001", soul = null) {
+        try {
+            const clientdb = require('../Server');
+            const dbRol = clientdb.db("Rol_db");
+            const regiones = dbRol.collection("Regiones");
+            const transaccionCache = require('../utils/cache');
+            const configServer = require('../config');
+            const { recargarEnergia } = require('./dataCharacters.js');
+            const { barrasDeEnergia } = require('../utils/utilidadesTexto.js');
+            const { v4: uuidv4 } = require('uuid');
+
+            const region = await regiones.findOne({ _id: areaExplorar }) || await regiones.findOne({});
+            if (!region) return null;
+
+            if (!soul && user) {
+                const userDoc = await clientdb.db("Server_db").collection("usuarios_server").findOne({ _id: String(user.id) });
+                const pId = userDoc?.usuario?.nix?.personajeActivo || userDoc?.nix?.personajeActivo;
+                if (pId) {
+                    soul = await dbRol.collection("Soul").findOne({ _id: Number(pId) }) || await dbRol.collection("Soul").findOne({ _id: String(pId) });
+                }
+            }
+
+            const characterEnergy = soul ? await recargarEnergia(soul.nucleo?.energy ?? 0, soul) : configServer.maxEnergy;
+
+            const components = [
+                {
+                    "type": 10,
+                    "content": `# Sistema de exploración \n-# *Explorando la región de:  *\`${region.Nombre}\`\n-# Energia: ${barrasDeEnergia(characterEnergy, configServer.maxEnergy)}`
+                },
+                {
+                    "type": 10,
+                    "content": "-# *¿Qué zona vamos a explorar hoy?* ( •̀ ω •́ )y"
+                },
+                {
+                    "type": 14,
+                    "divider": true,
+                    "spacing": 2
+                }
+            ];
+
+            if (region.areas && typeof region.areas === 'object') {
+                Object.keys(region.areas).forEach(key => {
+                    const area = region.areas[key];
+                    const isHabilitado = area.habilitado ? `(${area.energiaNecesaria} de energía)` : "[Deshabilitado]";
+                    let subzonasText = "";
+
+                    if (area.subzonas && Object.keys(area.subzonas).length > 0) {
+                        const nombresZonas = Object.values(area.subzonas).map(s => s.nombre);
+                        subzonasText = `-# - - *Sub-zonas: [${nombresZonas.join(", ")}]*`;
+                    }
+
+                    if (area.habilitado) {
+                        components.push({
+                            "type": 9,
+                            "accessory": {
+                                "type": 2,
+                                "style": 3,
+                                "label": "¡Explorar!",
+                                "emoji": area.emoji ? { name: area.emoji, id: null } : null,
+                                "disabled": false,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: user.id,
+                                    extras: ["zona", `${key}`]
+                                })
+                            },
+                            "components": [
+                                {
+                                    "type": 10,
+                                    "content": `-# - ***${area.Nombre}*** ${isHabilitado}\n-# ${area.descripcion ? `*${area.descripcion}*` : ""}\n${subzonasText}`
+                                }
+                            ]
+                        });
+                    } else {
+                        components.push({
+                            "type": 9,
+                            "accessory": {
+                                "type": 2,
+                                "style": 2,
+                                "label": "No disponible",
+                                "emoji": null,
+                                "disabled": true,
+                                "custom_id": `explorar_${key}`
+                            },
+                            "components": [
+                                {
+                                    "type": 10,
+                                    "content": `-# - ***${area.Nombre}*** ${isHabilitado}\n${subzonasText}`
+                                }
+                            ]
+                        });
+                    }
+                });
+            }
+
+            components.push(
+                { "type": 14, "divider": true, "spacing": 1 },
+                {
+                    "type": 12,
+                    "items": [{ "media": { "url": "https://c.tenor.com/OJ6jmNtTflcAAAAd/tenor.gif" }, "description": null, "spoiler": false }]
+                },
+                { "type": 10, "content": "-# Tu energía se actualiza antes de iniciar una exploración. (10 min > 1 punto de energía.)" }
+            );
+
+            const v2Exploracion = [{ "type": 17, "accent_color": null, "spoiler": false, "components": components }];
+            const transaccionId = uuidv4().replace(/-/g, "");
+
+            let targetChannel = interaction?.channel;
+            if (!targetChannel && interaction?.channelId) {
+                const clientObj = interaction?.client || require('../bot');
+                try { targetChannel = await clientObj.channels.fetch(interaction.channelId); } catch (e) {}
+            }
+
+            if (!targetChannel) return null;
+
+            const message = await targetChannel.send({ components: v2Exploracion, flags: ["IsComponentsV2", "SuppressNotifications"] });
+
+            const charId = soul ? (soul._id ?? soul.id ?? soul.ID) : null;
+            const obj = {
+                regionSelect: areaExplorar,
+                regionNombre: region.Nombre,
+                message: message,
+                messageID: message.id,
+                characterId: charId
+            };
+
+            await transaccionCache.set(transaccionId, obj);
+            await transaccionCache.setUser(user.id, { explorarID: transaccionId });
+
+            return obj;
+        } catch (err) {
+            console.error('[dialogoManager] Error al crear mensaje de exploración silencioso:', err);
+            return null;
+        }
+    }
+
+    async handleResumeExploracion(param, { interaction, user, userData, context }) {
+        try {
+            const transaccionCache = require('../utils/cache');
+            let userCache = transaccionCache.getUser(user.id);
+            let messageData = userCache?.explorarID ? transaccionCache.get(userCache.explorarID) : null;
+
+            if (!messageData && user) {
+                const areaSelect = context?.areaExplorar || "TOB-001";
+                const created = await this.crearMensajeExploracionSilencioso(interaction, user, areaSelect, context?.soul);
+                if (created) {
+                    messageData = created;
+                }
+            }
+
+            if (messageData && messageData.message && messageData.message.id && messageData.message.channelId) {
+                const guildId = messageData.message.guildId || interaction?.guildId || '@me';
+                const channelId = messageData.message.channelId;
+                const messageId = messageData.message.id;
+                const link = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+                return `Puedes continuar la exploración. [Haz click aquí para ir al mensaje de exploración](${link})`;
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler resume_exploracion:', err);
+        }
+        return "Usa /rol exploracion para iniciar una nueva exploración";
+    }
+
+    /**
+     * Obtiene el personaje activo del usuario desde Server_db.usuarios_server (usuario.nix.personajeActivo).
+     * Si no existe o no se encuentra, utiliza fallback por ownerID.
+     */
+    async obtenerPersonajeActivo(userId, explicitCharId = null) {
+        try {
+            const clientdb = require('../Server');
+            const dbServer = clientdb.db("Server_db");
+            const dbRol = clientdb.db("Rol_db");
+
+            if (explicitCharId) {
+                const numId = Number(explicitCharId);
+                const query = isNaN(numId) ? { _id: String(explicitCharId) } : { $or: [{ _id: numId }, { _id: String(explicitCharId) }] };
+                const charExplicit = await dbRol.collection("Personajes").findOne(query);
+                if (charExplicit) return charExplicit;
+            }
+
+            const userDoc = await dbServer.collection("usuarios_server").findOne({ _id: String(userId) });
+
+            const pId = userDoc?.usuario?.nix?.personajeActivo || userDoc?.nix?.personajeActivo;
+            if (pId) {
+                const numPId = Number(pId);
+                const charActive = await dbRol.collection("Personajes").findOne({ _id: isNaN(numPId) ? String(pId) : numPId });
+                if (charActive) return charActive;
+            }
+
+            const numUserId = Number(userId);
+            const queryOwner = isNaN(numUserId) ? { ownerID: String(userId) } : { $or: [{ ownerID: String(userId) }, { ownerID: numUserId }] };
+            const fallbackChar = await dbRol.collection("Personajes").findOne(queryOwner);
+            return fallbackChar;
+        } catch (err) {
+            console.error('[dialogoManager] Error en obtenerPersonajeActivo:', err);
+            return null;
+        }
+    }
+
+    async checkFirstExploracion(interaction, soul, member, options = {}) {
+        const user = interaction?.user || member;
+        if (!soul || !user) return false;
+
+        const clientdb = require('../Server');
+        const dbRol = clientdb.db("Rol_db");
+        const soulId = soul._id || soul.id || soul.ID;
+
+        const numSoulId = Number(soulId);
+        const soulQuery = isNaN(numSoulId) ? { _id: String(soulId) } : { $or: [{ _id: numSoulId }, { _id: String(soulId) }] };
+        const soulDoc = await dbRol.collection("Soul").findOne(soulQuery);
+        const isApplied = soulDoc?.registros?.firstExploracion?.aplicado ?? soul?.registros?.firstExploracion?.aplicado;
+
+        if (isApplied === true) {
             return false;
         }
 
-        if (this.activeDialogues.get(user.id)) {
+        // Iniciar el diálogo de primera exploración.
+        // NOTA IMPORTANTE: 'aplicado: true' se establecerá SOLAMENTE al FINALIZAR el diálogo completamente.
+        await this.startDialogue("general", "first_exploracion", interaction, member, {
+            ...options,
+            isFirstExploracion: true,
+            soulId: soulId,
+            charId: soulId
+        });
 
-            if (!interaction) {
-                return { success: false, error: "Ya hay un dialogo activo" }
+        return true;
+    }
+
+    async recordDialogueCompletion(userId, dialogueId, progreso = 0, finalizado = true, explicitCharId = null) {
+        try {
+            const char = await this.obtenerPersonajeActivo(userId, explicitCharId);
+            if (!char) return;
+
+            const clientdb = require('../Server');
+            const dbRol = clientdb.db("Rol_db");
+            const personajes = dbRol.collection("Personajes");
+
+            const fechaActual = new Date();
+            const eventosArray = char.estado?.eventosDialogos || [];
+            const existingEntry = eventosArray.find(e => e.ID === dialogueId);
+            const existingIndex = eventosArray.findIndex(e => e.ID === dialogueId);
+
+            const currentRepetido = Number(existingEntry?.repetido || 0);
+            const newRepetido = finalizado ? currentRepetido + 1 : currentRepetido;
+
+            if (existingIndex !== -1) {
+                await personajes.updateOne(
+                    { _id: char._id, "estado.eventosDialogos.ID": dialogueId },
+                    {
+                        $set: {
+                            "estado.eventosDialogos.$.fecha": fechaActual,
+                            "estado.eventosDialogos.$.finalizado": Boolean(finalizado),
+                            "estado.eventosDialogos.$.progreso": Number(progreso || 0),
+                            "estado.eventosDialogos.$.repetido": Number(newRepetido)
+                        }
+                    }
+                );
+            } else {
+                const entry = {
+                    ID: dialogueId,
+                    fecha: fechaActual,
+                    finalizado: Boolean(finalizado),
+                    progreso: Number(progreso || 0),
+                    repetido: finalizado ? 1 : 0
+                };
+                await personajes.updateOne(
+                    { _id: char._id },
+                    {
+                        $push: {
+                            "estado.eventosDialogos": entry
+                        }
+                    }
+                );
             }
+            console.log(`[dialogoManager] Diálogo '${dialogueId}' registrado en personaje ${char._id} (finalizado: ${finalizado}, repetido: ${newRepetido})`);
+        } catch (err) {
+            console.error('[dialogoManager] Error al registrar diálogo finalizado en Personajes:', err);
+        }
+    }
 
-            return interaction.reply({ content: "Ya hay un dialogo activo", flags: ["Ephemeral"] })
+    // ==========================================
+    // PROCESAMIENTO Y PARSEADO DE DIÁLOGOS
+    // ==========================================
 
+    async startDialogue(type, dialogueId, interaction, member, options = {}) {
+        const user = interaction?.user || member;
+        const dialogue = this.obtenerDialogoPorId(type, dialogueId);
+
+        if (!dialogue) {
+            console.error(`Diálogo no encontrado: ${dialogueId} en ${type}`);
+            return false;
+        }
+
+        // 1. Verificar límite de ejecuciones (limite) vs repetido en personaje activo
+        const charDoc = await this.obtenerPersonajeActivo(user.id, options.charId || options.soulId);
+
+        if (charDoc) {
+            const eventosArray = charDoc.estado?.eventosDialogos || [];
+            const existingEntry = eventosArray.find(e => e.ID === dialogueId);
+            const repetido = existingEntry?.repetido || 0;
+            const limite = dialogue.limite;
+
+            if (limite !== null && limite !== undefined && Number(limite) > 0 && repetido >= Number(limite)) {
+                if (interaction) {
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: "Has alcanzado el límite de ejecuciones para este diálogo.", flags: ["Ephemeral"] });
+                    } else {
+                        await interaction.followUp({ content: "Has alcanzado el límite de ejecuciones para este diálogo.", flags: ["Ephemeral"] });
+                    }
+                }
+                return { success: false, error: "Límite alcanzado" };
+            }
+        }
+
+        if (this.activeDialogues.get(user.id)) {
+            if (!interaction) {
+                return { success: false, error: "Ya hay un dialogo activo" };
+            }
+            return interaction.reply({ content: "Ya hay un dialogo activo", flags: ["Ephemeral"] });
         }
 
         if (dialogue?.requisitos && !this.checkRequirements(dialogue?.requisitos, user.id, options)) {
             return false;
         }
+
+        const targetObj = typeof dialogue.canal === 'object' ? (dialogue.canal?.Objetivo || "MD") : (dialogue.canal || "MD");
+        const channelId = typeof dialogue.canal === 'object' ? (dialogue.canal?.ID || null) : null;
 
         this.activeDialogues.set(user.id, {
             type,
@@ -63,22 +545,68 @@ class DialogueSystem {
             context: options.context || {},
             datems: options.context?.code,
             savedMessages: {},
-            messageQueue: []
+            messageQueue: [],
+            targetObj,
+            channelId,
+            limite: dialogue.limite ?? null,
+            isFirstExploracion: Boolean(options.isFirstExploracion || dialogueId === 'first_exploracion'),
+            soulId: options.soulId || null,
+            charDoc: charDoc || null
         });
 
-        await this.processNextStep(interaction, user)
+        // Si el objetivo es MD y viene de una interacción en un canal
+        if (targetObj === "MD" && interaction) {
+            const customMsg = dialogue.mensajeMDPersonalizado;
+            let replyContent = "";
+            if (customMsg) {
+                const contextData = { interaction, user, userData: this.activeDialogues.get(user.id), context: options.context || {} };
+                replyContent = await this.parseTextAsync(customMsg, contextData);
+            } else {
+                replyContent = "Revisa tus mensajes directos. Alguien tiene algo que decirte. Haz click aquí para ir al mensaje";
+            }
+
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: replyContent, flags: ["Ephemeral"] });
+            } else {
+                await interaction.followUp({ content: replyContent, flags: ["Ephemeral"] });
+            }
+
+            const waitSeconds = Number(dialogue.cooldownEspera) > 0 ? Number(dialogue.cooldownEspera) : 5;
+            const md = await user.createDM();
+            const waitMsg = await md.send({ content: "-# Dale un instante a la magia para acomodarse." });
+
+            if (waitMsg?.id) {
+                const currentActive = this.activeDialogues.get(user.id);
+                if (currentActive) {
+                    currentActive.savedMessages['cooldownWaitMsg'] = waitMsg.id;
+                    this.activeDialogues.set(user.id, currentActive);
+                }
+            }
+
+            setTimeout(async () => {
+                const activeData = this.activeDialogues.get(user.id);
+                if (activeData?.savedMessages?.['cooldownWaitMsg']) {
+                    try {
+                        const cWaitMsg = await md.messages.fetch(activeData.savedMessages['cooldownWaitMsg']);
+                        if (cWaitMsg) await cWaitMsg.delete();
+                    } catch (e) {
+                        console.error('[dialogoManager] Error borrando mensaje de espera cooldown:', e.message);
+                    }
+                    delete activeData.savedMessages['cooldownWaitMsg'];
+                }
+                await this.processNextStep(interaction, user);
+            }, waitSeconds * 1000);
+
+            return true;
+        }
+
+        await this.processNextStep(interaction, user);
         return true;
     }
 
-    /**
-     * @param {ChatInputCommandInteraction} interaction 
-     */
-
     async processNextStep(interaction, member) {
-        const user = interaction?.user || member
-
-
-        const userData = this.activeDialogues.get(user.id)
+        const user = interaction?.user || member;
+        const userData = this.activeDialogues.get(user.id);
 
         if (!userData) return false;
 
@@ -87,45 +615,77 @@ class DialogueSystem {
             delete userData.skipTimeout;
         }
 
-        const dialogue = this.dialogues[userData.type].find(d => d.id === userData.dialogueId)
-        const currentDialogue = dialogue.dialogos[userData.currentStep]
+        const dialogue = this.obtenerDialogoPorId(userData.type, userData.dialogueId);
+        const stepsList = dialogue?.dialogos || dialogue?.steps || [];
+        const currentDialogue = stepsList[userData.currentStep];
 
         if (!currentDialogue) {
-            console.log("Intentando ejecutar una acción por dialogo finalizado")
-            this.activeDialogues.delete(user.id)
-            if (dialogue.onComplete) {
-                this.executeActions(dialogue.onComplete, interaction, userData.context, user)
+            console.log(`[dialogoManager] Finalizando diálogo '${userData.dialogueId}' para usuario ${user.id}`);
+            
+            // Si era la primera exploración, marcar en la base de datos Soul 'aplicado = true' AHORA que terminó el diálogo
+            if (userData.isFirstExploracion || userData.dialogueId === "first_exploracion") {
+                try {
+                    const clientdb = require('../Server');
+                    const dbRol = clientdb.db("Rol_db");
+                    let sId = userData.soulId || userData.charId;
+                    if (!sId) {
+                        const activeChar = await this.obtenerPersonajeActivo(user.id);
+                        sId = activeChar?._id;
+                    }
+                    if (sId) {
+                        const numSId = Number(sId);
+                        const sQuery = isNaN(numSId) ? { _id: String(sId) } : { $or: [{ _id: numSId }, { _id: String(sId) }] };
+                        await dbRol.collection("Soul").updateOne(
+                            sQuery,
+                            {
+                                $set: {
+                                    "registros.firstExploracion.aplicado": true,
+                                    "registros.firstExploracion.fecha": new Date()
+                                }
+                            }
+                        );
+                        console.log(`✨ [dialogoManager] Primera exploración completada exitosamente. Registrado 'firstExploracion.aplicado = true' en Soul ${sId}.`);
+                    }
+                } catch (e) {
+                    console.error('[dialogoManager] Error actualizando primeraExploracion en Soul:', e);
+                }
             }
+
+            this.activeDialogues.delete(user.id);
+            if (dialogue?.onComplete) {
+                this.executeActions(dialogue.onComplete, interaction, userData.context, user);
+            }
+            await this.recordDialogueCompletion(user.id, userData.dialogueId, userData.currentStep, true, userData.charId || userData.soulId);
             return true;
         }
 
-        if (currentDialogue.delay && currentDialogue.delay > 0) {
-            await new Promise(resolve => setTimeout(resolve, currentDialogue.delay));
-        }
-
+        // 1. Mostrar/Enviar/Editar inmediatamente el mensaje del paso ACTUAL (Step N)
         if (currentDialogue.multipleMessages) {
-            await this.processMultipleMessages(currentDialogue.multipleMessages, interaction, userData, user)
+            await this.processMultipleMessages(currentDialogue.multipleMessages, interaction, userData, user);
         } else {
             await this.sendEditMessage(currentDialogue, interaction, userData, 0, user);
         }
 
+        // 2. Esperar el delay especificado en el paso ACTUAL (Step N) DESPUÉS de enviarlo y ANTES de pasar al siguiente paso
+        const currentDelay = Number(currentDialogue.delay) || 0;
+        if (currentDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, currentDelay));
+        }
+
         if (!currentDialogue.components || currentDialogue.components.length === 0) {
-            console.log(userData.currentStep)
             userData.currentStep++;
             this.activeDialogues.set(user.id, userData);
 
-            if (currentDialogue.nextStep) userData.currentStep = currentDialogue.nextStep
+            if (currentDialogue.nextStep !== undefined) userData.currentStep = currentDialogue.nextStep;
             await this.processNextStep(interaction, user);
         } else if (currentDialogue.components && currentDialogue.skip) {
-
             const timeoutId = setTimeout(async () => {
-                console.log("Estoy en el timeout", userData.currentStep)
                 userData.currentStep++;
                 this.activeDialogues.set(user.id, userData);
 
-                if (currentDialogue.nextStep) userData.currentStep = currentDialogue.nextStep
+                if (currentDialogue.nextStep !== undefined) userData.currentStep = currentDialogue.nextStep;
                 await this.processNextStep(interaction, user);
-            }, currentDialogue.skip)
+            }, currentDialogue.skip);
 
             userData.skipTimeout = timeoutId;
             this.activeDialogues.set(user.id, userData);
@@ -134,111 +694,115 @@ class DialogueSystem {
         return true;
     }
 
-
-    /**
-     * Procesa y envía múltiples mensajes en paralelo
-     * @param {Array} messages 
-     * @param {ChatInputCommandInteraction} interaction 
-     * @param {Object} userData - Datos del usuario
-     */
-
     async processMultipleMessages(messages, interaction, userData, member) {
-        const user = interaction || member
-
+        const user = interaction || member;
         const processPromises = messages.map((msg, index) => {
-            return this.sendEditMessage(msg, interaction, userData, index, user)
+            return this.sendEditMessage(msg, interaction, userData, index, user);
         });
-
         await Promise.all(processPromises);
     }
 
-    /**
-     * Envía o edita un mensaje según corresponda
-     * @param {Object} dialogueData - Datos del diálogo
-     * @param {ChatInputCommandInteraction} interaction - Interacción de Discord
-     * @param {Object} userData - Datos del usuario
-     * @param {number} messageIndex - Índice del mensaje (para múltiples mensajes)
-     */
-
     async sendEditMessage(dialogueData, interaction, userData, messageIndex = 0, member) {
-        const user = interaction?.user || member
-        const md = await user.createDM()
+        const user = interaction?.user || member;
 
-        const { savedMessages } = userData
-        const messageOptions = this.buildMessageOptions(dialogueData, userData.context);
-        if (!dialogueData.action) return;
+        let targetChannel;
+        if (userData?.targetObj === "Canal") {
+            if (userData?.channelId) {
+                const clientObj = this.client || interaction?.client || require('../bot');
+                try {
+                    targetChannel = await clientObj.channels.fetch(userData.channelId);
+                } catch (e) {
+                    console.error('[dialogoManager] No se pudo obtener canal especificado:', e);
+                }
+            }
+            if (!targetChannel && interaction?.channel) {
+                targetChannel = interaction.channel;
+            }
+            if (!targetChannel) {
+                targetChannel = await user.createDM();
+            }
+        } else {
+            targetChannel = await user.createDM();
+        }
 
-        const { type, guardar, target } = dialogueData.action;
+        const { savedMessages } = userData;
+        const messageOptions = await this.buildMessageOptions(dialogueData, userData, interaction, user);
 
-        
-        let messageId = target
-            ? savedMessages[target] : userData.messageIds[messageIndex]
+        const isEphemeral = Boolean(dialogueData.ephemeral) || 
+            Boolean(dialogueData.action?.ephemeral) ||
+            (dialogueData.content && dialogueData.content.includes('{ephemeral}')) ||
+            (dialogueData.embeds && dialogueData.embeds.some(e => e.description?.includes('{ephemeral}') || e.title?.includes('{ephemeral}')));
+
+        if (isEphemeral) {
+            let message;
+            if (interaction) {
+                message = await interaction.followUp({ ...messageOptions, flags: ["Ephemeral"] });
+            } else {
+                message = await targetChannel.send(messageOptions);
+            }
+            return message;
+        }
+
+        const actionObj = dialogueData.action || (dialogueData.type ? { type: dialogueData.type } : null);
+        if (!actionObj) return;
+
+        const { type, guardar, target } = actionObj;
+
+        let messageId = target ? savedMessages[target] : userData.messageIds[messageIndex];
         let message;
-
 
         try {
             switch (type) {
                 case "edit":
                     try {
-                        message = await md.messages.fetch(messageId)
+                        message = await targetChannel.messages.fetch(messageId);
                         await message.edit(messageOptions);
                     } catch (error) {
-                        console.error(`Error al editar mensaje: ${error}`)
+                        console.error(`Error al editar mensaje: ${error}`);
 
                         if (!interaction) {
-                            return { error: "La interacción ya no es valida 〒▽〒, el dialogo no puede continuar" }
+                            return { error: "La interacción ya no es válida 〒▽〒, el diálogo no puede continuar" };
                         }
 
-                        message = await interaction.followUp({ ...messageOptions, fetchReply: true })
+                        message = await interaction.followUp({ ...messageOptions, fetchReply: true });
                         userData.messageIds[messageIndex] = message.id;
-                        this.activeDialogues.set(interaction.user.id, userData)
+                        this.activeDialogues.set(user.id, userData);
                     }
                     break;
                 case "send":
-                    if (interaction) {
+                    if (interaction && userData?.targetObj === "Canal") {
                         if (interaction.replied || interaction.deferred) {
-                            message = await interaction.followUp({ ...messageOptions, fetchReply: true })
+                            message = await interaction.followUp({ ...messageOptions, fetchReply: true });
                         } else {
-                            await interaction.deferReply({ ephemeral: dialogueData.ephemeral })
-                            message = await interaction.editReply(messageOptions)
+                            await interaction.deferReply({ ephemeral: dialogueData.ephemeral });
+                            message = await interaction.editReply(messageOptions);
                         }
                     } else {
-                        message = await md.send({ ...messageOptions })
+                        message = await targetChannel.send({ ...messageOptions });
                     }
 
-
-
                     if (guardar) {
-                        userData.savedMessages[guardar] = message.id
+                        userData.savedMessages[guardar] = message.id;
                     } else {
                         userData.messageIds[messageIndex] = message.id;
                     }
 
-                    console.log("Mensaje", message.id)
-                    this.activeDialogues.set(user.id, userData)
-                    break;
-                case "parallel":
-
+                    this.activeDialogues.set(user.id, userData);
                     break;
                 case "delete":
                     try {
-                        message = await md.messages.fetch(messageId)
+                        message = await targetChannel.messages.fetch(messageId);
                         await message.delete(messageOptions);
                         if (messageId) {
-                            delete userData.savedMessages[target]
+                            delete userData.savedMessages[target];
                         }
-
                     } catch (error) {
-                        console.error(`Error al intentar borrar el mensaje: ${error}`)
-
+                        console.error(`Error al intentar borrar el mensaje: ${error}`);
                         if (interaction) {
-                            await interaction.followUp({ content: "-# Se supone que se deberia borrar el mensaje, pero no puedo.\n-# Shh, no le digas a nadie (>ᴗ•)", flags: "Ephemeral" })
+                            await interaction.followUp({ content: "-# Se supone que se debería borrar el mensaje, pero no puedo.\n-# Shh, no le digas a nadie (>ᴗ•)", flags: ["Ephemeral"] });
                         }
-
                     }
-
                     break;
-
                 default:
                     break;
             }
@@ -246,56 +810,100 @@ class DialogueSystem {
             console.error(`Error en la acción de mensaje '${type}':`, error);
         }
 
-
-
-
         return message;
     }
 
-    /**
-     * Construye las opciones del mensaje
-     * @param {Object} dialogueData - Datos del diálogo
-     * @param {Object} context - Contexto del diálogo
-     */
-    buildMessageOptions(dialogueData, context) {
+    async buildMessageOptions(dialogueData, userData, interaction, user) {
         const messageOptions = {};
-
+        const contextData = { interaction, user, userData, context: userData?.context || {} };
 
         if (dialogueData.content) {
-            messageOptions.content = this.parseText(dialogueData.content, context);
+            messageOptions.content = await this.parseTextAsync(dialogueData.content, contextData);
         }
 
         if (dialogueData.embeds) {
-            messageOptions.embeds = dialogueData.embeds.map(embed => {
+            messageOptions.embeds = await Promise.all(dialogueData.embeds.map(async embed => {
                 const embedBuilder = new EmbedBuilder();
 
-                if (embed.title) embedBuilder.setTitle(this.parseText(embed.title, context));
-                if (embed.description) embedBuilder.setDescription(this.parseText(embed.description, context));
-                if (embed.color) embedBuilder.setColor(embed.color);
-                if (embed.footer) embedBuilder.setFooter({ text: this.parseText(embed.footer.text, context), iconURL: embed.footer.iconURL });
-                if (embed.thumbnail) embedBuilder.setThumbnail(this.parseText(embed.thumbnail, context));
-                if (embed.image) embedBuilder.setImage(embed.image);
-                if (embed.author) embedBuilder.setAuthor({ name: this.parseText(embed.author.name, context), iconURL: embed.author.iconURL, url: embed.author.url });
+                if (embed.title) {
+                    const titleStr = await this.parseTextAsync(embed.title, contextData);
+                    if (titleStr && titleStr.trim()) embedBuilder.setTitle(titleStr);
+                }
+                if (embed.description) {
+                    const descStr = await this.parseTextAsync(embed.description, contextData);
+                    if (descStr && descStr.trim()) embedBuilder.setDescription(descStr);
+                }
+                if (embed.color) {
+                    try { embedBuilder.setColor(embed.color); } catch (e) {}
+                }
+                if (embed.footer) {
+                    const fTextRaw = typeof embed.footer === 'string' ? embed.footer : (embed.footer.text || '');
+                    const fTextParsed = await this.parseTextAsync(fTextRaw, contextData);
+                    if (fTextParsed && fTextParsed.trim()) {
+                        const fIconRaw = typeof embed.footer === 'object' ? (embed.footer.icon_url || embed.footer.iconURL) : undefined;
+                        const fIconParsed = fIconRaw ? await this.parseTextAsync(fIconRaw, contextData) : undefined;
+                        embedBuilder.setFooter({
+                            text: fTextParsed,
+                            iconURL: (fIconParsed && fIconParsed.trim()) ? fIconParsed : undefined
+                        });
+                    }
+                }
+                if (embed.thumbnail) {
+                    const thumbUrlRaw = typeof embed.thumbnail === 'string' ? embed.thumbnail : (embed.thumbnail.url || '');
+                    const thumbUrlParsed = thumbUrlRaw ? await this.parseTextAsync(thumbUrlRaw, contextData) : '';
+                    if (thumbUrlParsed && thumbUrlParsed.trim() && (thumbUrlParsed.startsWith('http://') || thumbUrlParsed.startsWith('https://'))) {
+                        embedBuilder.setThumbnail(thumbUrlParsed);
+                    }
+                }
+                if (embed.image) {
+                    const imgUrlRaw = typeof embed.image === 'string' ? embed.image : (embed.image.url || '');
+                    const imgUrlParsed = imgUrlRaw ? await this.parseTextAsync(imgUrlRaw, contextData) : '';
+                    if (imgUrlParsed && imgUrlParsed.trim() && (imgUrlParsed.startsWith('http://') || imgUrlParsed.startsWith('https://'))) {
+                        embedBuilder.setImage(imgUrlParsed);
+                    }
+                }
+                if (embed.author) {
+                    const authNameRaw = typeof embed.author === 'string' ? embed.author : (embed.author.name || '');
+                    const authNameParsed = await this.parseTextAsync(authNameRaw, contextData);
+                    if (authNameParsed && authNameParsed.trim()) {
+                        const authIconRaw = typeof embed.author === 'object' ? (embed.author.icon_url || embed.author.iconURL) : undefined;
+                        const authIconParsed = authIconRaw ? await this.parseTextAsync(authIconRaw, contextData) : undefined;
+                        const authUrlRaw = typeof embed.author === 'object' ? embed.author.url : undefined;
+                        const authUrlParsed = authUrlRaw ? await this.parseTextAsync(authUrlRaw, contextData) : undefined;
+                        embedBuilder.setAuthor({
+                            name: authNameParsed,
+                            iconURL: (authIconParsed && authIconParsed.trim()) ? authIconParsed : undefined,
+                            url: (authUrlParsed && authUrlParsed.trim()) ? authUrlParsed : undefined
+                        });
+                    }
+                }
 
-                if (embed.fields) {
-                    embedBuilder.addFields(embed.fields.map(field => ({
-                        name: this.parseText(field.name, context),
-                        value: this.parseText(field.value, context),
-                        inline: field.inline
-                    })));
+                if (embed.fields && Array.isArray(embed.fields) && embed.fields.length > 0) {
+                    const validFields = [];
+                    for (const field of embed.fields) {
+                        const fName = await this.parseTextAsync(field.name || '', contextData);
+                        const fVal = await this.parseTextAsync(field.value || '', contextData);
+                        if ((fName && fName.trim()) || (fVal && fVal.trim())) {
+                            validFields.push({
+                                name: (fName && fName.trim()) ? fName : '\u200B',
+                                value: (fVal && fVal.trim()) ? fVal : '\u200B',
+                                inline: Boolean(field.inline)
+                            });
+                        }
+                    }
+                    if (validFields.length > 0) {
+                        embedBuilder.addFields(validFields);
+                    }
                 }
 
                 return embedBuilder;
-
-            });
+            }));
         }
 
-        // Componentes (botones, selectmenus)
         if (dialogueData.components) {
-            messageOptions.components = this.buildComponents(dialogueData.components, context);
+            messageOptions.components = await this.buildComponentsAsync(dialogueData.components, contextData);
         }
 
-        // Archivos adjuntos
         if (dialogueData.files) {
             messageOptions.files = dialogueData.files;
         }
@@ -303,19 +911,12 @@ class DialogueSystem {
         return messageOptions;
     }
 
-
-    /**
-     * Construye los componentes interactivos
-     * @param {Array} components - Componentes a construir
-     * @param {Object} context - Contexto del diálogo
-     */
-    buildComponents(components, context) {
+    async buildComponentsAsync(components, contextData) {
         const rows = [];
         let currentRow = new ActionRowBuilder();
         let currentComponents = 0;
 
         for (const component of components) {
-            // Si la fila actual tiene 5 componentes (máximo), crear una nueva
             if (currentComponents >= 5) {
                 rows.push(currentRow);
                 currentRow = new ActionRowBuilder();
@@ -324,8 +925,8 @@ class DialogueSystem {
 
             if (component.type === 'BUTTON') {
                 const button = new ButtonBuilder()
-                    .setCustomId(this.parseText(component.customId, context))
-                    .setLabel(this.parseText(component.label, context))
+                    .setCustomId(await this.parseTextAsync(component.customId, contextData))
+                    .setLabel(await this.parseTextAsync(component.label, contextData))
                     .setStyle(ButtonStyle[component.style] || ButtonStyle.Secondary);
 
                 if (component.emoji) button.setEmoji(component.emoji);
@@ -339,24 +940,23 @@ class DialogueSystem {
                 currentComponents++;
             } else if (component.type === 'SELECT_MENU') {
                 const selectMenu = new StringSelectMenuBuilder()
-                    .setCustomId(this.parseText(component.customId, context))
-                    .setPlaceholder(this.parseText(component.placeholder, context))
+                    .setCustomId(await this.parseTextAsync(component.customId, contextData))
+                    .setPlaceholder(await this.parseTextAsync(component.placeholder, contextData))
                     .setMinValues(component.minValues || 1)
                     .setMaxValues(component.maxValues || 1)
-                    .setDisabled(component.disabled || false)
+                    .setDisabled(component.disabled || false);
 
-                // Opciones del menú
                 if (component.options) {
-                    selectMenu.addOptions(component.options.map(option => ({
-                        label: this.parseText(option.label, context),
+                    const options = await Promise.all(component.options.map(async option => ({
+                        label: await this.parseTextAsync(option.label, contextData),
                         value: option.value,
-                        description: option.description ? this.parseText(option.description, context) : undefined,
+                        description: option.description ? await this.parseTextAsync(option.description, contextData) : undefined,
                         emoji: option.emoji,
                         default: option.default || false
                     })));
+                    selectMenu.addOptions(options);
                 }
 
-                // Un select menu ocupa todo el ancho de la fila
                 currentRow.addComponents(selectMenu);
                 rows.push(currentRow);
                 currentRow = new ActionRowBuilder();
@@ -364,7 +964,6 @@ class DialogueSystem {
             }
         }
 
-        // Agregar la última fila si tiene componentes
         if (currentComponents > 0) {
             rows.push(currentRow);
         }
@@ -372,78 +971,102 @@ class DialogueSystem {
         return rows;
     }
 
+    async parseTextAsync(text, contextData) {
+        if (!text) return '';
+        const { interaction, user, userData } = contextData;
+        const context = userData?.context || {};
 
-    /**
-     * Ejecuta acciones especificadas
-     * @param {Array|Object} actions - Acciones a ejecutar
-     * @param {Object} interaction - Interacción de Discord
-     * @param {Object} context - Contexto del diálogo
-     */
-    async executeActions(actions, interaction, context) {
-        if (!actions) return;
-
-        // Si actions es un objeto, convertirlo a array
-        const actionsList = Array.isArray(actions) ? actions : [actions];
-
-        if(actions?.code === "despertar") {
-            await despertarAlma(interaction, context)
+        const regex = /\{([^}]+)\}/g;
+        let matches = [];
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            matches.push({ fullTag: match[0], tagContent: match[1] });
         }
 
-        return
+        let resultText = text;
 
-        for (const action of actionsList) {
-            switch (action.type) {
-                case 'SET_VARIABLE':
-                    context[action.variable] = this.parseValue(action.value, context);
-                    break;
+        for (const item of matches) {
+            const parts = item.tagContent.split(':');
+            const cmdName = parts[0].trim();
+            const cmdParam = parts.slice(1).join(':').trim();
 
-                case 'GIVE_ITEM':
-                    // Implementa tu sistema de inventario aquí
-                    break;
+            if (this.commandHandlers.has(cmdName)) {
+                const handler = this.commandHandlers.get(cmdName);
+                const replacement = await handler(cmdParam, { interaction, user, userData, context });
+                resultText = resultText.replace(item.fullTag, replacement !== undefined ? replacement : '');
+            } else if (context[cmdName] !== undefined) {
+                resultText = resultText.replace(item.fullTag, context[cmdName]);
+            } else if (cmdName === 'user_name') {
+                resultText = resultText.replace(item.fullTag, user?.displayName || user?.username || 'Viajero');
+            } else if (cmdName === 'user') {
+                resultText = resultText.replace(item.fullTag, `<@${user?.id}>`);
+            } else if (cmdName === 'user_id') {
+                resultText = resultText.replace(item.fullTag, user?.id || '');
+            } else if (cmdName === 'user_avatar') {
+                const avatar = user?.displayAvatarURL?.() || '';
+                resultText = resultText.replace(item.fullTag, avatar);
+            } else if (cmdName === 'client_name') {
+                const clientObj = this.client || interaction?.client;
+                resultText = resultText.replace(item.fullTag, clientObj?.user?.username || 'Shuciika');
+            } else if (cmdName === 'client') {
+                const clientObj = this.client || interaction?.client;
+                resultText = resultText.replace(item.fullTag, `<@${clientObj?.user?.id}>`);
+            } else if (cmdName === 'client_id') {
+                const clientObj = this.client || interaction?.client;
+                resultText = resultText.replace(item.fullTag, clientObj?.user?.id || '');
+            } else if (cmdName === 'client_avatar') {
+                const clientObj = this.client || interaction?.client;
+                const avatar = clientObj?.user?.displayAvatarURL?.() || '';
+                resultText = resultText.replace(item.fullTag, avatar);
+            } else if (cmdName.startsWith('ch_')) {
+                const pathKey = cmdName.slice(3);
+                try {
+                    let charDoc = userData?.charDoc;
+                    if (!charDoc && user) {
+                        charDoc = await this.obtenerPersonajeActivo(user.id, userData?.charId || userData?.soulId);
+                        if (userData && charDoc) userData.charDoc = charDoc;
+                    }
+                    if (charDoc) {
+                        let val = undefined;
+                        if (charDoc.perfil && charDoc.perfil[pathKey] !== undefined) {
+                            val = charDoc.perfil[pathKey];
+                        } else if (pathKey.includes('.')) {
+                            const pParts = pathKey.split('.');
+                            val = pParts.reduce((o, i) => (o ? o[i] : undefined), charDoc);
+                        } else {
+                            val = charDoc[pathKey];
+                        }
 
-                case 'START_MISSION':
-                    // Implementa tu sistema de misiones aquí
-                    break;
-
-                case 'COMPLETE_MISSION':
-                    // Implementa tu sistema de misiones aquí
-                    break;
-
-                case 'PLAY_SOUND':
-                    // Puedes implementar esto con algún bot de música
-                    break;
-
-                case 'EXECUTE_COMMAND':
-                    // Ejecutar comandos de bot personalizados
-                    break;
-
-                // Añade más tipos de acciones según necesites
+                        if (val !== undefined && val !== null) {
+                            resultText = resultText.replace(item.fullTag, String(val));
+                        } else {
+                            resultText = resultText.replace(item.fullTag, '');
+                        }
+                    } else {
+                        resultText = resultText.replace(item.fullTag, '');
+                    }
+                } catch (e) {
+                    console.error('[dialogoManager] Error parseando tag de personaje:', e);
+                    resultText = resultText.replace(item.fullTag, '');
+                }
             }
         }
+
+        return resultText;
     }
 
+    async executeActions(actions, interaction, context) {
+        if (!actions) return;
+        const actionsList = Array.isArray(actions) ? actions : [actions];
 
+        if (actions?.code === "despertar") {
+            await despertarAlma(interaction, context);
+        }
+    }
 
-    /**
-  * Verifica requisitos para iniciar un diálogo
-  * @param {Object} requirements - Requisitos a verificar
-  * @param {string} userId - ID del usuario
-  * @param {Object} options - Opciones adicionales
-  */
     checkRequirements(requirements, userId, options = {}) {
-        // Implementa la lógica para verificar requisitos
-        // Por ejemplo: nivel, misiones completadas, ítems en inventario, etc.
-        return true; // Por defecto, permite todos los diálogos
+        return true;
     }
-
-
-    /**
-     * Salta a un paso específico en el diálogo actual del usuario
-     * @param {string} userId - ID del usuario
-     * @param {number} step - Paso al que saltar
-     * @param {Object} interaction - Interacción para procesar el siguiente paso
-     * @returns {boolean} - Éxito de la operación
-     */
 
     async jumpToStep(userId, step, interaction) {
         const userData = this.activeDialogues.get(userId);
@@ -453,18 +1076,16 @@ class DialogueSystem {
             return false;
         }
 
-        // Verificar que el paso sea válido
-        const dialogue = this.dialogues[userData.type].find(d => d.id === userData.dialogueId);
-        if (!dialogue || step >= dialogue.dialogos.length || step < 0) {
+        const dialogue = this.obtenerDialogoPorId(userData.type, userData.dialogueId);
+        const stepsList = dialogue?.dialogos || dialogue?.steps || [];
+        if (!dialogue || step >= stepsList.length || step < 0) {
             console.error(`Paso inválido: ${step} para diálogo: ${userData.dialogueId}`);
             return false;
         }
 
-        // Actualizar el paso
         userData.currentStep = step;
         this.activeDialogues.set(userId, userData);
 
-        // Procesar el siguiente paso si se proporciona una interacción
         if (interaction) {
             await this.processNextStep(interaction);
         }
@@ -472,24 +1093,13 @@ class DialogueSystem {
         return true;
     }
 
-    /**
-     * Parsea texto con variables del contexto
-     * @param {string} text - Texto a parsear
-     * @param {Object} context - Contexto del diálogo
-     */
     parseText(text, context) {
-
         if (!text) return '';
         return text.replace(/\{(\w+)\}/g, (match, variable) => {
             return context[variable] !== undefined ? context[variable] : match;
         });
     }
 
-    /**
-     * Parsea un valor que puede contener referencias a variables
-     * @param {any} value - Valor a parsear
-     * @param {Object} context - Contexto del diálogo
-     */
     parseValue(value, context) {
         if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
             const variable = value.slice(1, -1);
@@ -498,21 +1108,15 @@ class DialogueSystem {
         return value;
     }
 
-
-
-    /**
-     * Termina un diálogo activo
-     * @param {string} userId - ID del usuario
-     */
-    endDialogue(userId) {
+    async endDialogue(userId) {
         const data = this.activeDialogues.get(userId);
-        data.savedMessages = {};
-        data.messageQueue = [];
-        this.activeDialogues.delete(userId);
+        if (data) {
+            await this.recordDialogueCompletion(userId, data.dialogueId, data.currentStep, false);
+            data.savedMessages = {};
+            data.messageQueue = [];
+            this.activeDialogues.delete(userId);
+        }
     }
-
-
-
 }
 
 module.exports = new DialogueSystem();

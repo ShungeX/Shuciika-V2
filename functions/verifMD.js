@@ -10,7 +10,6 @@ const timeMXF = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(D
 const timeMXS = DateTime.now().setZone('UTC-6').setLocale('es').toLocaleString(DateTime.DATE_SHORT)
 const transaccionCache = require("../utils/cache.js")
 const { v4: uuidv4 } = require('uuid');
-const staff = require("../staff.json")
 const client = require("../bot.js")
 
 

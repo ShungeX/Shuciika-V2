@@ -5,7 +5,7 @@ const db2 = clientdb.db("Rol_db")
 const timeconvert = require("humanize-duration");
 const dbconfig = db.collection("usuarios_server")
 const version = require("../../../../config")
-const { procesarFoto } = require("../../../../interactionFuncions/modals/Rol/Modal Foto");
+const { procesarFoto } = require("../../../../interaction/modals/Rol/Modal Foto");
 const { formatearTextoLim } = require("../../../../utils/textStrings");
 
 

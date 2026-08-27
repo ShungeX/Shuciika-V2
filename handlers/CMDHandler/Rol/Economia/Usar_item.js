@@ -9,7 +9,7 @@ const characters = db2.collection("Personajes")
 const version = require("../../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
 
-const { duelSystem, duelEmitter } = require("../../../../functions/duelManager")
+const { duelSystem, duelEmitter } = require("../../../../functions/Duelo/duelManager")
 
 module.exports = {
     data: new SlashCommandSubcommandBuilder()

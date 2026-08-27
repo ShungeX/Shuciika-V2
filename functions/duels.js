@@ -9,7 +9,7 @@ const objetos = db2.collection("Objetos_globales")
 const hechizos = db2.collection("Hechizos_globales")
 const character = db2.collection("Personajes")
 const soul = db2.collection("Soul")
-const version = require("../config")
+const version = require("../config/config")
 const transaccionCache = require("../utils/cache")
 const { v4: uuidv4 } = require('uuid')
 const getGifs = require("./getGifs")
@@ -468,7 +468,7 @@ class Duelv2 {
                     scaling: {
                         stats: "fuerza",
                         // El levelBonus (1 + lvl*0.2) lo calcularemos en el engine o aquí
-                        multi: 1 + (attacker.nivelMagico * 0.2)
+                        multi: 1 + ((attacker.isNPC ? (attacker.nivelMagico ?? 1) : (attacker.StelarFragmentsTotal ?? attacker.StelarFragments ?? attacker.nivelMagico ?? 1)) * 0.2)
                     },
                     objetivo: [1], // Enemigo
                     esFisico: true // Bandera para activar defensa física
@@ -502,12 +502,28 @@ class Duelv2 {
      */
     async handleItem(owner, page = 0, parametros) {
         try {
-            const characterB = await character.findOne({ ID: owner.ID })
-            if (!characterB || !characterB.Inventario || characterB.Inventario.length === 0) {
-                return { success: false, message: "¡No tienes objetos en tu inventario para usar!" };
-            }
+            const charId = owner._id ?? owner.ID;
+            const characterB = await character.findOne({
+                $or: [
+                    { _id: charId },
+                    { _id: Number(charId) },
+                    { ID: charId },
+                    { ID: Number(charId) }
+                ]
+            });
 
-            const characterInventory = characterB.Inventario
+            const isExploracion = Boolean(this.duelType === "exploration" || this.type === "exploration" || this.isExploracion === true);
+            const characterInventory = isExploracion
+                ? (characterB?.economia?.Mochila || [])
+                : (characterB?.Inventario || characterB?.economia?.Inventario || []);
+
+            const noItemsMessage = isExploracion
+                ? "¡No tienes objetos en tu mochila para usar!"
+                : "¡No tienes objetos en tu inventario para usar!";
+
+            if (!characterB || !characterInventory || characterInventory.length === 0) {
+                return { success: false, message: noItemsMessage };
+            }
 
             const inventarioInfo = []
 
@@ -520,9 +536,11 @@ class Duelv2 {
                         cantidad: item.Cantidad
                     }
 
-                    if (fullItemInfo.restricciones.InCombat) {
+                    const inCombat = fullItemInfo.uso?.contexto === "combate" || 
+                                     fullItemInfo.uso?.contexto === "ambos" || 
+                                     fullItemInfo.restricciones?.InCombat === true;
+                    if (inCombat) {
                         inventarioInfo.push(completeItem)
-
                     }
                 }
             }
@@ -554,6 +572,8 @@ class Duelv2 {
                 );
             });
 
+            const tituloText = isExploracion ? "# Has abierto tu mochila <:EmuNui:1370631281028890727>" : "# Has abierto tu inventario <:EmuNui:1370631281028890727>";
+
             const componentsV2 = [
                 {
                     "type": 9,
@@ -568,7 +588,7 @@ class Duelv2 {
                     "components": [
                         {
                             "type": 10,
-                            "content": "# Has abierto tu mochila <:EmuNui:1370631281028890727>"
+                            "content": tituloText
                         },
                         {
                             "type": 10,
@@ -947,41 +967,42 @@ class Duelv2 {
                 return { success: false, message: "No se pudo encontrar el objeto seleccionado" }
             }
 
-            if (objetoExist.usableInCombat && isNPCActor) {
+            const usableInCombat = objetoExist.uso?.contexto === "combate" || 
+                                   objetoExist.uso?.contexto === "ambos" || 
+                                   objetoExist.restricciones?.InCombat === true ||
+                                   objetoExist.usableInCombat === true;
+            if (!usableInCombat && isNPCActor) {
                 return { success: false, message: "Este objeto no puede ser usado en combate" }
             }
 
             const effectsAp = []
+            const tipos = Array.isArray(objetoExist.Tipo) ? objetoExist.Tipo : (objetoExist.Tipo ? [objetoExist.Tipo] : []);
+            let hasEffect = false;
 
-            switch (objetoExist.Tipo) {
-                case "Consumible":
-                    const atributos = objetoExist.atributos;
+            if (tipos.some(t => String(t).toLowerCase() === "consumible")) {
+                const atributos = objetoExist.atributos;
 
+                for (const key in atributos) {
+                    if (atributosValidos.has(key) && atributos.hasOwnProperty(key) && typeof user[key] === 'number') {
 
-                    for (const key in atributos) {
-                        if (atributosValidos.has(key) && atributos.hasOwnProperty(key) && typeof user[key] === 'number') {
+                        user[key] += atributos[key]
 
-
-                            user[key] += atributos[key]
-
-
-
-                            if (key === 'HP' && user[key] > user.stats.hpMax) {
-                                user[key] = user.stats.hpMax
-                            }
-
-
-                            if (key === 'Mana' && user[key] > (user.stats.manaMax || user.stats.manaMax)) {
-                                user[key] = (user.stats.manaMax || user.stats.manaMax)
-                            }
-
-                            effectsAp.push(`**${key} +${atributos[key]}**`)
+                        if (key === 'HP' && user[key] > user.stats.hpMax) {
+                            user[key] = user.stats.hpMax
                         }
+
+                        if (key === 'Mana' && user[key] > (user.stats.manaMax || user.stats.manaMax)) {
+                            user[key] = (user.stats.manaMax || user.stats.manaMax)
+                        }
+
+                        effectsAp.push(`**${key} +${atributos[key]}**`)
                     }
+                }
+                hasEffect = true;
+            }
 
-
-                    break;
-                default: effectsAp.push(`Usaste el objeto pero no tuvo ningun efecto especial`)
+            if (!hasEffect) {
+                effectsAp.push(`Usaste el objeto pero no tuvo ningun efecto especial`)
             }
 
             if (!isNPCActor) {
@@ -1294,7 +1315,8 @@ class Duelv2 {
                     }
 
                     if (spell.Tipo === 0 || mechanics.damage.esFisico) {
-                        const enemyDefense = (1 + (target.defenseActual || 0)) * ((target.stats.resistenciaFisica * 0.6) + (target.nivelMagico * 0.35))
+                        const targetLvl = target.isNPC ? (target.nivelMagico ?? 1) : (target.StelarFragmentsTotal ?? target.StelarFragments ?? target.nivelMagico ?? 1);
+                        const enemyDefense = (1 + (target.defenseActual || 0)) * ((target.stats.resistenciaFisica * 0.6) + (targetLvl * 0.35))
 
                         damageAmount = Math.max(Math.round(damageAmount - enemyDefense), 1)
 
@@ -1779,17 +1801,8 @@ class Duelv2 {
 
     //Información:
     async getObjetInfo(region, id) {
-        const idAutocomplete = `${region}${id}`
-
-        const documento = await objetos.findOne({ _id: region, Objetos: { $elemMatch: { ID_Autocomplete: idAutocomplete } } },
-            { projection: { "Objetos.$": 1 } }
-        )
-
-        if (documento && documento.Objetos && documento.Objetos.length > 0) {
-            return documento.Objetos[0];
-        }
-
-        return null
+        const catalogoObjetos = require("./catalogoObjetos");
+        return catalogoObjetos.getObjetoPorId(region, id) ?? null;
     }
 
     async getSpellInfo(id) {

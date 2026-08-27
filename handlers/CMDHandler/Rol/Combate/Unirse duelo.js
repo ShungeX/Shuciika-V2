@@ -8,8 +8,9 @@ const souls = db2.collection("Soul")
 const version = require("../../../../config")
 const transaccionCache = require("../../../../utils/cache")
 const { v4: uuidv4 } = require('uuid')
-const { duelSystem } = require("../../../../functions/duelManager")
+const { duelSystem } = require("../../../../functions/Duelo/duelManager")
 const interfazCreate = require("../../../../functions/interfazCreate")
+const verificarCondiciones = require("../../../../functions/Duelo/verificarCondiciones")
 
 
 
@@ -42,33 +43,56 @@ module.exports = {
         const code = interaction.options.getString("codigo")
         const userData = await userdb.findOne({ _id: interaction.user.id })
 
-        if (await duelSystem.personajeEnDuelo(character._id)) {
-            return interaction.reply({ content: "No puedes entrar en un duelo si tu personaje ya esta en otro ＞﹏＜", flags: ["Ephemeral"] })
+        const verificar = verificarCondiciones(character, soul)
+        if (!verificar.puede) {
+            return interaction.reply({ content: verificar.razon, flags: ["Ephemeral"] })
         }
 
         const ocupado = await interfazCreate.personajeOcupado(character._id)
         if (ocupado) {
             return interaction.reply({ components: ocupado, flags: ["Ephemeral", "IsComponentsV2"] })
         }
-        if (soul.nucleo.HP === 0) {
-            return interaction.reply({ content: "Tu personaje esta fuera de combate. Necesita recuperar vida... ＞﹏＜\n-# Usa un objeto con `/rol usar_objeto`", flags: ["Ephemeral"] })
-        }
+
 
         const sala = await transaccionCache.get(code)
 
         if (!sala) return interaction.reply({ content: "No existe ninguna sala con el codigo " + `**${code}** ＞﹏＜`, flags: ["Ephemeral"] })
+
+        // Construir mensajeApuestas para mostrarlo en el embed
+        let mensajeApuestas = "";
+        if (sala.apuestas && (sala.apuestas.lumens > 0 || (sala.apuestas.objetos && sala.apuestas.objetos.length > 0))) {
+            mensajeApuestas += `\n**Apuestas de la sala:**\n`;
+            if (sala.apuestas.lumens > 0) {
+                mensajeApuestas += `- Lumens: ${sala.apuestas.lumens}\n`;
+            }
+            if (sala.apuestas.objetos && sala.apuestas.objetos.length > 0) {
+                sala.apuestas.objetos.forEach(o => {
+                    mensajeApuestas += `- ${o.nombre} x${o.cantidad}\n`;
+                });
+            }
+            const nombresMap = {
+                espejo: 'Apuesta Espejo',
+                equivalente: 'Rareza Equivalente',
+                fijo: 'Lumens Fijos',
+                libre: 'Entrada Libre'
+            };
+            mensajeApuestas += `- Tipo de apuesta: ${nombresMap[sala.tipoApuesta] || sala.tipoApuesta || 'Apuesta Espejo'}\n`;
+        }
 
         const data = Object.values(sala.team1)
         const data2 = Object.values(sala.team2)
 
         if (data.length >= sala.limitTeam1 && data2.length >= sala.limitTeam2) return interaction.reply({ content: `La sala ingresada (${code} ya esta llena... ＞﹏＜)`, flags: ["Ephemeral"] })
         const listaNombresEq1 = data.map(ch => {
-            return `- -# **${ch.perfil.Nombre}**`
+            const isNPC = !!(ch.isNPC || (typeof ch._id === 'string' && ch._id.startsWith("NPC-")));
+            const nombre = ch.perfil?.Nombre || ch.Nombre || "Combatiente";
+            return `- -# **${nombre}${isNPC ? ' [NPC]' : ''}**`
         }).join("\n")
 
-
         const listaNombresEq2 = data2.map(ch => {
-            return `- -# **${ch.perfil.Nombre}**`
+            const isNPC = !!(ch.isNPC || (typeof ch._id === 'string' && ch._id.startsWith("NPC-")));
+            const nombre = ch.perfil?.Nombre || ch.Nombre || "Combatiente";
+            return `- -# **${nombre}${isNPC ? ' [NPC]' : ''}**`
         }).join("\n")
 
         const salaMessage = [
@@ -90,7 +114,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": "# ¡Prepárate para el combate!\n\n**Selecciona un equipo**\n-# **Atención:** Al entrar a la sala, tu personaje y tu build quedarán fijos. Asegúrate de que todo esté listo antes de continuar."
+                                "content": "# ¡Prepárate para el combate!\n\n**Selecciona un equipo**\n-# **Atención:** Al entrar a la sala, tu personaje y tu build quedarán fijos. Asegúrate de que todo esté listo antes de continuar." + `${!mensajeApuestas ? '' : "\n-# **¡La sala incluye apuestas!** verifica los objetos apostados antes de unirte. Si no tienes los objetos apostados, no podrás unirte a la sala."}` + `\n${mensajeApuestas}`
                             },
                         ]
                     },

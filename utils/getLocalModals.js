@@ -1,26 +1,22 @@
-const fs = require('fs')
-const path = require("path")
-const getAllFiles = require('./getAllFiles')
+const path = require("path");
+const getAllFiles = require('./getAllFiles');
 
 module.exports = (exceptions = []) => {
-        let buttons = []
-        const buttonsCategories = getAllFiles(
-            path.join(__dirname, "..", "interactionFuncions", "modals"),
-            true
-        )
+    let modals = [];
+    const modalsDir = path.join(__dirname, "..", "interaction", "modals");
+    const modalsFiles = getAllFiles(modalsDir, false);
 
-    
-        for(const buttonsCategory of buttonsCategories) {
-                const buttonsFiles = getAllFiles(buttonsCategory)
-                for(const buttonsFile of buttonsFiles) {
-                    const buttonsObject = require(buttonsFile)
-                    if(exceptions.includes(buttonsObject.name)) {
-                        continue;
-                    }
-                    buttons.push(buttonsObject);
-                }
-                
-                
+    for (const modalFile of modalsFiles) {
+        if (!modalFile.endsWith('.js')) continue;
+        try {
+            const modalObject = require(modalFile);
+            if (exceptions.includes(modalObject.name) || exceptions.includes(modalObject.customId)) {
+                continue;
             }
-    return buttons;
-}
+            modals.push(modalObject);
+        } catch (err) {
+            console.error(`⚠️ Error al cargar modal desde '${modalFile}':`, err.message);
+        }
+    }
+    return modals;
+};

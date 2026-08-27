@@ -1,15 +1,9 @@
 const { EmbedBuilder, ChatInputCommandInteraction, Client, Collection } = require(`discord.js`)
 const { SlashCommandBuilder } = require("@discordjs/builders");
-const clientdb = require("../../Server")
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
-const { devs, } = require("../../configslash.json");
-const db2 = clientdb.db("Rol_db")
-const db = clientdb.db("Server_db")
-const userdbs = db.collection("usuarios_server")
-const Cachedb = db2.collection("CachePJ")
-const Character = db2.collection("Personajes")
-const souls = db2.collection("Soul")
+const { devs } = require("../../config/configslash.json");
+const { getCharacterData } = require("../../utils/getDataCharacters");
 
 
 module.exports = {
@@ -20,6 +14,10 @@ module.exports = {
 
     subcommands: new Collection(),
 
+    /**
+     * Carga todos los subcomandos de la carpeta handlers/CMDHandler/Rol
+     * y los registra tanto en SlashCommandBuilder como en la colección interna.
+     */
     async cargarSubCommands() {
         const commandPath = path.join(__dirname, "../../handlers/CMDHandler/Rol")
 
@@ -44,30 +42,33 @@ module.exports = {
     },
 
     /**
- * 
- * @param {Client} client 
- * @param {ChatInputCommandInteraction} interaction 
- */
-
+     * Punto de entrada del comando /rol.
+     * Resuelve el subcomando solicitado, valida mantenimiento/devOnly,
+     * obtiene los datos de personaje/soul/caché según requirements y
+     * delega la ejecución al handler correspondiente.
+     *
+     * @param {Client} client
+     * @param {ChatInputCommandInteraction} interaction
+     */
     async ejecutar(client, interaction) {
         const subcommandName = interaction.options.getSubcommand();
-        const subcommand = this.subcommands.get(subcommandName);
+        const subcommand     = this.subcommands.get(subcommandName);
         console.log("Nombre del subcomando:", subcommandName)
 
         if (!subcommand || subcommand?.enMantenimiento) return interaction.reply({ content: "Este comando esta en mantenimiento. Se paciente （︶^︶)", ephemeral: true })
 
         try {
             if (subcommand.isDevOnly && !devs.includes(interaction.member.id)) return interaction.reply({ content: "Este comando solo esta disponible para el Staff 〒▽〒", ephemeral: true })
-            const userdb = await userdbs.findOne({_id: interaction.user.id})
 
             const requirements = subcommand.requirements || {};
-            const dbPromises = [];
 
-            if (requirements.character?.obtener) dbPromises.push(Character.findOne({ _id: userdb?.nix?.personajeActivo }));
-            if (requirements.soul?.obtener) dbPromises.push(souls.findOne({ _id: userdb?.nix?.personajeActivo }));
-            if (requirements.cachepj?.obtener) dbPromises.push(Cachedb.findOne({ _id: interaction.user.id }));
-
-            const [character, soul, cachepj] = await Promise.all(dbPromises);
+            // Obtiene character, soul y cachepj en una sola llamada optimizada.
+            // getCharacterData resuelve el personajeActivo desde usuarios_server
+            // y lanza las consultas a Personajes/Soul/CachePJ en paralelo.
+            const { character, soul, cachepj } = await getCharacterData(
+                interaction.user.id,
+                requirements
+            );
 
             if (requirements.character?.required && !character) {
                 if (cachepj) {
@@ -84,7 +85,6 @@ module.exports = {
                 return interaction.reply({ content: "Necesitas tener un personaje en proceso de registro 〒▽〒\n-# Intenta crear uno con `/rol crear_ficha`.", ephemeral: true });
             }
 
-
             await subcommand.ejecutar(client, interaction, {
                 character,
                 soul,
@@ -92,31 +92,36 @@ module.exports = {
             })
 
         } catch (error) {
-            const stackTrace = await import('stack-trace').then(m => m.default || m)
+            console.error("Error al ejecutar subcomando en 01-navi-central.js:", error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true }).catch(() => {});
+                } else {
+                    await interaction.reply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true }).catch(() => {});
+                }
 
-            const channel = client.channels.cache.get("716518718947065868")
-            const frame = stackTrace.parse(error)[0]
-            const archivo = frame.getFileName().replace(process.cwd(), '')
-            const metodo = frame.getFunctionName()
-            console.error(error);
+                const stackTrace = require('stack-trace');
+                const frames = stackTrace.parse(error);
+                const frame = frames && frames[0];
+                const archivo    = frame && frame.getFileName()    ? frame.getFileName().replace(process.cwd(), '')  : 'Desconocido';
+                const metodo     = frame && frame.getFunctionName() ? frame.getFunctionName()                        : 'Anónimo';
+                const lineNumber = frame && frame.getLineNumber()   ? frame.getLineNumber()                          : 'Anónimo';
 
-            if (interaction.deferred || interaction.replied) {
-                interaction.editReply({ content: "Ocurrio un error al ejecutar este comando... 〒▽〒\n-# envia esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true });
-            } else {
-                interaction.reply({ content: "Ocurrio un error al ejecutar este comando... 〒▽〒\n-# envia esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true });
+                const channel = client.channels.cache.get("716518718947065868");
+                if (channel) {
+                    const embed = new EmbedBuilder()
+                        .setTitle("Ocurrió un error al ejecutar el comando")
+                        .setDescription("```" + (error.stack || error).slice(0, 4000) + "```")
+                        .addFields(
+                            { name: "📁 Archivo/función", value: `${archivo}:${lineNumber}` },
+                            { name: "🤺 Método",          value: `${metodo}` },
+                            { name: "⚡ Comando",         value: `${interaction.commandName}/${subcommandName}` }
+                        );
+                    await channel.send({ embeds: [embed] }).catch(() => {});
+                }
+            } catch (e) {
+                console.error("Error secundario en catch de 01-navi-central.js:", e);
             }
-
-
-            const embed = new EmbedBuilder()
-                .setTitle("Ocurrio un error al ejecutar el comando")
-                .setDescription("```" + error + "```")
-                .addFields(
-                    { name: "📁 Archivo/funcion", value: `${archivo}:${frame.getLineNumber() || "Anonimo"}` },
-                    { name: "🤺 Metodo", value: `${metodo}` },
-                    { name: "⚡ Comando", value: `${interaction.commandName}/${subcommandName}` }
-                )
-
-            channel.send({ embeds: [embed] })
         }
 
         return;
