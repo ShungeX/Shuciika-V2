@@ -212,6 +212,14 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
             modeTest: false
         });
 
+        if (!sesion) {
+            console.error(`[battleExploration] Error al crear la sesión de combate ${channelDuel.id}.`);
+            if (!interaction.deferred && !interaction.replied) {
+                return interaction.reply({ content: "Error al iniciar el duelo [Sesión ocupada o no disponible]", ephemeral: true }).catch(() => { });
+            }
+            return;
+        }
+
         const jsonDuelEdited = [
             { "type": 10, "content": `# ${data?.messageTitle ? data.messageTitle : "Has aceptado el duelo"}` },
             { "type": 10, "content": `${messagesText}` },
@@ -225,43 +233,41 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         const messageEdit = await generateMessage(exploracionCache, soul, exploracionCache, jsonDuelEdited, true);
         await editarOMandarMensaje(interaction, exploracionCache, message, { components: messageEdit });
 
-        if (sesion) {
-            sesion.state = "ACTIVO";
-            sesion.addLog("inicio", "El duelo de exploración ha comenzado");
+        sesion.state = "ACTIVO";
+        sesion.addLog("inicio", "El duelo de exploración ha comenzado");
 
-            sesion.once("combateFinalizado", async (datos) => {
-                const uuidCache = transaccionCache.getUser(interaction.user.id);
-                const explorationCache = transaccionCache.get(uuidCache?.explorarID);
+        sesion.once("combateFinalizado", async (datos) => {
+            const uuidCache = transaccionCache.getUser(interaction.user.id);
+            const explorationCache = transaccionCache.get(uuidCache?.explorarID);
 
-                // Esperar 4.5s para permitir a duelManager y rewardCalculator procesar recompensas en DB
-                await sleep(4500);
+            // Esperar 4.5s para permitir a duelManager y rewardCalculator procesar recompensas en DB
+            await sleep(4500);
 
-                const charId = character._id ?? character.ID ?? interaction.user.id;
-                const isWinner = datos.arrayWinner?.some(w => String(w.ID || w._id) === String(charId));
+            const charId = character._id ?? character.ID ?? interaction.user.id;
+            const isWinner = datos.arrayWinner?.some(w => String(w.ID || w._id) === String(charId));
 
-                let updatedSoul = await db2.collection("Soul").findOne({
-                    $or: [
-                        { _id: charId },
-                        { _id: Number(charId) }
-                    ]
-                });
-                if (updatedSoul) recargarEnergia(updatedSoul);
-
-                const rewardData = sesion.rewardsMap || datos.rewards || datos.recompensas;
-                const rewardText = formatRewardsText(rewardData, charId);
-
-                if (explorationCache) {
-                    await resumeExploration(client, interaction, explorationCache, updatedSoul || soul, rewardText, isWinner, uuidCache?.explorarID);
-                }
+            let updatedSoul = await db2.collection("Soul").findOne({
+                $or: [
+                    { _id: charId },
+                    { _id: Number(charId) }
+                ]
             });
+            if (updatedSoul) recargarEnergia(updatedSoul);
 
-            await combateUI.update(sesion, client);
+            const rewardData = sesion.rewardsMap || datos.rewards || datos.recompensas;
+            const rewardText = formatRewardsText(rewardData, charId);
 
-            const TurnProcessor = require("../Duelo/turnProcessor");
-            const firstActor = sesion.getCurrentActor();
-            if (firstActor && (firstActor.isNPC || firstActor.activeCast)) {
-                await TurnProcessor.advanceCompas(sesion, client);
+            if (explorationCache) {
+                await resumeExploration(client, interaction, explorationCache, updatedSoul || soul, rewardText, isWinner, uuidCache?.explorarID);
             }
+        });
+
+        await combateUI.update(sesion, client);
+
+        const TurnProcessor = require("../Duelo/turnProcessor");
+        const firstActor = sesion.getCurrentActor();
+        if (firstActor && (firstActor.isNPC || firstActor.activeCast)) {
+            await TurnProcessor.advanceCompas(sesion, client);
         }
 
     } catch (error) {

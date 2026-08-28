@@ -20,7 +20,15 @@ class duelManager {
     }
 
     crearSesion({sessionId, duelType, teams, apuestas = null, tipoApuesta = null, modeTest = false}) {
-        if (this.sesiones.has(sessionId)) return null
+        const sesionExistente = this.sesiones.get(sessionId)
+        if (sesionExistente) {
+            if (sesionExistente.state === "FINALIZADO") {
+                this.destruirSesion(sessionId)
+            } else {
+                return null
+            }
+        }
+
         const sesion = new sesionesCombate({ sessionId, type: duelType, teams, apuestas, tipoApuesta, modeTest })
         sesion.on('jugadorDerrotado', (datos) => {
             console.log("Jugador derrotado:", datos.victima)
@@ -40,6 +48,9 @@ class duelManager {
             const rewardsMap = await rewardCalculator.resolve(sesion, arrayWinner, arrayLosser, client);
 
             await interfazCreate.updateGameOver(sesion, this.client, datos, rewardsMap);
+
+            // 4. Limpiar y destruir la sesión finalizada
+            this.destruirSesion(sessionId);
         });
 
         sesion.on('actualizarUI', () => {

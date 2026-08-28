@@ -181,16 +181,18 @@ class ExploracionManager {
                 return interaction.reply({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
             }
 
-            const faroBase = exploracionCache?.faroProbabilidad || 0
+            const faroEvent = subzonaSelect?.eventos?.find(e => e.tipo === "faro");
+            const faroBase = faroEvent ? Number(faroEvent.probabilidad || 0) : Number(exploracionCache?.faroProbabilidad || 0);
+            exploracionCache.faroProbabilidad = faroBase;
 
-            let faroProb = null;
+            let faroProb = 0;
 
             if (exploracionCache.bloquearFaroSiguiente) {
                 faroProb = 0;
                 exploracionCache.bloquearFaroSiguiente = false;
-            } else {
+            } else if (faroBase > 0) {
                 const profundidadActual = exploracionCache.profundidad || 0;
-                faroProb = Math.min(60, faroBase + profundidadActual);
+                faroProb = Math.min(100, faroBase + profundidadActual);
             }
 
             const eventSelect = await this.selectEvent(subzonaSelect.eventos, faroProb);

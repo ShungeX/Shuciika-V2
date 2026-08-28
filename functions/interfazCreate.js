@@ -428,18 +428,38 @@ class InterfazCreate {
      * @param {string} key - Clave de la zona
      * @param {Object} soul - Alma del personaje
      */
-    async faroExploración(client, interaction, key, soul) {
+    async faroExploración(client, interaction, key, soul, page = 1) {
         const dialogosFaroData = require("../data/dialogosExploracion/dialogosFaro.json");
         const randomDialogue = dialogosFaroData.dialogosFaro[Math.floor(Math.random() * dialogosFaroData.dialogosFaro.length)];
 
         const charId = soul?._id ?? soul?.id ?? soul?.ID;
-        const pj = await characters.findOne({ _id: Number(charId) });
+        const pj = await characters.findOne({
+            $or: [
+                { _id: charId },
+                { _id: Number(charId) }
+            ]
+        });
 
-        const inv = pj?.economia?.Inventario || [];
-        const talisman = inv.find(i => Number(i.ID) === 83 || Number(i.ID) === 85);
-        const talismanText = talisman 
-            ? `- **${talisman.Nombre || (`Talismán [${talisman.ID}]`)}** *(x${talisman.Cantidad || talisman.cantidad || 1})*`
-            : "- *No posees ningún Talismán registrado*";
+        const rawTalismanInv = pj?.economia?.inventarioTalisman || [];
+        const talismanInv = [...rawTalismanInv].sort((a, b) => Number(a.ID) - Number(b.ID));
+
+        const itemsPorPagina = 12;
+        const totalItems = talismanInv.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPorPagina));
+        const currentPagina = Math.max(1, Math.min(page, totalPages));
+
+        const startIndex = (currentPagina - 1) * itemsPorPagina;
+        const itemsPagina = talismanInv.slice(startIndex, startIndex + itemsPorPagina);
+
+        const talismanText = itemsPagina.length > 0
+            ? itemsPagina.map(i => {
+                const cant = Number(i.Cantidad || i.cantidad || 1);
+                const nombre = i.Nombre || (`Objeto [${i.ID}]`);
+                const formattedId = String(i.ID).padStart(3, ' ');
+                const contaminado = i.contaminable ? " *(Contaminado)*" : "";
+                return `- -# \`[${formattedId}]\` - **${nombre}** x ${cant}${contaminado}`;
+            }).join("\n")
+            : "- -# *El talismán está vacío (sin objetos resguardados).*";
 
         const mensajeFaro = [
             {
@@ -475,59 +495,98 @@ class InterfazCreate {
                     },
                     {
                         "type": 10,
-                        "content": `**Talismán de resguardo**\n-# ${talismanText}`
+                        "content": `**Objetos en el Talismán:**\n${talismanText}`
+                    },
+                    {
+                        "type": 10,
+                        "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}`
                     },
                     {
                         "type": 14,
                         "divider": true,
                         "spacing": 1
-                    },
-                    {
-                        "type": 1,
-                        "components": [
-                            {
-                                "type": 3,
-                                "custom_id": `selectExplorar-${interaction.user.id}`,
-                                "options": [
-                                    {
-                                        "label": "Abrir mochila",
-                                        "value": `mochila*abrir*${key}`,
-                                        "description": "Revisa y organiza lo que llevas contigo",
-                                        "emoji": null,
-                                        "default": false
-                                    },
-                                    {
-                                        "label": "Purificar objetos",
-                                        "value": `purificar*abrir*${key}`,
-                                        "description": "Permite guardar los objetos del talismán",
-                                        "emoji": null,
-                                        "default": false
-                                    },
-                                    {
-                                        "label": "Continuar explorando",
-                                        "value": `continue*${key}`,
-                                        "description": "Más profundo, mejor loot",
-                                        "emoji": null,
-                                        "default": false
-                                    },
-                                    {
-                                        "label": "Retirarse",
-                                        "value": `surrend*${key}`,
-                                        "description": "Vuelve a casa con lo que ya aseguraste",
-                                        "emoji": null,
-                                        "default": false
-                                    }
-                                ],
-                                "placeholder": "Selecciona una opción",
-                                "min_values": 1,
-                                "max_values": 1,
-                                "disabled": false
-                            }
-                        ]
                     }
                 ]
             }
         ];
+
+        if (totalPages > 1) {
+            mensajeFaro[0].components.push({
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": "<",
+                        "emoji": null,
+                        "disabled": currentPagina <= 1,
+                        "custom_id": crearCustomId({
+                            action: "mochilaInventario",
+                            userId: interaction.user.id,
+                            characterId: pj?._id || charId,
+                            extras: [key || "faro", "talisman", "prev", currentPagina]
+                        })
+                    },
+                    {
+                        "type": 2,
+                        "style": 2,
+                        "label": ">",
+                        "emoji": null,
+                        "disabled": currentPagina >= totalPages,
+                        "custom_id": crearCustomId({
+                            action: "mochilaInventario",
+                            userId: interaction.user.id,
+                            characterId: pj?._id || charId,
+                            extras: [key || "faro", "talisman", "next", currentPagina]
+                        })
+                    }
+                ]
+            });
+        }
+
+        mensajeFaro[0].components.push({
+            "type": 1,
+            "components": [
+                {
+                    "type": 3,
+                    "custom_id": `selectExplorar-${interaction.user.id}`,
+                    "options": [
+                        {
+                            "label": "Abrir mochila",
+                            "value": `mochila*abrir*${key}`,
+                            "description": "Revisa y organiza lo que llevas contigo",
+                            "emoji": null,
+                            "default": false
+                        },
+                        {
+                            "label": "Purificar objetos",
+                            "value": `purificar*abrir*${key}`,
+                            "description": "Permite guardar los objetos del talismán",
+                            "emoji": null,
+                            "default": false
+                        },
+                        {
+                            "label": "Continuar explorando",
+                            "value": `continue*${key}`,
+                            "description": "Más profundo, mejor loot",
+                            "emoji": null,
+                            "default": false
+                        },
+                        {
+                            "label": "Retirarse",
+                            "value": `surrend*${key}`,
+                            "description": "Vuelve a casa con lo que ya aseguraste",
+                            "emoji": null,
+                            "default": false
+                        }
+                    ],
+                    "placeholder": "Selecciona una opción",
+                    "min_values": 1,
+                    "max_values": 1,
+                    "disabled": false
+                }
+            ]
+        });
 
         return mensajeFaro;
     }
