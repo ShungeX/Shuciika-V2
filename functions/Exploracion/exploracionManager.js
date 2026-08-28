@@ -149,7 +149,18 @@ class ExploracionManager {
                 return await editarOMandarMensaje(interaction, exploracionCache, message, { components: mochilaComp, flags: ["IsComponentsV2"] });
             }
 
+            case "purificar": {
+                console.log("exploracionManager.js - Line aprox: 153", " Faro select")
+                return interaction.reply({ content: "Función en desarrollo", flags: ["Ephemeral"] })
+            }
+
+            case "mochila": {
+                console.log("exploracionManager.js - Line aprox: 153", " Faro select")
+                return interaction.reply({ content: "Función en desarrollo", flags: ["Ephemeral"] })
+            }
+
             default: {
+                console.log("exploracionManager.js Función seleccionada por defecto:", interact)
                 return await this.procesarExploracion({
                     client,
                     interaction,
@@ -175,8 +186,8 @@ class ExploracionManager {
             console.log(areaSelect, interact)
             const currentEnergy = await recargarEnergia(soul.nucleo?.energy ?? 0, soul);
             if (currentEnergy < subzonaSelect.energiaNecesaria) {
-                if(interaction.deferred) {
-                 return interaction.followUp({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] })   
+                if (interaction.deferred) {
+                    return interaction.followUp({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] })
                 }
                 return interaction.reply({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
             }
@@ -234,7 +245,7 @@ class ExploracionManager {
             const nuevaEnergia = Math.max(0, currentEnergy - subzonaSelect.energiaNecesaria);
             if (soul.nucleo) soul.nucleo.energy = nuevaEnergia;
 
-            let eventMessageIntermedio = await this.generateMessage(exploracionCache,soul, subzonaSelect, messIntermedio, true);
+            let eventMessageIntermedio = await this.generateMessage(exploracionCache, soul, subzonaSelect, messIntermedio, true);
 
             try {
                 await interaction.deferUpdate().catch(() => { });

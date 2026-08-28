@@ -553,28 +553,28 @@ class InterfazCreate {
                     "options": [
                         {
                             "label": "Abrir mochila",
-                            "value": `mochila*abrir*${key}`,
+                            "value": `null*mochila*${key}`,
                             "description": "Revisa y organiza lo que llevas contigo",
                             "emoji": null,
                             "default": false
                         },
                         {
                             "label": "Purificar objetos",
-                            "value": `purificar*abrir*${key}`,
-                            "description": "Permite guardar los objetos del talismán",
+                            "value": `null*purificar*${key}`,
+                            "description": "Purifica y permite guardar los objetos de tu talismán",
                             "emoji": null,
                             "default": false
                         },
                         {
                             "label": "Continuar explorando",
-                            "value": `continue*${key}`,
+                            "value": `null*continue*${key}`,
                             "description": "Más profundo, mejor loot",
                             "emoji": null,
                             "default": false
                         },
                         {
                             "label": "Retirarse",
-                            "value": `surrend*${key}`,
+                            "value": `null*surrend*${key}`,
                             "description": "Vuelve a casa con lo que ya aseguraste",
                             "emoji": null,
                             "default": false
