@@ -12,8 +12,210 @@ const { ModalBuilder,
     CheckboxBuilder } = require("discord.js")
 const { crearCustomId } = require("../../utils/constructores/customId")
 
+
+/**
+ * -------------------------------------------------------------------------
+ * CONFIGURACIÓN DE GIFS PARA ANIMACIONES FINALES DE COMBATE (5 SEGUNDOS)
+ * -------------------------------------------------------------------------
+ */
+
+// 1. PRIORIDAD 1: Golpe Devastador (1vs1 PvP o 1vsNPC si el daño recibido supera el umbral de Overkill)
+// Exclusivo para cuando el derrotado es el jugador real (no el NPC).
+const ANIMACIONES_GOLPE_DEVASTADOR = [
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/5c/1e/faZXrUvDytf1CFjv33.gif",
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/5c/3e/seEvUYxJTBsgkAOCZgCB.gif",
+    "https://static2.klipy.com/ii/a8ada81afc59159ea5c8927feffa2e31/2c/95/DOf54IIMNhlvX8.gif",
+    "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/85/13/v0ULGFSG.gif",
+    "https://static2.klipy.com/ii/d7aec6f6f171607374b2065c836f92f4/2c/74/xyDMwLG3.gif",
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/81/0c/oHDAWjpjiCSk6YVx.gif",
+    "https://static2.klipy.com/ii/c44064a00e4b7451969381d90dea1769/e6/c8/PELEfujv.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/b3/6e/6lNvkU4lV160yIlJKlQZ.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/5b/2a/fBiw6sTIF9uIw.gif",
+
+];
+
+// 2. PRIORIDAD 2: Derrota 1vs1 PvP (Exclusivo 1vs1 entre jugadores reales cuando el daño supera la vida actual)
+const ANIMACIONES_DERROTA_1VS1 = [
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/82/28/b2GQCFr9IUuW9IlUp.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/66/02/9s9jhyuYdXuEmCAsm0.gif",
+    "https://static2.klipy.com/ii/8ce8357c78ea940b9c2015daf05ce1a5/74/7b/rdtzNpfT.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/31/10/px5MKCarULsyR.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/d6/ab/WLcVgfzUQ4CRTNigNcCB.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/f7/43/rYR5mUakQLpG7.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/f2/e3/2ZTdX6bRwFZpSMmZ9.gif",
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/5b/e2/eCW1b8SROxucHaI.gif"
+];
+
+// 3. PRIORIDAD 3: Derrota contra NPC (Exclusivo cuando el jugador o equipo humano pierde ante un NPC)
+const ANIMACIONES_DERROTA_NPC = [
+    "https://klipy.com/gifs/anime-confused-11",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/9e/0a/94wcE671VtVn2Njz5P3.gif",
+    "https://static2.klipy.com/ii/f87f46a2c5aeaeed4c68910815f73eaf/9b/24/onyiTg8l.gif",
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/a1/66/oYGPfZh3BeGvbZO8Zn.gif",
+    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/67/07/k3cVkdWrhbmoUh.gif",
+    "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/c2/b6/mnwvJVwg.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/36/ac/dT8UVOa7Oybl1hwUuego.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/f7/43/rYR5mUakQLpG7.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/8b/05/9WGWHmCgH2bsLhP4xh.gif",
+    "https://static2.klipy.com/ii/39f2394ae36df6e199be9eb7c9fa1012/f1/a4/wEXwtoLu.gif",
+    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/9f/48/glJfnluOaJ2PYaFqcFk.gif",
+    "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/53/63/rUWV95s4.gif"
+];
+
+function umbralOverkill(vidaMax) {
+    const V_BAJA = 100;   // vida_max de nivel bajo/inicial
+    const V_ALTA = 800;   // tu punto donde ya casi nadie supera esto
+    const T_ALTA = 1.00;  // en vida baja: necesitas overkill del 100% (o sea, duplicarla)
+    const T_BAJA = 0.25;  // en vida alta: con 25% de overkill ya es suficiente
+
+    if (vidaMax <= V_BAJA) return T_ALTA;
+    if (vidaMax >= V_ALTA) return T_BAJA;
+
+    const t = (vidaMax - V_BAJA) / (V_ALTA - V_BAJA); // 0 → 1
+    return T_ALTA - (T_ALTA - T_BAJA) * t;             // interpolación lineal
+}
+
+function esGolpeDevastador(combatiente) {
+    if (!combatiente) return false;
+    const vidaMax = combatiente.stats?.hpMax ?? 100;
+    const daño = combatiente.ultimoDanioRecibido ?? 0;
+    const vidaActual = combatiente.vidaAntesDelGolpe ?? 0;
+
+    const overkill = daño - vidaActual;
+    const overkillPct = overkill / vidaMax;
+
+    return overkillPct >= umbralOverkill(vidaMax);
+}
+
 class CombatUI {
     constructor() {
+    }
+
+    evaluarAnimacionFinal(sesion, arrayWinner = [], arrayLosser = []) {
+        const allCombatientes = sesion.getAllCombatientes();
+        const es1vs1 = allCombatientes.length === 2;
+        const perdedor = arrayLosser.find(l => !l.isNPC) || arrayLosser[0];
+        const ganador = arrayWinner[0];
+
+        // 1. PRIORIDAD 1: Golpe devastador
+        // Exclusivo para 1vs1 (PvP o 1vsNPC). El que debe ser derrotado es el jugador real, no el NPC.
+        if (es1vs1 && perdedor && !perdedor.isNPC && esGolpeDevastador(perdedor)) {
+            const gif = pickRandom(ANIMACIONES_GOLPE_DEVASTADOR);
+            if (gif) {
+                return {
+                    prioridad: 1,
+                    tipo: "golpeDevastador",
+                    nombre: "Golpe Devastador",
+                    gif
+                };
+            }
+        }
+
+        // 2. PRIORIDAD 2: Animación 1vs1 PvP (daño que recibirá el jugador es mayor a su vida actual)
+        // Exclusivo para 1vs1 entre jugadores reales (no NPCs)
+        const es1vs1PvP = es1vs1 && perdedor && !perdedor.isNPC && ganador && !ganador.isNPC;
+        if (es1vs1PvP && perdedor) {
+            const daño = perdedor.ultimoDanioRecibido ?? 0;
+            const vidaActual = perdedor.vidaAntesDelGolpe ?? 0;
+            if (daño >= vidaActual) {
+                const gif = pickRandom(ANIMACIONES_DERROTA_1VS1);
+                if (gif) {
+                    return {
+                        prioridad: 2,
+                        tipo: "derrota1vs1",
+                        nombre: "Derrota 1vs1 PvP",
+                        gif
+                    };
+                }
+            }
+        }
+
+        // 3. PRIORIDAD 3: Animación exclusivo de NPC
+        // Aplica si el combate es contra NPC y el jugador o equipo humano es derrotado
+        const esVsNPC = sesion.type === "npc" || sesion.type === "exploration" || sesion.isNPC || allCombatientes.some(c => c.isNPC);
+        const equipoJugadorPerdio = arrayLosser.some(l => !l.isNPC) && arrayWinner.every(w => w.isNPC);
+        if (esVsNPC && equipoJugadorPerdio) {
+            const gif = pickRandom(ANIMACIONES_DERROTA_NPC);
+            if (gif) {
+                return {
+                    prioridad: 3,
+                    tipo: "derrotaNPC",
+                    nombre: "Derrota contra NPC",
+                    gif
+                };
+            }
+        }
+
+        return null;
+    }
+
+    async mostrarAnimacionFinal(sesion, client, animacionData) {
+        const gifUrl = typeof animacionData === "string" ? animacionData : animacionData?.gif;
+        const tipoAnimacion = typeof animacionData === "object" ? animacionData?.tipo : null;
+        if (!gifUrl) return;
+
+        const subComponents = [
+            {
+                "type": 12,
+                "items": [
+                    {
+                        "media": {
+                            "url": gifUrl,
+                            "proxy_url": gifUrl
+                        },
+                        "description": null,
+                        "spoiler": false
+                    }
+                ]
+            }
+        ];
+
+        // Para golpe devastador (instaKill), mostrar los últimos 3 logs de combate
+        if (tipoAnimacion === "golpeDevastador" || animacionData?.tipo === "golpeDevastador") {
+            const ultimosLogs = (sesion?.log || [])
+                .slice(-3)
+                .map(log => asciiText(log))
+                .join('\n');
+
+            if (ultimosLogs) {
+                subComponents.push(
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": `-# **Últimas acciones**\n\`\`\`ansi\n${ultimosLogs}\`\`\``
+                    }
+                );
+            }
+        }
+
+        const componenteAnimacion = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": subComponents
+            }
+        ];
+
+        // 1. Actualizar mensaje en el canal de espectador
+        if (sesion.mensajes?.espectador?.messageId) {
+            await this._enviarOeditar(client, sesion.mensajes.espectador, componenteAnimacion, false);
+        }
+
+        // 2. Actualizar mensajes por MD a cada jugador humano
+        for (const combatiente of sesion.getAllCombatientes()) {
+            if (combatiente.isNPC) continue;
+            if (!combatiente.ownerId || String(combatiente.ownerId).startsWith("NPC_")) continue;
+
+            const refMsg = sesion.mensajes?.jugadores?.get(String(combatiente.ownerId)) || sesion.mensajes?.jugadores?.get(combatiente.ownerId);
+            if (refMsg?.messageId) {
+                await this._enviarOeditar(client, refMsg, componenteAnimacion, false, combatiente.ownerId);
+            }
+        }
     }
 
     formatEfectos(c, sesion) {
@@ -175,7 +377,7 @@ class CombatUI {
                     "components": [
                         {
                             "type": 10,
-                            "content": `# ${winner.Nombre} (Lv: ${winner.nivelMagico}) ${typeWin === "afk" ? "" : "- **Ganador** ✨"}`
+                            "content": `# ${winner.Nombre} (${winner.isNPC ? `Lv: ${winner.nivelMagico || 1}` : `FE: ${winner.StelarFragmentsTotal ?? winner.sendero?.StelarFragmentsTotal ?? 0} [${winner.resplandor ?? winner.sendero?.resplandor ?? 'I'}]`}) ${typeWin === "afk" ? "" : "- **Ganador** ✨"}`
                         },
                         {
                             "type": 10,
@@ -201,7 +403,7 @@ class CombatUI {
                     "components": [
                         {
                             "type": 10,
-                            "content": `# ${defeated.Nombre} (Lv: ${defeated.nivelMagico}) ${duel.isNPC ? "[NPC]" : ""}`
+                            "content": `# ${defeated.Nombre} (${defeated.isNPC ? `Lv: ${defeated.nivelMagico || 1}` : `FE: ${defeated.StelarFragmentsTotal ?? defeated.sendero?.StelarFragmentsTotal ?? 0} [${defeated.resplandor ?? defeated.sendero?.resplandor ?? 'I'}]`}) ${duel.isNPC ? "[NPC]" : ""}`
                         },
                         {
                             "type": 10,
@@ -336,8 +538,8 @@ class CombatUI {
             return { image: imageTeams, teamText: teamsFormat }
         } else {
             const imageTeams = teams[0].avatarURL
-            const level = teams[0].nivelMagico ?? teams[0].stats?.nivelMagico ?? "???";
-            const teamsFormat = `- **${teams[0].Nombre} \`(FE: ${level})\`**` + `\n HP: ${barraCustom(teams[0].HP, teams[0].stats?.hpMax ?? teams[0].HP, 1, 10)}\n`
+            const levelTag = teams[0].isNPC ? `Lv: ${teams[0].nivelMagico || 1}` : `FE: ${teams[0].StelarFragmentsTotal ?? teams[0].sendero?.StelarFragmentsTotal ?? 0} [${teams[0].resplandor ?? teams[0].sendero?.resplandor ?? 'I'}]`;
+            const teamsFormat = `- **${teams[0].Nombre} \`(${levelTag})\`**` + `\n HP: ${barraCustom(teams[0].HP, teams[0].stats?.hpMax ?? teams[0].HP, 1, 10)}\n`
             return { image: imageTeams, teamText: teamsFormat }
         }
     }
@@ -353,8 +555,8 @@ class CombatUI {
         const labelRivalesFinal = labelRivales ? `### ${labelRivales}` : `### ${(rivales && rivales.length > 1) ? "Tus rivales" : "Tu rival"}`
         const formatStatsRivales = statsRivales ? `${statsRivales}` : rivalesArray
 
-        const playerLevel = actor.nivelMagico ?? actor.stats?.nivelMagico ?? "???";
-        const formatStatsPlayer = statsPlayer ? `${statsPlayer}` : `❧ **${actor.Nombre} (FE: ${playerLevel})**:\n` +
+        const playerLevelTag = actor.isNPC ? `Lv: ${actor.nivelMagico || 1}` : `FE: ${actor.StelarFragmentsTotal ?? actor.sendero?.StelarFragmentsTotal ?? 0} [${actor.resplandor ?? actor.sendero?.resplandor ?? 'I'}]`;
+        const formatStatsPlayer = statsPlayer ? `${statsPlayer}` : `❧ **${actor.Nombre} (${playerLevelTag})**:\n` +
             `-# ${barraCustom(actor.HP, actor.stats?.hpMax ?? actor.HP, 1, 10)}` +
             `\n-# Mana: ${barraCustom(actor.Mana, actor.stats?.manaMax ?? actor.Mana, 2, 5)}` +
             `\n\nEfectos: ${this.formatEfectos(actor, sesion)}`
@@ -467,8 +669,8 @@ class CombatUI {
 
     _listaPersonajes(arrayPersonajes) {
         return arrayPersonajes.map(pj => {
-            const level = pj.nivelMagico ?? pj.stats?.nivelMagico ?? "???";
-            return `❧ **${pj.Nombre} (FE: ${level})**:\n` +
+            const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+            return `❧ **${pj.Nombre} (${levelTag})**:\n` +
                 `-# ${barraCustom(pj.HP, pj.stats?.hpMax ?? pj.HP, 1, 10)}`;
         }).join("\n\n")
     }
@@ -547,7 +749,17 @@ class CombatUI {
                         "https://c.tenor.com/S4e7zz52p8gAAAAd/tenor.gif",
                         "https://c.tenor.com/lvlf2XuFYrIAAAAd/tenor.gif",
                         "https://c.tenor.com/uiak6BECN_sAAAAd/tenor.gif",
-                        "https://c.tenor.com/hogpCcg50NIAAAAC/tenor.gif"
+                        "https://c.tenor.com/hogpCcg50NIAAAAC/tenor.gif",
+                        "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/ff/39/axaqy9V7haBdOqj54S.gif",
+                        "https://static2.klipy.com/ii/9ed0121ed465c12e1f3dda331ed33f0e/b7/d0/EEC18Ld2znSNRObI6oT.gif",
+                        "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/25/5e/HmdwWBVt.gif",
+                        "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/7b/59/igZuz2mbcxjeyJUHm77w.gif",
+                        "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/73/ac/LUMOOWjuj5ClDX8.gif",
+                        "https://static2.klipy.com/ii/bea85337777ad0e23e63683391435543/fb/62/zqnw5Ru0.gif",
+                        "https://static2.klipy.com/ii/a8ada81afc59159ea5c8927feffa2e31/65/4c/eSSeXk8vwVExCp1E8sW8.gif",
+                        "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/73/53/3Qy9RDVUMcaDrZpj0Uj.gif",
+                        "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/c4/8a/KeHPcTRybaKEM2BpCf0.gif",
+                        "https://static2.klipy.com/ii/e1b92bb53e0c9e442408bc677a56c789/fa/3c/FMnZ3zd2nllg2KY.gif"
                     ]
                 },
 
@@ -571,6 +783,10 @@ class CombatUI {
                         "https://c.tenor.com/Sm05Mnf5Rr4AAAAd/tenor.gif",
                         "https://c.tenor.com/8Gu7ihnHlr8AAAAd/tenor.gif",
                         "https://c.tenor.com/ZtMsZWD9jEcAAAAd/tenor.gif",
+                        "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/e4/e4/gpNGcKGFMWOa7wRi7.gif",
+                        "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/a6/37/ubV4ispWkyJ0oMner.gif",
+                        "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/a5/d2/RyYx2cXbFC2uTmDZep.gif",
+
                     ]
                 },
 
@@ -605,6 +821,10 @@ class CombatUI {
                         "https://c.tenor.com/rKqdDp_s0oYAAAAd/tenor.gif",
                         "https://c.tenor.com/fjgE4PiJdAMAAAAd/tenor.gif",
                         "https://c.tenor.com/ZE1DnkL3qigAAAAd/tenor.gif",
+                        "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/48/bd/S804248QfcBjCVb98HM.gif",
+                        "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/33/00/fuDEhqLg.gif",
+                        "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/0d/c6/ycbUnoBjXlljbKN74b.gif",
+                        "https://static2.klipy.com/ii/e1b92bb53e0c9e442408bc677a56c789/f5/b7/U5Y2BVFCrko4QPVIwM.gif",
                     ]
                 },
                 defeated: {
@@ -618,14 +838,11 @@ class CombatUI {
                         "A veces es mejor saber cuando retirarse..."
                     ],
                     gifs: [
-                        "https://c.tenor.com/MMA6_WvqS60AAAAd/tenor.gif",
-                        "https://c.tenor.com/am4tzoTsnRoAAAAd/tenor.gif",
-                        "https://c.tenor.com/mUIXigPWPuYAAAAd/tenor.gif",
-                        "https://c.tenor.com/XbfdY2Lx-zwAAAAd/tenor.gif",
+
                         "https://c.tenor.com/QflxuGwf_IwAAAAd/tenor.gif", //Apartir de este gif empiezan retiradas normales
                         "https://c.tenor.com/sigrrzQkKi4AAAAd/tenor.gif",
                         "https://c.tenor.com/ScWPoTxfu5cAAAAd/tenor.gif",
-                        "https://c.tenor.com/5lvXZOwWSq0AAAAd/tenor.gif",
+                        "https://c.tenor.com/5lvXZOwWSq0AAAAd/tenor.gif",                        
                     ],
                 },
 
@@ -657,6 +874,12 @@ class CombatUI {
                     "https://c.tenor.com/gjBx2zbdJjAAAAAd/tenor.gif",
                     "https://c.tenor.com/MUh5wIdD-E0AAAAd/tenor.gif",
                     "https://c.tenor.com/1fgzvqahPHAAAAAd/tenor.gif",
+                    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/88/c0/659NxWpjJsAr.gif",
+                    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/a9/62/flK1Hx1qzYwelH3LhFo.gif",
+                    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/b7/62/5CSoaNAxPigC0BU1moA.gif",
+                    "https://static2.klipy.com/ii/925f17378dd1893b674a723c07535afe/b7/a3/B972pNVJ.gif",
+                    "https://static2.klipy.com/ii/da290b156d64898341638f3c299e7478/1d/3f/Q7CqlKqw.gif",
+                    "https://static2.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/c2/91/Uer6kwS7RPQ9bNHk8mC.gif"
                 ]
             },
         }
@@ -839,9 +1062,9 @@ class CombatUI {
     buildTarget(sesion, actor, rivales, action, spellId = null) {
 
         const opciones = rivales.map(target => {
-            const level = target.nivelMagico ?? target.stats?.nivelMagico ?? "???";
+            const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
             return {
-                label: `${target.Nombre} (FE: ${level})`,
+                label: `${target.Nombre} (${levelTag})`,
                 value: `duel_target*${spellId}*${target.ID}`,
                 description: `HP: ${target.HP}/${target.stats?.hpMax ?? target.HP}`,
                 emoji: null,
@@ -851,8 +1074,8 @@ class CombatUI {
 
         const rivalesVivos = rivales.filter(t => !t.defeated)
         const rivalesMessage = rivalesVivos.map(t => {
-            const level = t.nivelMagico ?? t.stats?.nivelMagico ?? "???";
-            return `❧ **${t.Nombre} (FE: ${level})**\n` +
+            const levelTag = t.isNPC ? `Lv: ${t.nivelMagico || 1}` : `FE: ${t.StelarFragmentsTotal ?? t.sendero?.StelarFragmentsTotal ?? 0} [${t.resplandor ?? t.sendero?.resplandor ?? 'I'}]`;
+            return `❧ **${t.Nombre} (${levelTag})**\n` +
                 `-# HP: ${barraCustom(t.HP, t.stats?.hpMax ?? t.HP, 1, 10)}`;
         }).join("\n\n")
 
@@ -928,11 +1151,14 @@ class CombatUI {
                 .setCustomId(`ObjetivesModal-${actor.ownerId}-${sesion.sessionId}`);
 
             if (candidatosDamage.length > 0) {
-                const options = candidatosDamage.map(target => ({
-                    label: `${target.Nombre} (FE: ${target.nivelMagico})`,
-                    value: String(target.ID),
-                    description: `HP: ${target.HP}/${target.stats.hpMax}`
-                }));
+                const options = candidatosDamage.map(target => {
+                    const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+                    return {
+                        label: `${target.Nombre} (${levelTag})`,
+                        value: String(target.ID),
+                        description: `HP: ${target.HP}/${target.stats.hpMax}`
+                    };
+                });
 
                 const checkGroup = new CheckboxGroupBuilder()
                     .setCustomId('targets_damage')
@@ -948,11 +1174,14 @@ class CombatUI {
             }
 
             if (candidatosHealing.length > 0) {
-                const options = candidatosHealing.map(target => ({
-                    label: `${target.Nombre} (FE: ${target.nivelMagico})`,
-                    value: String(target.ID),
-                    description: `HP: ${target.HP}/${target.stats.hpMax}`
-                }));
+                const options = candidatosHealing.map(target => {
+                    const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+                    return {
+                        label: `${target.Nombre} (${levelTag})`,
+                        value: String(target.ID),
+                        description: `HP: ${target.HP}/${target.stats.hpMax}`
+                    };
+                });
 
                 const checkGroup = new CheckboxGroupBuilder()
                     .setCustomId('targets_healing')
@@ -1001,13 +1230,13 @@ class CombatUI {
 
         if (rivalTeam.length > 1) {
             for (const pj of rivalTeam) {
-                const level = pj.nivelMagico ?? pj.stats?.nivelMagico ?? "???";
-                rivalTeams += `- **${pj.Nombre} \`(FE: ${level})\`**` + `| HP: ${await this.characterComponents(pj, true, true)}\n`
+                const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+                rivalTeams += `- **${pj.Nombre} \`(${levelTag})\`**` + `| HP: ${await this.characterComponents(pj, true, true)}\n`
             }
         } else if (rivalTeam.length === 1) {
             for (const pj of rivalTeam) {
-                const level = pj.nivelMagico ?? pj.stats?.nivelMagico ?? "???";
-                rivalTeams = `- **${pj.Nombre} \`(FE: ${level})\` **` + `\n-# HP: ${await this.characterComponents(pj, false, true)}`
+                const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+                rivalTeams = `- **${pj.Nombre} \`(${levelTag})\` **` + `\n-# HP: ${await this.characterComponents(pj, false, true)}`
             }
 
         } else {
@@ -1048,7 +1277,7 @@ class CombatUI {
                     },
                     {
                         "type": 10,
-                        "content": `Tu personaje: **${player.Nombre} \`(FE: ${player.nivelMagico ?? player.stats?.nivelMagico ?? "???"})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
+                        "content": `Tu personaje: **${player.Nombre} \`(${player.isNPC ? `Lv: ${player.nivelMagico || 1}` : `FE: ${player.StelarFragmentsTotal ?? player.sendero?.StelarFragmentsTotal ?? 0} [${player.resplandor ?? player.sendero?.resplandor ?? 'I'}]`})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
                             `\n-# Mana: ${barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + `\n\nEfectos: ${this.formatEfectos(player, duel)}`
                     },
                     {
@@ -1149,7 +1378,11 @@ class CombatUI {
                                     "label": "Salir de la sala",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `preDuel-${interaction_user.id}-salirse-${codeSala}`
+                                    "custom_id": crearCustomId({
+                                        action: "preDuel",
+                                        userId: interaction_user.id,
+                                        extras: ["salirse", `${codeSala}`]
+                                    })
                                 }
                             ]
                         }
@@ -1165,16 +1398,20 @@ class CombatUI {
             const list = Object.values(data.team1).map(char => {
                 const isNPC = !!(char.isNPC || (typeof char._id === 'string' && char._id.startsWith("NPC-")));
                 const nombre = char.perfil?.Nombre || char.Nombre || 'Combatiente';
-                const nivel = isNPC
-                    ? (char.nivelMagico || char.stats?.nivelMagico || '')
-                    : (char.sendero?.StelarFragmentsTotal ?? char.sendero?.StelarFragments ?? char.fragmentos?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragments ?? char.StelarFragments ?? char.StelarFragmentsTotal ?? '');
-                const labelTag = isNPC ? `(Lv: ${nivel})` : `(FE: ${nivel})`;
-                return `- -# ${nombre}${isNPC ? ' [NPC]' : ''}${nivel !== '' ? ` ${labelTag}` : ''}`;
+                if (isNPC) {
+                    const nivel = char.nivelMagico || char.stats?.nivelMagico || 1;
+                    return `- -# ${nombre} [NPC] (Lv: ${nivel})`;
+                } else {
+                    const fe = char.sendero?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragmentsTotal ?? char.StelarFragmentsTotal ?? 0;
+                    const resplandor = char.sendero?.resplandor ?? char.fragmentos?.resplandor ?? char.resplandor ?? 'I';
+                    return `- -# ${nombre} (FE: ${fe} [${resplandor}])`;
+                }
             }).join('\n');
             retadoresContent = `**Retadores:**\n${list}`;
         } else {
-            const creatorFE = soul?.sendero?.StelarFragmentsTotal ?? soul?.sendero?.StelarFragments ?? soul?.fragmentos?.StelarFragmentsTotal ?? soul?.fragmentos?.StelarFragments ?? soul?.StelarFragments ?? '';
-            retadoresContent = `**Retadores:**\n- -# ${creatorName}${creatorFE !== '' ? ` (FE: ${creatorFE})` : ''}`;
+            const creatorFE = soul?.sendero?.StelarFragmentsTotal ?? soul?.fragmentos?.StelarFragmentsTotal ?? 0;
+            const creatorResp = soul?.sendero?.resplandor ?? soul?.fragmentos?.resplandor ?? 'I';
+            retadoresContent = `**Retadores:**\n- -# ${creatorName} (FE: ${creatorFE} [${creatorResp}])`;
         }
 
         let contrincantesContent = "";
@@ -1182,11 +1419,14 @@ class CombatUI {
             const list = Object.values(data.team2).map(char => {
                 const isNPC = !!(char.isNPC || (typeof char._id === 'string' && char._id.startsWith("NPC-")));
                 const nombre = char.perfil?.Nombre || char.Nombre || 'Combatiente';
-                const nivel = isNPC
-                    ? (char.nivelMagico || char.stats?.nivelMagico || '')
-                    : (char.sendero?.StelarFragmentsTotal ?? char.sendero?.StelarFragments ?? char.fragmentos?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragments ?? char.StelarFragments ?? char.StelarFragmentsTotal ?? '');
-                const labelTag = isNPC ? `(Lv: ${nivel})` : `(FE: ${nivel})`;
-                return `- -# ${nombre}${isNPC ? ' [NPC]' : ''}${nivel !== '' ? ` ${labelTag}` : ''}`;
+                if (isNPC) {
+                    const nivel = char.nivelMagico || char.stats?.nivelMagico || 1;
+                    return `- -# ${nombre} [NPC] (Lv: ${nivel})`;
+                } else {
+                    const fe = char.sendero?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragmentsTotal ?? char.StelarFragmentsTotal ?? 0;
+                    const resplandor = char.sendero?.resplandor ?? char.fragmentos?.resplandor ?? char.resplandor ?? 'I';
+                    return `- -# ${nombre} (FE: ${fe} [${resplandor}])`;
+                }
             }).join('\n');
             contrincantesContent = `**Contrincantes:**\n${list}`;
         } else {
@@ -1345,7 +1585,15 @@ class CombatUI {
                         "label": isPrivate ? "Privada" : "Publica",
                         "emoji": null,
                         "disabled": false,
-                        "custom_id": isPrivate ? `preDuel-${author.id}-publica-${codeSala}` : `preDuel-${author.id}-privada-${codeSala}`
+                        "custom_id": isPrivate ? crearCustomId({
+                            action: "preDuel",
+                            userId: author.id,
+                            extras: ["publica", `${codeSala}`]
+                        }) : crearCustomId({
+                            action: "preDuel",
+                            userId: author.id,
+                            extras: ["privada", `${codeSala}`]
+                        })
                     },
                     {
                         "type": 2,
@@ -1353,7 +1601,11 @@ class CombatUI {
                         "label": "Iniciar Duelo",
                         "emoji": null,
                         "disabled": disableStart,
-                        "custom_id": `preDuel-${author.id}-start-${codeSala}`
+                        "custom_id": crearCustomId({
+                            action: "preDuel",
+                            userId: author.id,
+                            extras: ["start", `${codeSala}`]
+                        }) 
                     },
                     {
                         "type": 2,
@@ -1361,7 +1613,11 @@ class CombatUI {
                         "label": "Eliminar sala",
                         "emoji": null,
                         "disabled": false,
-                        "custom_id": `preDuel-${author.id}-delete-${codeSala}`
+                        "custom_id": crearCustomId({
+                            action: "preDuel",
+                            userId: author.id,
+                            extras: ["delete", `${codeSala}`]
+                        }) 
                     }
                 ]
             }

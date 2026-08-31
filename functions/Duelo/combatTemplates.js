@@ -38,7 +38,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": `## ${gObj.Nombre} (LV: ${gObj.nivelMagico ?? "1"}) - ${gObj.isNPC ? "[NPC]" : ""}  Ganador ✨ ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
+                                "content": `## ${gObj.Nombre} (${gObj.isNPC ? `LV: ${gObj.nivelMagico ?? "1"}` : `FE: ${gObj.StelarFragmentsTotal ?? gObj.sendero?.StelarFragmentsTotal ?? 0} [${gObj.resplandor ?? gObj.sendero?.resplandor ?? 'I'}]`}) - ${gObj.isNPC ? "[NPC]" : ""}  Ganador ✨ ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
                             }
                         ]
                     },
@@ -60,7 +60,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": `## ${pObj.Nombre} (LV: ${pObj.nivelMagico ?? "1"})  ${pObj.isNPC ? "- [NPC]" : ""} ` + "\n*`HP:`*" + `${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1)}`
+                                "content": `## ${pObj.Nombre} (${pObj.isNPC ? `LV: ${pObj.nivelMagico ?? "1"}` : `FE: ${pObj.StelarFragmentsTotal ?? pObj.sendero?.StelarFragmentsTotal ?? 0} [${pObj.resplandor ?? pObj.sendero?.resplandor ?? 'I'}]`})  ${pObj.isNPC ? "- [NPC]" : ""} ` + "\n*`HP:`*" + `${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1)}`
                             }
                         ]
                     },
@@ -106,8 +106,8 @@ module.exports = {
     },
 
     endEspectadorNvsN(sesion, ganadores, perdedores, context, message, rewardsMap) {
-        const statsLossers = `${perdedores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (FE: ${c.nivelMagico ?? c.stats?.nivelMagico ?? "???"})`).join("\n\n")}`
-        const statsWinners = `${ganadores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (FE: ${c.nivelMagico ?? c.stats?.nivelMagico ?? "???"})`).join("\n\n")}`
+        const statsLossers = `${perdedores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})`).join("\n\n")}`
+        const statsWinners = `${ganadores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})`).join("\n\n")}`
 
         const json = [
             {
@@ -209,12 +209,12 @@ module.exports = {
 
     endGameDuel(sesion, player, arrayWinners, arrayRivales, context, contextMessage, rewardsMap = null) {
         console.log("rewardsMap:", rewardsMap)
-        const pObj = player || { Nombre: "Jugador", nivelMagico: 1, HP: 0, Mana: 0, stats: { hpMax: 100, manaMax: 100 }, avatarURL: "https://i.pinimg.com/736x/bc/30/6b/bc306bced5860828cf4f38273805a607.jpg" };
+        const pObj = player || { Nombre: "Jugador", HP: 0, Mana: 0, stats: { hpMax: 100, manaMax: 100 }, avatarURL: "https://i.pinimg.com/736x/bc/30/6b/bc306bced5860828cf4f38273805a607.jpg" };
         const titleRivales = (arrayRivales && arrayRivales.length > 1) ? "Tus rivales" : "`Tu rival`"
         const messageDataRivales = (arrayRivales && arrayRivales.length > 1)
-            ? arrayRivales.map(c => `**❧ ${c.Nombre} (FE: ${c.nivelMagico ?? c.stats?.nivelMagico ?? "???"})**:\n-# \`HP:\` ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 10)}`).join("\n\n")
+            ? arrayRivales.map(c => `**❧ ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})**:\n-# \`HP:\` ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 10)}`).join("\n\n")
             : ((arrayRivales && arrayRivales.length > 0)
-                ? `**❧ ${arrayRivales[0].Nombre} (FE: ${arrayRivales[0].nivelMagico ?? arrayRivales[0].stats?.nivelMagico ?? "???"})**:\n-# \`HP:\` ${barraCustom(arrayRivales[0].HP, arrayRivales[0].stats?.hpMax ?? arrayRivales[0].HP, 1, 10)}`
+                ? `**❧ ${arrayRivales[0].Nombre} (${arrayRivales[0].isNPC ? `LV: ${arrayRivales[0].nivelMagico ?? 1}` : `FE: ${arrayRivales[0].StelarFragmentsTotal ?? arrayRivales[0].sendero?.StelarFragmentsTotal ?? 0} [${arrayRivales[0].resplandor ?? arrayRivales[0].sendero?.resplandor ?? 'I'}]`})**:\n-# \`HP:\` ${barraCustom(arrayRivales[0].HP, arrayRivales[0].stats?.hpMax ?? arrayRivales[0].HP, 1, 10)}`
                 : "Sin rivales");
 
         let recompensas = null;
@@ -296,7 +296,7 @@ module.exports = {
                     },
                     {
                         "type": 10,
-                        "content": `### **❧ ${pObj.Nombre} (FE: ${pObj.nivelMagico ?? pObj.stats?.nivelMagico ?? "???"}):**\n-# \`HP:\` ${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1, 10)} \n-# \`Mana:\` ${barraCustom(pObj.Mana, pObj.stats?.manaMax ?? pObj.Mana, 2, 5)}\n-# \`Efectos activos:\` En construcción`
+                        "content": `### **❧ ${pObj.Nombre} (${pObj.isNPC ? `LV: ${pObj.nivelMagico ?? 1}` : `FE: ${pObj.StelarFragmentsTotal ?? pObj.sendero?.StelarFragmentsTotal ?? 0} [${pObj.resplandor ?? pObj.sendero?.resplandor ?? 'I'}]`}):**\n-# \`HP:\` ${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1, 10)} \n-# \`Mana:\` ${barraCustom(pObj.Mana, pObj.stats?.manaMax ?? pObj.Mana, 2, 5)}\n-# \`Efectos activos:\` En construcción`
                     },
                     {
                         "type": 14,

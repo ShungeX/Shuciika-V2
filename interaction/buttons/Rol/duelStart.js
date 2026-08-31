@@ -12,18 +12,19 @@ const { duelSystem } = require("../../../functions/Duelo/duelManager")
 const interfazCreate = require("../../../functions/interfazCreate")
 const verificarCondiciones = require("../../../functions/Duelo/verificarCondiciones")
 const combateUI = require("../../../functions/Duelo/combateUI")
+const { crearBoton } = require("../../../utils/constructores/crearComponente")
 
-module.exports = {
+module.exports = crearBoton({
     customId: "preDuel",
-    buttonAuthor: true,
+    soloAutor: true,
+    requirements: {
+        character: { obtener: true, required: true },
+        soul: { require: true, obtener: true }
+    },
 
-    /**
-     * 
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction 
-     */
+    ejecutar: async ({ client, interaction, character, soul, componentData: { userId, extras } }) => {
+        const [id, cache, response] = extras;
 
-    ejecutar: async (client, interaction, id, cache, response) => {
         const getCache = transaccionCache.get(cache)
 
         console.log("Cache obtenida:", response, id)
@@ -118,18 +119,17 @@ module.exports = {
                         }
                     }
                 }
-                const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil
-                const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
-                const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero
+                const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {}
+                const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
 
                 const characterData = {
                     ownerId: interaction.user.id,
                     perfil: infoperfil,
-                    social: { compañero: character.social.compañero, team: character.social.team },
+                    social: { compañero: character.social?.compañero, team: character.social?.team },
                     nucleo: infoNucleo,
                     stats: soul.stats,
                     dominio: soul.dominio,
-                    sendero: infoSendero
+                    sendero: soul.sendero
                 }
 
                 getCache[id][character._id] = characterData
@@ -418,13 +418,14 @@ module.exports = {
                             }
                             return new NPC(characterId, { ...data, Nombre: finalName });
                         }
+                        const freshSoul = soulsFrescos.find(s => s && String(s._id) === String(characterId));
                         return new Personaje(Number(characterId), {
                             ownerId: data.ownerId,
                             perfil: data.perfil,
-                            nucleo: data.nucleo,
-                            stats: data.stats,
-                            dominio: data.dominio,
-                            sendero: data.sendero
+                            nucleo: freshSoul?.nucleo || data.nucleo,
+                            stats: freshSoul?.stats || data.stats,
+                            dominio: freshSoul?.dominio || data.dominio,
+                            sendero: freshSoul?.sendero || data.sendero
                         });
                     })
 
@@ -452,6 +453,9 @@ module.exports = {
                 }
 
                 transaccionCache.delete(cache)
+                for (const c of sesion.getAllCombatientes()) {
+                    await transaccionCache.deleteStatus(c.ID)
+                }
                 sesion.state = "ACTIVO"
 
                 sesion.addLog("inicio", "El duelo ha comenzado")
@@ -598,6 +602,5 @@ module.exports = {
             return interaction.reply({ content: `<@!${getCache.characterAuthor.ownerId}>`, embeds: [embed] })
 
         }
-
     }
-}
+})

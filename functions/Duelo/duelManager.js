@@ -36,13 +36,24 @@ class duelManager {
         })
 
         sesion.on('combateFinalizado', async (datos) => {
-            const {sessionId, winners, arrayWinner, lossers, arrayLosser, typeWin} = datos;
+            const {sessionId, winners, arrayWinner = [], lossers, arrayLosser = [], typeWin} = datos || {};
 
             // 1. Mostrar estado de 0 HP y log de derrota "sucumbido 💀" en la UI regular
             await interfazCreate.update(sesion, this.client);
 
-            // 2. Cooldown de 4 segundos para visualizar las últimas acciones antes de cerrar el combate
-            await new Promise(resolve => setTimeout(resolve, 4000));
+            // 2. Evaluar si corresponde ejecutar una animación final según el orden de prioridades:
+            // 1. Golpe devastador (1vs1 PvP o 1vsNPC)
+            // 2. Derrota 1vs1 PvP (daño superior a su vida actual)
+            // 3. Derrota exclusiva de NPC
+            const animacionFinal = interfazCreate.evaluarAnimacionFinal(sesion, arrayWinner, arrayLosser);
+
+            if (animacionFinal?.gif) {
+                await interfazCreate.mostrarAnimacionFinal(sesion, this.client, animacionFinal);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            } else {
+                // Cooldown regular de 4 segundos para visualizar las últimas acciones antes de cerrar el combate
+                await new Promise(resolve => setTimeout(resolve, 4000));
+            }
 
             // 3. Resolver recompensas y enviar la pantalla de GameOver final
             const rewardsMap = await rewardCalculator.resolve(sesion, arrayWinner, arrayLosser, client);
@@ -59,8 +70,18 @@ class duelManager {
 
         this.sesiones.set(sessionId, sesion)
 
-        // Registrar a todos los participantes como "en combate"
-        sesion.getAllCombatientes().forEach(c => this.enCombate.add(c.ID))
+        // Registrar a todos los participantes como "en combate" (tanto ID de personaje como ownerId de usuario)
+        sesion.getAllCombatientes().forEach(c => {
+            if (c.ID) {
+                this.enCombate.add(c.ID)
+                this.enCombate.add(String(c.ID))
+                if (!isNaN(Number(c.ID))) this.enCombate.add(Number(c.ID))
+            }
+            if (c.ownerId) {
+                this.enCombate.add(c.ownerId)
+                this.enCombate.add(String(c.ownerId))
+            }
+        })
 
         return sesion
     }
@@ -69,15 +90,32 @@ class duelManager {
         return this.sesiones.get(sessionId) ?? null
     }
 
-    destruirSesion(sessionId) {
+    async destruirSesion(sessionId) {
         const sesion = this.sesiones.get(sessionId)
         if (!sesion) return
 
-        // Liberar a todos los participantes
-        sesion.getAllCombatientes().forEach(c => {
-            this.enCombate.delete(c.ID)
-            this.enProceso.delete(c.ID)
-        })
+        // 1. Cancelar watchdog de turnos
+        sesion.limpiarWatchdog?.()
+
+        // 2. Liberar a todos los participantes tanto de sets en memoria como de transaccionCache
+        const transaccionCache = require("../../utils/cache")
+        for (const c of sesion.getAllCombatientes()) {
+            if (c.ID) {
+                this.enCombate.delete(c.ID)
+                this.enCombate.delete(String(c.ID))
+                if (!isNaN(Number(c.ID))) this.enCombate.delete(Number(c.ID))
+                this.enProceso.delete(c.ID)
+                this.enProceso.delete(String(c.ID))
+                if (!isNaN(Number(c.ID))) this.enProceso.delete(Number(c.ID))
+                await transaccionCache.deleteStatus(c.ID)
+            }
+            if (c.ownerId) {
+                this.enCombate.delete(c.ownerId)
+                this.enCombate.delete(String(c.ownerId))
+                this.enProceso.delete(c.ownerId)
+                this.enProceso.delete(String(c.ownerId))
+            }
+        }
 
         this.sesiones.delete(sessionId)
     }
@@ -86,24 +124,50 @@ class duelManager {
     // ─── Protección contra acciones duplicadas ────────────────────────────────
 
     bloquearUsuario(userId) {
-        if (this.enProceso.has(userId)) return false  // ya está procesando
+        if (!userId) return true
+        const strId = String(userId)
+        if (this.enProceso.has(userId) || this.enProceso.has(strId)) return false  // ya está procesando
         this.enProceso.add(userId)
+        this.enProceso.add(strId)
         return true
     }
 
     desbloquearUsuario(userId) {
+        if (!userId) return
         this.enProceso.delete(userId)
+        this.enProceso.delete(String(userId))
+        if (!isNaN(Number(userId))) this.enProceso.delete(Number(userId))
     }
 
     // ─── Consultas ────────────────────────────────────────────────────────────
 
     estaEnCombate(userId) {
-        return this.enCombate.has(userId)
+        if (!userId) return false
+        const sId = String(userId)
+        const nId = Number(userId)
+        if (this.enCombate.has(userId) || this.enCombate.has(sId) || (!isNaN(nId) && this.enCombate.has(nId))) {
+            return true
+        }
+        for (const sesion of this.sesiones.values()) {
+            if (sesion.state !== "FINALIZADO") {
+                if (sesion.getAllCombatientes().some(c => String(c.ID) === sId || String(c.ownerId) === sId || (!isNaN(nId) && Number(c.ID) === nId))) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     getSesionDeUsuario(userId) {
+        if (!userId) return null
+        const sId = String(userId)
+        const nId = Number(userId)
         for (const sesion of this.sesiones.values()) {
-            if (sesion.getCombatiente(userId)) return sesion
+            if (sesion.state !== "FINALIZADO") {
+                if (sesion.getCombatiente(userId) || sesion.getCombatiente(sId) || (!isNaN(nId) && sesion.getCombatiente(nId))) {
+                    return sesion
+                }
+            }
         }
         return null
     }
@@ -172,14 +236,22 @@ class duelManager {
     }
 
     async personajeEnDuelo(playerID) {
-        for (const duel of this.activeDuels.values()) {
-            const playerExist = duel.personajes.some(p => p._id === playerID)
-            if (playerExist) {
-                return true
+        if (!playerID) return false;
+        if (this.estaEnCombate(playerID)) return true;
+        for (const sesion of this.sesiones.values()) {
+            if (sesion.state !== "FINALIZADO") {
+                if (sesion.getAllCombatientes().some(c => String(c.ID) === String(playerID) || String(c.ownerId) === String(playerID))) {
+                    return true;
+                }
             }
         }
-
-        return false
+        for (const duel of (this.activeDuels?.values() || [])) {
+            const playerExist = duel.personajes?.some(p => String(p._id) === String(playerID) || String(p.id) === String(playerID));
+            if (playerExist) {
+                return true;
+            }
+        }
+        return false;
     }
 
 

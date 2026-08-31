@@ -71,7 +71,8 @@ module.exports = crearModal({
             const userCache = transaccionCache.getUser(interaction.user.id);
             const exploracionCache = transaccionCache.get(userCache?.explorarID);
             if (exploracionCache && exploracionCache.message) {
-                const updatedComponents = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul);
+                const isFaro = extras[3] === "faro" || Boolean(exploracionCache?.enFaro);
+                const updatedComponents = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul, 1, isFaro);
                 let msgToEdit = null;
                 if (interaction.channel) {
                     msgToEdit = await interaction.channel.messages.fetch(exploracionCache.message.id).catch(() => null);

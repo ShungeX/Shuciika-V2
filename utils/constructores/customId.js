@@ -17,7 +17,7 @@ const SEPARATOR = "-" // usa el que ya tengas en tu splitCustomId actual
 function crearCustomId({ action, userId, characterId, extras = [] }) {
     if (!action) throw new Error("[crearCustomId] Falta 'action'")
     if (!userId) throw new Error("[crearCustomId] Falta 'userId'")
-    if (extras.length > 4) throw new Error(`[crearCustomId] Máximo 4 extras, llegaron ${extras.length}`)
+    if (extras.length > 6) throw new Error(`[crearCustomId] Máximo 6 extras, llegaron ${extras.length}`)
 
     const customId = [action, userId, characterId ?? "", ...extras].join(SEPARATOR)
     if (customId.length > 100) throw new Error(`[crearCustomId] Excede 100 chars: ${customId}`)

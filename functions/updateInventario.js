@@ -168,25 +168,18 @@ module.exports = async(client, interaction, characterId, data) => {
                 { $inc: { [`${arrayField}.$.Cantidad`]: Number(data.cantidad || 1) } }
             );
         } else {
-            const itemTipo = objinfo?.Tipo || data.Tipo || [];
-            const itemToPush = {
-                ID: objinfo?.ID || data.ID,
-                Region: `${objinfo?.Region || data.Region || 'Global'}`,
-                Nombre: `${objinfo?.Nombre || data.Nombre || 'Objeto'}`,
-                Tipo: itemTipo,
-                Cantidad: Number(data.cantidad || 1),
-                atributos: objinfo?.atributos || data.atributos || { peso: 1 },
-                Fecha: new Date().toISOString()
-            };
-
-            if (isTalisman) {
-                itemToPush.contaminable = typeof data.contaminable !== "undefined"
-                    ? Boolean(data.contaminable)
-                    : (typeof objinfo?.contaminable !== "undefined" ? Boolean(objinfo.contaminable) : false);
-                itemToPush.purificable = typeof data.purificable !== "undefined"
-                    ? Boolean(data.purificable)
-                    : (typeof objinfo?.purificable !== "undefined" ? Boolean(objinfo.purificable) : false);
-            }
+            const itemToPush = catalogoObjetos.sanitizarObjetoInventario(
+                { ...objinfo, ...data },
+                Number(data.cantidad || 1),
+                {
+                    contaminable: typeof data.contaminable !== "undefined"
+                        ? Boolean(data.contaminable)
+                        : (typeof objinfo?.contaminable !== "undefined" ? Boolean(objinfo.contaminable) : isTalisman),
+                    purificable: typeof data.purificable !== "undefined"
+                        ? Boolean(data.purificable)
+                        : (typeof objinfo?.purificable !== "undefined" ? Boolean(objinfo.purificable) : false)
+                }
+            );
 
             await personajes.updateOne(pjFilter, {
                 $push: {

@@ -46,21 +46,29 @@ module.exports = crearBoton({
                 break;
             case "mochila":
                 const [subAction, extra1, extra2] = (key || "").split("*");
+                const { editarOMandarMensaje } = require("../../../../utils/utilidadesTexto");
 
                 if (subAction === "añadirObjetos") {
                     const zoneKey = extra1;
-                    const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, zoneKey);
+                    const isFaro = extra2 === "faro" || Boolean(exploracionCache?.enFaro);
+                    const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, zoneKey, ["fullbag"], isFaro);
                     await interaction.deferUpdate().catch(() => { });
-                    const { editarOMandarMensaje } = require("../../../../utils/utilidadesTexto");
-                    return await editarOMandarMensaje(interaction, cache, cache.message, { components: json, flags: ["IsComponentsV2"] });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
                 }
 
                 if (subAction === "cerrarInventario") {
                     const zoneKey = extra1;
-                    const json = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul);
+                    const isFaro = extra2 === "faro" || Boolean(exploracionCache?.enFaro);
+                    const json = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul, 1, isFaro);
                     await interaction.deferUpdate().catch(() => { });
-                    const { editarOMandarMensaje } = require("../../../../utils/utilidadesTexto");
-                    return await editarOMandarMensaje(interaction, cache, cache.message, { components: json, flags: ["IsComponentsV2"] });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
+                }
+
+                if (subAction === "cerrarFaro" || subAction === "cerrarMochilaFaro") {
+                    const zoneKey = extra1 || exploracionCache.subzona;
+                    const json = await interfazCreate.faroExploración(client, interaction, zoneKey, soul);
+                    await interaction.deferUpdate().catch(() => { });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
                 }
 
                 if (subAction === "confirmar") {
@@ -78,13 +86,120 @@ module.exports = crearBoton({
                 if (subAction === "prev" || subAction === "next") {
                     const pageNum = Number(extra1) || 1;
                     const zoneKey = extra2;
+                    const isFaro = (key || "").includes("*faro") || Boolean(exploracionCache?.enFaro);
                     const newPage = subAction === "prev" ? Math.max(1, pageNum - 1) : pageNum + 1;
-                    const json = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul, newPage);
+                    const json = await interfazCreate.mochilaExploración(client, interaction, zoneKey, soul, newPage, isFaro);
                     await interaction.deferUpdate().catch(() => { });
-                    const { editarOMandarMensaje } = require("../../../../utils/utilidadesTexto");
-                    return await editarOMandarMensaje(interaction, cache, cache.message, { components: json, flags: ["IsComponentsV2"] });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
                 }
                 break;
+            case "purificar": {
+                const subAction = (key || "").includes("*") ? key.split("*")[0] : key;
+                const zoneKey = actions || ((key || "").includes("*") ? key.split("*")[1] : null) || exploracionCache?.subzona;
+                const { editarOMandarMensaje } = require("../../../../utils/utilidadesTexto");
+
+                if (subAction === "cancelar") {
+                    const json = await interfazCreate.faroExploración(client, interaction, zoneKey, soul);
+                    await interaction.deferUpdate().catch(() => { });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
+                }
+
+                if (subAction === "confirmar") {
+                    const charIdNum = isNaN(Number(character._id)) ? character._id : Number(character._id);
+                    const freshChar = await db2.collection("Personajes").findOne({
+                        $or: [{ _id: charIdNum }, { _id: character._id }]
+                    });
+
+                    const rawTalisman = freshChar?.economia?.inventarioTalisman || [];
+                    if (rawTalisman.length === 0) {
+                        return interaction.reply({ content: "Tu talismán está vacío, no hay nada que purificar.", flags: ["Ephemeral"] });
+                    }
+
+                    const { getObjetoPorId } = require("../../../../functions/catalogoObjetos");
+                    const base = 1.6;
+                    const profundidad = Math.max(1, exploracionCache?.profundidad || 1);
+
+                    const getRarezaMult = (rarezaStr) => {
+                        const r = String(rarezaStr || "").toLowerCase().trim();
+                        if (
+                            r.includes("luminoso") ||
+                            r.includes("arcano") ||
+                            r.includes("divino") ||
+                            r.includes("nix") ||
+                            r.includes("legendario") ||
+                            r.includes("mitico") ||
+                            r.includes("mítico") ||
+                            r.includes("etereo") ||
+                            r.includes("etéreo") ||
+                            r.includes("singular")
+                        ) {
+                            return 1.4;
+                        }
+                        if (r.includes("resonante") || r.includes("raro") || r.includes("inusual")) {
+                            return 1.2;
+                        }
+                        return 1.0;
+                    };
+
+                    let costoTotal = 0;
+                    for (const item of rawTalisman) {
+                        const cant = Number(item.Cantidad || item.cantidad || 1);
+                        let rareza = item.Rareza || item.rareza;
+                        if (!rareza) {
+                            const objDef = getObjetoPorId(item.Region, item.ID);
+                            rareza = objDef?.Rareza || objDef?.rareza;
+                        }
+                        const mult = getRarezaMult(rareza);
+                        costoTotal += base * Math.pow(mult, profundidad) * cant;
+                    }
+                    const costo = Math.round(costoTotal);
+                    const currentLumens = Number(freshChar?.economia?.Lumens ?? 0);
+
+                    if (currentLumens < costo) {
+                        return interaction.reply({ content: `No tienes suficientes Lumens (${currentLumens}/${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
+                    }
+
+                    // Fusión de inventario con talismán (evitando duplicados y asegurando descontaminación)
+                    const { sanitizarObjetoInventario } = require("../../../../../functions/catalogoObjetos");
+                    const currentInventario = [...(freshChar.economia?.Inventario || [])];
+                    for (const tItem of rawTalisman) {
+                        const tId = Number(tItem.ID);
+                        const tCant = Number(tItem.Cantidad || tItem.cantidad || 1);
+                        const tRegion = tItem.Region || "Global";
+
+                        const existing = currentInventario.find(i => Number(i.ID) === tId && (i.Region === tRegion || !i.Region || !tRegion));
+                        if (existing) {
+                            existing.Cantidad = Number(existing.Cantidad || existing.cantidad || 0) + tCant;
+                            if (typeof existing.contaminable !== "undefined") existing.contaminable = false;
+                            if (typeof existing.purificable !== "undefined") existing.purificable = false;
+                            if (existing.cantidad !== undefined) delete existing.cantidad;
+                        } else {
+                            const cleanItem = sanitizarObjetoInventario(tItem, tCant, { contaminable: false, purificable: false });
+                            currentInventario.push(cleanItem);
+                        }
+                    }
+
+                    // Actualización atómica en MongoDB
+                    await db2.collection("Personajes").updateOne(
+                        { _id: freshChar._id },
+                        {
+                            $set: {
+                                "economia.Inventario": currentInventario,
+                                "economia.inventarioTalisman": []
+                            },
+                            $inc: {
+                                "economia.Lumens": -costo,
+                                Dinero: -costo
+                            }
+                        }
+                    );
+
+                    const json = await interfazCreate.faroExploración(client, interaction, zoneKey, soul);
+                    await interaction.deferUpdate().catch(() => { });
+                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
+                }
+                break;
+            }
             default:
                 exploracionManager.ejecutarAccionExploracion({ client, interaction, character, soul, areaSelect: exploracionCache.subzona, interact: state })
                 break;

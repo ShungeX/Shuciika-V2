@@ -71,6 +71,51 @@ async function recargarRegion(regionesCollection, regionId) {
     }
 }
 
+function sanitizarObjetoInventario(item, cantidad = null, options = {}) {
+    const rawId = Number(item.ID ?? item.id);
+    const region = String(item.Region || item.region || "TOB-01");
+    const objDef = getObjetoPorId(region, rawId) || getObjetoPorId(null, rawId) || {};
+
+    const cleanObj = {
+        ID: rawId,
+        Region: String(objDef.Region || region || "TOB-01"),
+        Nombre: String(objDef.Nombre || item.Nombre || item.nombre || "Objeto"),
+        Tipo: Array.isArray(objDef.Tipo)
+            ? objDef.Tipo
+            : (Array.isArray(item.Tipo) ? item.Tipo : (objDef.Tipo ? [objDef.Tipo] : (item.Tipo ? [item.Tipo] : []))),
+        Cantidad: Number(cantidad !== null && cantidad !== undefined ? cantidad : (item.Cantidad || item.cantidad || 1))
+    };
+
+    const atributos = objDef.atributos || item.atributos || { peso: 0 };
+    if (atributos && typeof atributos === "object") {
+        cleanObj.atributos = atributos;
+    }
+
+    cleanObj.Fecha = item.Fecha || new Date().toISOString();
+
+    if (typeof options.contaminable !== "undefined") {
+        cleanObj.contaminable = Boolean(options.contaminable);
+    } else if (typeof item.contaminable !== "undefined") {
+        cleanObj.contaminable = Boolean(item.contaminable);
+    } else if (typeof objDef.contaminable !== "undefined") {
+        cleanObj.contaminable = Boolean(objDef.contaminable);
+    } else {
+        cleanObj.contaminable = false;
+    }
+
+    if (typeof options.purificable !== "undefined") {
+        cleanObj.purificable = Boolean(options.purificable);
+    } else if (typeof item.purificable !== "undefined") {
+        cleanObj.purificable = Boolean(item.purificable);
+    } else if (typeof objDef.purificable !== "undefined") {
+        cleanObj.purificable = Boolean(objDef.purificable);
+    } else {
+        cleanObj.purificable = false;
+    }
+
+    return cleanObj;
+}
+
 function getCatalogo() {
     return catalogoRegiones;
 }
@@ -80,5 +125,6 @@ module.exports = {
     getObjetosDeRegion,
     getObjetoPorId,
     recargarRegion,
-    getCatalogo
+    getCatalogo,
+    sanitizarObjetoInventario
 };

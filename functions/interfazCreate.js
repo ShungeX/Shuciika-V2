@@ -8,6 +8,7 @@ const souls = db2.collection("Soul")
 const npcs = db2.collection("NPCs")
 const habilidades = db2.collection("Hechizos_globales")
 const cacheGlobal = require("../utils/cache")
+const transaccionCache = cacheGlobal
 const getXp = require("../functions/getXP")
 const tokenManager = require('./Tokens/Ticket');
 const PayloadBuilder = require('./Tokens/payloads');
@@ -115,7 +116,7 @@ class InterfazCreate {
                 teamJSON.push(
                     {
                         "type": 10,
-                        "content": `**${pj.Nombre} (${pj.isNPC ? `LV: ${pj.nivelMagico}` : `FE: ${pj.StelarFragmentsTotal ?? pj.StelarFragments ?? pj.nivelMagico}`})**`
+                        "content": `**${pj.Nombre} (${pj.isNPC ? `LV: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`})**`
                     },
                     {
                         "type": 10,
@@ -242,7 +243,7 @@ class InterfazCreate {
         }
 
         const textTarget = validTargets.map(target => {
-            const labelNivel = target.isNPC ? `LV: ${target.nivelMagico}` : `FE: ${target.StelarFragmentsTotal ?? target.StelarFragments ?? target.nivelMagico}`;
+            const labelNivel = target.isNPC ? `LV: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
             selectOptions.components[0].options.push({
                 "label": `-# ${target.Nombre} (${labelNivel})`,
                 "value": `${target.ID}`,
@@ -461,6 +462,53 @@ class InterfazCreate {
             }).join("\n")
             : "- -# *El talismán está vacío (sin objetos resguardados).*";
 
+        const userCache = transaccionCache.getUser(interaction.user.id);
+        const exploracionCache = userCache ? transaccionCache.get(userCache.explorarID) : null;
+
+        const base = 1.6;
+        const profundidad = Math.max(1, exploracionCache?.profundidad || 1);
+        const { getObjetoPorId } = require("./catalogoObjetos");
+
+        const getRarezaMult = (rarezaStr) => {
+            const r = String(rarezaStr || "").toLowerCase().trim();
+            // Rarezas iguales o superiores a Luminoso se topan al multiplicador de Luminoso (1.4)
+            if (
+                r.includes("luminoso") ||
+                r.includes("arcano") ||
+                r.includes("divino") ||
+                r.includes("nix") ||
+                r.includes("legendario") ||
+                r.includes("mitico") ||
+                r.includes("mítico") ||
+                r.includes("etereo") ||
+                r.includes("etéreo") ||
+                r.includes("singular")
+            ) {
+                return 1.4;
+            }
+            if (r.includes("resonante") || r.includes("raro") || r.includes("inusual")) {
+                return 1.2;
+            }
+            return 1.0;
+        };
+
+        let costoPurificacionTotal = 0;
+        if (rawTalismanInv.length > 0) {
+            for (const item of rawTalismanInv) {
+                const cant = Number(item.Cantidad || item.cantidad || 1);
+                let rareza = item.Rareza || item.rareza;
+                if (!rareza) {
+                    const objDef = getObjetoPorId(item.Region, item.ID);
+                    rareza = objDef?.Rareza || objDef?.rareza;
+                }
+                const mult = getRarezaMult(rareza);
+                const itemCosto = base * Math.pow(mult, profundidad) * cant;
+                costoPurificacionTotal += itemCosto;
+            }
+        }
+
+        const costoPurificacion = Math.round(costoPurificacionTotal);
+
         const mensajeFaro = [
             {
                 "type": 17,
@@ -495,11 +543,11 @@ class InterfazCreate {
                     },
                     {
                         "type": 10,
-                        "content": `**Objetos en el Talismán:**\n${talismanText}`
+                        "content": `**Objetos en el Talismán: ** \n${talismanText} `
                     },
                     {
                         "type": 10,
-                        "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}`
+                        "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}\n-# **Costo de purificación: ${costoPurificacion} :lumens:**`
                     },
                     {
                         "type": 14,
@@ -566,17 +614,17 @@ class InterfazCreate {
                             "default": false
                         },
                         {
-                            "label": "Continuar explorando",
+                            "label": "Seguir explorando",
                             "value": `null*continue*${key}`,
-                            "description": "Más profundo, mejor loot",
-                            "emoji": null,
+                            "description": "Avanza hacia la siguiente área o evento",
+                            "emoji": { "name": "CirnoFumoWalking1", "id": "1350682005691699220" },
                             "default": false
                         },
                         {
-                            "label": "Retirarse",
+                            "label": "Dejar de explorar",
                             "value": `null*surrend*${key}`,
-                            "description": "Vuelve a casa con lo que ya aseguraste",
-                            "emoji": null,
+                            "description": "Termina la expedición y regresa a salvo",
+                            "emoji": { "name": "TuxedoSamTired", "id": "1350682023370555454" },
                             "default": false
                         }
                     ],
@@ -591,11 +639,174 @@ class InterfazCreate {
         return mensajeFaro;
     }
 
-    async mochilaExploración(client, interaction, key, soul, page = 1) {
+    async purificarConfirmacion(client, interaction, key, soul, page = 1) {
+        const userCache = transaccionCache.getUser(interaction.user.id);
+        const exploracionCache = userCache ? transaccionCache.get(userCache.explorarID) : null;
+
         const charId = soul?._id ?? soul?.id ?? soul?.ID;
         const pj = await characters.findOne({
-                 _id: Number(charId)
-            
+            $or: [
+                { _id: charId },
+                { _id: Number(charId) }
+            ]
+        });
+
+        const rawTalismanInv = pj?.economia?.inventarioTalisman || [];
+        const talismanInv = [...rawTalismanInv].sort((a, b) => Number(a.ID) - Number(b.ID));
+
+        const base = 1.6;
+        const profundidad = Math.max(1, exploracionCache?.profundidad || 1);
+        const { getObjetoPorId } = require("./catalogoObjetos");
+
+        const getRarezaMult = (rarezaStr) => {
+            const r = String(rarezaStr || "").toLowerCase().trim();
+            if (
+                r.includes("luminoso") ||
+                r.includes("arcano") ||
+                r.includes("divino") ||
+                r.includes("nix") ||
+                r.includes("legendario") ||
+                r.includes("mitico") ||
+                r.includes("mítico") ||
+                r.includes("etereo") ||
+                r.includes("etéreo") ||
+                r.includes("singular")
+            ) {
+                return 1.4;
+            }
+            if (r.includes("resonante") || r.includes("raro") || r.includes("inusual")) {
+                return 1.2;
+            }
+            return 1.0;
+        };
+
+        let costoPurificacionTotal = 0;
+        if (rawTalismanInv.length > 0) {
+            for (const item of rawTalismanInv) {
+                const cant = Number(item.Cantidad || item.cantidad || 1);
+                let rareza = item.Rareza || item.rareza;
+                if (!rareza) {
+                    const objDef = getObjetoPorId(item.Region, item.ID);
+                    rareza = objDef?.Rareza || objDef?.rareza;
+                }
+                const mult = getRarezaMult(rareza);
+                costoPurificacionTotal += base * Math.pow(mult, profundidad) * cant;
+            }
+        }
+
+        const costo = Math.round(costoPurificacionTotal);
+        const currentLumens = Number(pj?.economia?.Lumens ?? 0);
+        const canAfford = currentLumens >= costo && rawTalismanInv.length > 0;
+        const lumensFinales = currentLumens - costo;
+
+        const talismanText = talismanInv.length > 0
+            ? talismanInv.map(i => {
+                const cant = Number(i.Cantidad || i.cantidad || 1);
+                const nombre = i.Nombre || (`Objeto [${i.ID}]`);
+                const formattedId = String(i.ID).padStart(3, ' ');
+                const contaminado = i.contaminable ? " *(Contaminado)*" : "";
+                return `- -# \`[${formattedId}]\` - **${nombre}** x ${cant}${contaminado}`;
+            }).join("\n")
+            : "- -# *El talismán está vacío (sin objetos para purificar).*";
+
+        const cleanKey = String(key || exploracionCache?.subzona || "zone").replace(/\*faro$/, '');
+
+        const jsonPurificar = [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    {
+                        "type": 9,
+                        "accessory": {
+                            "type": 11,
+                            "media": {
+                                "url": "https://i.pinimg.com/1200x/9e/eb/e7/9eebe7bb35bf35b2921ddda249dd1b8e.jpg",
+                                "proxy_url": "https://i.pinimg.com/1200x/9e/eb/e7/9eebe7bb35bf35b2921ddda249dd1b8e.jpg"
+                            },
+                            "description": null,
+                            "spoiler": false
+                        },
+                        "components": [
+                            {
+                                "type": 10,
+                                "content": "# Confirmar acción"
+                            },
+                            {
+                                "type": 10,
+                                "content": "*Estás a punto de purificar los siguientes objetos:*"
+                            }
+                        ]
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": talismanText
+                    },
+                    {
+                        "type": 14,
+                        "divider": true,
+                        "spacing": 1
+                    },
+                    {
+                        "type": 10,
+                        "content": `### *Desglose final:* \n-# **Tus Lumens:** ${currentLumens} :lumens:\n-# **Costo total:** ${costo} :lumens:\n-# **Lumens finales:** ${canAfford ? lumensFinales : "Insuficientes"} :lumens:`
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 3,
+                                "label": "Confirmar acción",
+                                "emoji": null,
+                                "disabled": !canAfford,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: interaction.user.id,
+                                    characterId: pj?._id || charId,
+                                    extras: ["purificar", "confirmar", cleanKey]
+                                })
+                            },
+                            {
+                                "type": 2,
+                                "style": 4,
+                                "label": "Cancelar acción",
+                                "emoji": null,
+                                "disabled": false,
+                                "custom_id": crearCustomId({
+                                    action: "exOp",
+                                    userId: interaction.user.id,
+                                    characterId: pj?._id || charId,
+                                    extras: ["purificar", "cancelar", cleanKey]
+                                })
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        return jsonPurificar;
+    }
+
+    async mochilaExploración(client, interaction, key, soul, page = 1, isFaroParam = false) {
+        const userCache = transaccionCache.getUser(interaction.user.id);
+        const exploracionCache = userCache ? transaccionCache.get(userCache.explorarID) : null;
+        const isFaro = Boolean(isFaroParam || exploracionCache?.enFaro || String(key).includes("faro"));
+        const cleanKey = String(key || exploracionCache?.subzona || "zone").replace(/\*faro$/, '');
+
+        const charId = soul?._id ?? soul?.id ?? soul?.ID;
+        const pj = await characters.findOne({
+            $or: [
+                { _id: charId },
+                { _id: Number(charId) }
+            ]
         });
 
         const equipoList = soul?.equipo || soul?.dominio?.equipo || pj?.equipo || pj?.dominio?.equipo || [];
@@ -643,6 +854,32 @@ class InterfazCreate {
             ? `-# **Mochila equipada:** \`[${String(mochilaEquipada.ID).padStart(3, ' ')}]\` ${mochilaName}\n-# **Capacidad:** *${pesoActual}/${capacidadMax}*\n\n-# Puedes mejorar la capacidad de la mochila comprando una de mejor calidad dentro de la tienda o consiguiéndola en exploraciones y eventos (✿◡‿◡)`
             : `-# ⚠️ *No tienes una mochila equipada.*\n-# **Capacidad:** *0/0*\n\n-# Necesitas equipar un objeto de tipo "mochila" para poder transportar objetos durante tus exploraciones.`;
 
+        const centralButton = isFaro ? {
+            "type": 2,
+            "style": 2,
+            "label": "Cerrar mochila",
+            "emoji": null,
+            "disabled": false,
+            "custom_id": crearCustomId({
+                action: "exOp",
+                userId: interaction.user.id,
+                characterId: soul._id,
+                extras: ["mochila", `cerrarFaro*${cleanKey}`]
+            })
+        } : {
+            "type": 2,
+            "style": 3,
+            "label": "Comenzar exploración",
+            "emoji": null,
+            "disabled": false,
+            "custom_id": crearCustomId({
+                action: "exOp",
+                userId: interaction.user.id,
+                characterId: soul._id,
+                extras: ["mochila", `confirmar*${cleanKey}`]
+            })
+        };
+
         const mensajeMochila = [
             {
                 "type": 17,
@@ -687,7 +924,7 @@ class InterfazCreate {
                                 action: "exOp",
                                 userId: interaction.user.id,
                                 characterId: soul._id,
-                                extras: ["mochila", "añadirObjetos"]
+                                extras: ["mochila", isFaro ? `añadirObjetos*${cleanKey}*faro` : `añadirObjetos*${cleanKey}`]
                             })
                         },
                         "components": [
@@ -709,8 +946,8 @@ class InterfazCreate {
                                 "custom_id": crearCustomId({
                                     action: "mochilaRemoveSelect",
                                     userId: interaction.user.id,
-                                    characterId: pj._id,
-                                    extras: [key || "zone"]
+                                    characterId: pj?._id || charId,
+                                    extras: [cleanKey, isFaro ? "faro" : "start"]
                                 }),
                                 "options": itemsPagina.length > 0 ? itemsPagina.map(item => ({
                                     "label": `[${String(item.ID).padStart(3, ' ')}] ${item.Nombre || ('Objeto ' + item.ID)} (x${item.Cantidad || 1})`,
@@ -747,22 +984,10 @@ class InterfazCreate {
                                     action: "exOp",
                                     userId: interaction.user.id,
                                     characterId: soul._id,
-                                    extras: ["mochila", `prev*${currentPagina}*${key}`]
+                                    extras: ["mochila", isFaro ? `prev*${currentPagina}*${cleanKey}*faro` : `prev*${currentPagina}*${cleanKey}`]
                                 })
                             },
-                            {
-                                "type": 2,
-                                "style": 3,
-                                "label": "Comenzar exploración",
-                                "emoji": null,
-                                "disabled": false,
-                                "custom_id": crearCustomId({
-                                    action: "exOp",
-                                    userId: interaction.user.id,
-                                    characterId: soul._id,
-                                    extras: ["mochila", `confirmar*${key}`]
-                                })
-                            },
+                            centralButton,
                             {
                                 "type": 2,
                                 "style": 2,
@@ -773,7 +998,7 @@ class InterfazCreate {
                                     action: "exOp",
                                     userId: interaction.user.id,
                                     characterId: soul._id,
-                                    extras: ["mochila", `next*${currentPagina}*${key}`]
+                                    extras: ["mochila", isFaro ? `next*${currentPagina}*${cleanKey}*faro` : `next*${currentPagina}*${cleanKey}`]
                                 })
                             }
                         ]
@@ -785,15 +1010,19 @@ class InterfazCreate {
         return mensajeMochila;
     }
 
-    async mochilaInventarioMensaje(client, interaction, character, page = 1, key = "", filtros = ["fullbag"]) {
+    async mochilaInventarioMensaje(client, interaction, character, page = 1, key = "", filtros = ["fullbag"], isFaroParam = false) {
+        const userCache = transaccionCache.getUser(interaction.user.id);
+        const exploracionCache = userCache ? transaccionCache.get(userCache.explorarID) : null;
+        const isFaro = Boolean(isFaroParam || exploracionCache?.enFaro || String(key).includes("faro"));
+        const cleanKey = String(key || exploracionCache?.subzona || "zone").replace(/\*faro$/, '');
+
         const ctxOverrides = {
             action: "mochilaInventario",
-            baseExtras: [key || "zone"]
+            baseExtras: [cleanKey, isFaro ? "faro" : "normal"]
         };
         const baseComponents = this.inventarioMensaje(interaction, character, page, filtros, ctxOverrides);
         const mainContainer = baseComponents[0];
         const inventarioRaw = character?.economia?.Inventario || character?.Inventario || [];
-        console.log("mochilaInventarioMensaje", key)
 
         const rowBotonCerrar = {
             "type": 1,
@@ -808,7 +1037,7 @@ class InterfazCreate {
                         action: "exOp",
                         userId: interaction.user.id,
                         characterId: character._id,
-                        extras: ["mochila", "cerrarInventario"]
+                        extras: ["mochila", isFaro ? `cerrarInventario*${cleanKey}*faro` : `cerrarInventario*${cleanKey}`]
                     })
                 }
             ]
@@ -827,7 +1056,7 @@ class InterfazCreate {
             action: "mochilaAddSelect",
             userId: interaction.user.id,
             characterId: character._id,
-            extras: [key || "zone"]
+            extras: [cleanKey, isFaro ? "faro" : "normal"]
         });
 
         const rowSelect = {

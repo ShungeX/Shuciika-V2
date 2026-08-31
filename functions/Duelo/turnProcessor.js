@@ -210,7 +210,7 @@ const esTriangulo =
         const baseAleatoria = Math.floor(Math.random() * 6) + 2 // 2-8
         const lvl = atacante.isNPC 
             ? (atacante.nivelMagico ?? atacante.stats?.nivelMagico ?? 1) 
-            : (atacante.StelarFragmentsTotal ?? atacante.StelarFragments ?? atacante.sendero?.StelarFragmentsTotal ?? atacante.nivelMagico ?? 1);
+            : (atacante.StelarFragmentsTotal ?? atacante.sendero?.StelarFragmentsTotal ?? 1);
 
         return {
             _id: "basic_attack",
@@ -339,7 +339,7 @@ const esTriangulo =
         const resMag = target.stats?.resMagica ?? target.stats?.resistenciaMagica ?? 0;
         const lvlMag = target.isNPC 
             ? (target.nivelMagico ?? target.stats?.nivelMagico ?? 1) 
-            : (target.StelarFragmentsTotal ?? target.StelarFragments ?? target.sendero?.StelarFragmentsTotal ?? target.nivelMagico ?? 1);
+            : (target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 1);
 
         if (mecanica.esFisico) {
             const defensa = (1 + (target.defenseActual || 0)) *
@@ -886,11 +886,7 @@ const esTriangulo =
         const userFE = Number(
             soulDoc.sendero?.StelarFragmentsTotal 
             ?? soulDoc.fragmentos?.StelarFragmentsTotal 
-            ?? soulDoc.sendero?.StelarFragments 
-            ?? soulDoc.fragmentos?.StelarFragments 
-            ?? soulDoc.StelarFragments 
             ?? caster.StelarFragmentsTotal 
-            ?? caster.StelarFragments 
             ?? 0
         );
         const userResplandorStr = soulDoc.sendero?.resplandor ?? soulDoc.resplandor ?? 'I';
@@ -1176,11 +1172,7 @@ const esTriangulo =
             const userFE = Number(
                 soulDoc.sendero?.StelarFragmentsTotal 
                 ?? soulDoc.fragmentos?.StelarFragmentsTotal 
-                ?? soulDoc.sendero?.StelarFragments 
-                ?? soulDoc.fragmentos?.StelarFragments 
-                ?? soulDoc.StelarFragments 
                 ?? caster.StelarFragmentsTotal 
-                ?? caster.StelarFragments 
                 ?? 0
             );
             const userResplandorStr = soulDoc.sendero?.resplandor ?? soulDoc.resplandor ?? 'I';

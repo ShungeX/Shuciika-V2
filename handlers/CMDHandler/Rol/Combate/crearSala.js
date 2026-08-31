@@ -10,6 +10,7 @@ const transaccionCache = require("../../../../utils/cache")
 const { v4: uuidv4 } = require('uuid')
 const { duelSystem } = require("../../../../functions/Duelo/duelManager")
 const verificarCondiciones = require("../../../../functions/Duelo/verificarCondiciones")
+const { crearCustomId } = require("../../../../utils/constructores/customId")
 
 
 
@@ -51,9 +52,9 @@ module.exports = {
 
 
         const verificarEstado = verificarCondiciones(character, soul)
-        if (!verificarEstado.puede) return interaction.reply({ content: verificarEstado.razon, flags: ["Ephemeral"]})
+        if (!verificarEstado.puede) return interaction.reply({ content: verificarEstado.razon, flags: ["Ephemeral"] })
 
-        
+
 
         if (tipoDuelo === 2) {
             const codeSala = await duelSystem.createCode(6)
@@ -61,82 +62,82 @@ module.exports = {
             const modalSala = new ModalBuilder().setCustomId('crearSala').setTitle("Creación sala de duelo");
 
             const nameSala = new TextInputBuilder()
-            .setCustomId("nameSala")
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder("Ingresa el nombre de la sala")
-            .setMaxLength(14)
+                .setCustomId("nameSala")
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder("Ingresa el nombre de la sala")
+                .setMaxLength(14)
 
             const hobbiesLabel = new LabelBuilder()
-            .setLabel("Nombre de la sala")
-            .setTextInputComponent(nameSala)
+                .setLabel("Nombre de la sala")
+                .setTextInputComponent(nameSala)
 
             const tipoDuelo = new StringSelectMenuBuilder()
-            .setCustomId("tipoDuelo")
-            .setPlaceholder("Selecciona el tipo de duelo")
-            .setRequired(true)
-            .addOptions(
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("Duelo clasico")
-                    .setDescription("Un duelo tradicional, sin reglas especiales")
-                    .setValue("clasico"),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("Clasificatoria")
-                    .setDescription("Un duelo con reglas especiales para clasificar en el ranking")
-                    .setValue("clasificatoria")
-            )
+                .setCustomId("tipoDuelo")
+                .setPlaceholder("Selecciona el tipo de duelo")
+                .setRequired(true)
+                .addOptions(
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("Duelo clasico")
+                        .setDescription("Un duelo tradicional, sin reglas especiales")
+                        .setValue("clasico"),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("Clasificatoria")
+                        .setDescription("Un duelo con reglas especiales para clasificar en el ranking")
+                        .setValue("clasificatoria")
+                )
 
             const tipoDueloLabel = new LabelBuilder()
-            .setLabel("Tipo de duelo")
-            .setStringSelectMenuComponent(tipoDuelo)
+                .setLabel("Tipo de duelo")
+                .setStringSelectMenuComponent(tipoDuelo)
 
             const opcionesPrivacidad = new StringSelectMenuBuilder()
-            .setCustomId("privacidadSala")
-            .setPlaceholder("Selecciona la privacidad de la sala")
-            .setRequired(true)
-            .addOptions(
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("Pública")
-                    .setDescription("Cualquiera puede unirse a esta sala")
-                    .setValue("publica"),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("Privada")
-                    .setDescription("Solo usuarios con el código pueden unirse")
-                    .setValue("privada")   
-            )
+                .setCustomId("privacidadSala")
+                .setPlaceholder("Selecciona la privacidad de la sala")
+                .setRequired(true)
+                .addOptions(
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("Pública")
+                        .setDescription("Cualquiera puede unirse a esta sala")
+                        .setValue("publica"),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("Privada")
+                        .setDescription("Solo usuarios con el código pueden unirse")
+                        .setValue("privada")
+                )
 
             const limiteEquipo = new StringSelectMenuBuilder()
-            .setCustomId("limiteEquipo")
-            .setPlaceholder("Selecciona el limite de equipo")
-            .setRequired(true)
-            .addOptions(
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("1 vs 1")
-                    .setDescription("Un duelo entre dos jugadores")
-                    .setValue("1"),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("2 vs 2")
-                    .setDescription("Un duelo entre dos equipos de dos jugadores cada uno")
-                    .setValue("2"), 
-                new StringSelectMenuOptionBuilder()
-                    .setLabel("3 vs 3")
-                    .setDescription("Un duelo entre dos equipos de tres jugadores cada uno")
-                    .setValue("3")
-            )
-             
+                .setCustomId("limiteEquipo")
+                .setPlaceholder("Selecciona el limite de equipo")
+                .setRequired(true)
+                .addOptions(
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("1 vs 1")
+                        .setDescription("Un duelo entre dos jugadores")
+                        .setValue("1"),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("2 vs 2")
+                        .setDescription("Un duelo entre dos equipos de dos jugadores cada uno")
+                        .setValue("2"),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("3 vs 3")
+                        .setDescription("Un duelo entre dos equipos de tres jugadores cada uno")
+                        .setValue("3")
+                )
+
             const limiteEquipoLabel = new LabelBuilder()
-            .setLabel("Limite de equipo")
-            .setStringSelectMenuComponent(limiteEquipo)
+                .setLabel("Limite de equipo")
+                .setStringSelectMenuComponent(limiteEquipo)
 
 
             const privacidadLabel = new LabelBuilder()
-            .setLabel("Privacidad de la sala")
-            .setStringSelectMenuComponent(opcionesPrivacidad)
+                .setLabel("Privacidad de la sala")
+                .setStringSelectMenuComponent(opcionesPrivacidad)
 
             modalSala.addLabelComponents(hobbiesLabel, tipoDueloLabel, privacidadLabel, limiteEquipoLabel)
 
             await interaction.showModal(modalSala)
 
-            await transaccionCache.set(`modalDuel-${interaction.user.id}`, { character, soul})
+            await transaccionCache.set(`modalDuel-${interaction.user.id}`, { character, soul })
             return
 
             const salaMessage = [
@@ -173,7 +174,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? soul.sendero?.StelarFragments ?? soul.fragmentos?.StelarFragments ?? soul.StelarFragments ?? 0})`
+                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0} [${soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I'}])`
                         },
                         {
                             "type": 14,
@@ -204,7 +205,15 @@ module.exports = {
                             "label": salaPrivada ? "Privada" : "Publica",
                             "emoji": null,
                             "disabled": false,
-                            "custom_id": salaPrivada ? `preDuel-${interaction.user.id}-publica-${codeSala}` : `preDuel-${interaction.user.id}-privada-${codeSala}`
+                            "custom_id": salaPrivada ? crearCustomId({
+                                action: "preDuel",
+                                userId: interaction.user.id,
+                                extras: ["publica", `${codeSala}`]
+                            }) : crearCustomId({
+                                action: "preDuel",
+                                userId: interaction.user.id,
+                                extras: ["privada", `${codeSala}`]
+                            })
                         },
                         {
                             "type": 2,
@@ -212,7 +221,11 @@ module.exports = {
                             "label": "Iniciar Duelo",
                             "emoji": null,
                             "disabled": true,
-                            "custom_id": `preDuel-${interaction.user.id}-start-${codeSala}`
+                            "custom_id": crearCustomId({
+                                action: "preDuel",
+                                userId: interaction.user.id,
+                                extras: ["start", `${codeSala}`]
+                            })
                         },
                         {
                             "type": 2,
@@ -220,7 +233,11 @@ module.exports = {
                             "label": "Eliminar sala",
                             "emoji": null,
                             "disabled": false,
-                            "custom_id": `preDuel-${interaction.user.id}-delete-${codeSala}`
+                            "custom_id": crearCustomId({
+                                action: "preDuel",
+                                userId: interaction.user.id,
+                                extras: ["delete", `${codeSala}`]
+                            })
                         }
                     ]
                 }
@@ -259,7 +276,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? soul.sendero?.StelarFragments ?? soul.fragmentos?.StelarFragments ?? soul.StelarFragments ?? 0})`
+                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0} [${soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I'}])`
                         },
                         {
                             "type": 14,
@@ -291,18 +308,17 @@ module.exports = {
                 return interaction.channel.send({ content: "No puedo enviarte el mensaje de la sala...\n-# Verifica tus DM" })
             })
 
-            const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil
-            const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
-            const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero
+            const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {}
+            const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
 
             const characterData = {
                 ownerId: interaction.user.id,
                 perfil: infoperfil,
-                social: { compañero: character.social.compañero, team: character.social.team },
+                social: { compañero: character.social?.compañero, team: character.social?.team },
                 nucleo: infoNucleo,
                 stats: soul.stats,
                 dominio: soul.dominio,
-                sendero: infoSendero
+                sendero: soul.sendero
             }
 
             const dataSala = {
@@ -373,10 +389,11 @@ module.exports = {
 
             const gifSelect = gifsDuelo[Math.floor(Math.random() * gifsDuelo.length)]
 
-            const userFE = soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? soul.sendero?.StelarFragments ?? soul.fragmentos?.StelarFragments ?? soul.StelarFragments ?? 0;
+            const userFE = soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0;
+            const userResp = soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I';
             const embed = new EmbedBuilder()
                 .setTitle(`Se aproxima un duelo...`)
-                .setDescription(`**${character.perfil.Nombre} (FE: ${userFE})** te esta retando a un duelo`)
+                .setDescription(`**${character.perfil.Nombre} (FE: ${userFE} [${userResp}])** te esta retando a un duelo`)
                 .setThumbnail(`${character.perfil.avatarURL}`)
                 .setImage(gifSelect)
                 .setColor("Red")

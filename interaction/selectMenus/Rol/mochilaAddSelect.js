@@ -18,12 +18,13 @@ module.exports = crearStringSelectMenu({
 
         const [itemIdRaw, itemRegion] = selectedItem.split("*");
         const zoneKey = extras[0] || "zone";
+        const isFaro = extras[1] === "faro";
 
         const modalCustomId = crearCustomId({
             action: "mochilaAddModal",
             userId: interaction.user.id,
             characterId: character._id,
-            extras: [itemIdRaw, `[${itemRegion}]`, zoneKey]
+            extras: [itemIdRaw, `[${itemRegion}]`, zoneKey, isFaro ? "faro" : "normal"]
         });
 
         const modal = new ModalBuilder()

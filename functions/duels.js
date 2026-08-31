@@ -468,7 +468,7 @@ class Duelv2 {
                     scaling: {
                         stats: "fuerza",
                         // El levelBonus (1 + lvl*0.2) lo calcularemos en el engine o aquí
-                        multi: 1 + ((attacker.isNPC ? (attacker.nivelMagico ?? 1) : (attacker.StelarFragmentsTotal ?? attacker.StelarFragments ?? attacker.nivelMagico ?? 1)) * 0.2)
+                        multi: 1 + ((attacker.isNPC ? (attacker.nivelMagico ?? 1) : (attacker.StelarFragmentsTotal ?? attacker.sendero?.StelarFragmentsTotal ?? 1)) * 0.2)
                     },
                     objetivo: [1], // Enemigo
                     esFisico: true // Bandera para activar defensa física
@@ -1315,7 +1315,7 @@ class Duelv2 {
                     }
 
                     if (spell.Tipo === 0 || mechanics.damage.esFisico) {
-                        const targetLvl = target.isNPC ? (target.nivelMagico ?? 1) : (target.StelarFragmentsTotal ?? target.StelarFragments ?? target.nivelMagico ?? 1);
+                        const targetLvl = target.isNPC ? (target.nivelMagico ?? 1) : (target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 1);
                         const enemyDefense = (1 + (target.defenseActual || 0)) * ((target.stats.resistenciaFisica * 0.6) + (targetLvl * 0.35))
 
                         damageAmount = Math.max(Math.round(damageAmount - enemyDefense), 1)

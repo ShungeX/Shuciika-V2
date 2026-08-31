@@ -34,8 +34,10 @@ class Combatiente {
     }
 
     aplicarDaño(cantidad) {
-        this.HP = Math.max(0, this.HP - cantidad)
-        if (this.fueDerrotado()) this.defeated = true
+        this.ultimoDanioRecibido = Number(cantidad) || 0;
+        this.vidaAntesDelGolpe = this.HP;
+        this.HP = Math.max(0, this.HP - cantidad);
+        if (this.fueDerrotado()) this.defeated = true;
     }
 
     aplicarCuracion(cantidad, esAccionInstantanea = false) {
@@ -111,9 +113,7 @@ class Personaje extends Combatiente {
         this.StelarFragmentsTotal = Number(
             sendero.StelarFragmentsTotal 
             ?? fragmentos.StelarFragmentsTotal 
-            ?? sendero.StelarFragments 
-            ?? fragmentos.StelarFragments 
-            ?? data.StelarFragments 
+            ?? data.StelarFragmentsTotal 
             ?? 0
         );
         this.StelarFragments = Number(
@@ -121,7 +121,6 @@ class Personaje extends Combatiente {
             ?? fragmentos.StelarFragments 
             ?? this.StelarFragmentsTotal
         );
-        this.nivelMagico = this.StelarFragmentsTotal;
     }
 }
 

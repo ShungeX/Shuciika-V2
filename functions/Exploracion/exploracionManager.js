@@ -65,23 +65,78 @@ class ExploracionManager {
             return;
         }
 
-        const targetArea = exploracionCache.subzona || areaSelect;
-        const subzonaSelect = await this.obtenerSubzona(exploracionCache, targetArea);
-        if (targetArea) {
-            exploracionCache.subzona = targetArea;
+        if (exploracionCache.enProceso) {
+            if (!interaction.replied && !interaction.deferred) {
+                return interaction.deferUpdate().catch(() => { });
+            }
+            return;
         }
 
-        let message = null;
-        if (interaction.channel && exploracionCache.message?.id) {
-            message = await interaction.channel.messages.fetch(exploracionCache.message.id).catch(() => null);
-        }
+        exploracionCache.enProceso = true;
 
-        switch (interact) {
+        try {
+            const targetArea = exploracionCache.subzona || areaSelect;
+            const subzonaSelect = await this.obtenerSubzona(exploracionCache, targetArea);
+            if (targetArea) {
+                exploracionCache.subzona = targetArea;
+            }
+
+            let message = null;
+            if (interaction.channel && exploracionCache.message?.id) {
+                message = await interaction.channel.messages.fetch(exploracionCache.message.id).catch(() => null);
+            }
+
+            switch (interact) {
             case "surrend": {
+                const charId = character?._id ?? soul?._id ?? interaction.user.id;
+                const charIdNum = isNaN(Number(charId)) ? charId : Number(charId);
+                const pj = await characterCol.findOne({
+                    $or: [
+                        { _id: charIdNum },
+                        { _id: charId }
+                    ]
+                });
+
+                const rawTalisman = pj?.economia?.inventarioTalisman || [];
+                let transferInfo = "";
+
+                if (rawTalisman.length > 0) {
+                    const { sanitizarObjetoInventario } = require("../catalogoObjetos");
+                    const currentInventario = [...(pj?.economia?.Inventario || [])];
+                    for (const tItem of rawTalisman) {
+                        const tId = Number(tItem.ID);
+                        const tCant = Number(tItem.Cantidad || tItem.cantidad || 1);
+                        const tRegion = tItem.Region || "Global";
+
+                        const existing = currentInventario.find(i => Number(i.ID) === tId && (i.Region === tRegion || !i.Region || !tRegion));
+                        if (existing) {
+                            existing.Cantidad = Number(existing.Cantidad || existing.cantidad || 0) + tCant;
+                            if (typeof existing.contaminable !== "undefined") existing.contaminable = false;
+                            if (typeof existing.purificable !== "undefined") existing.purificable = false;
+                            if (existing.cantidad !== undefined) delete existing.cantidad;
+                        } else {
+                            const cleanItem = sanitizarObjetoInventario(tItem, tCant, { contaminable: false, purificable: false });
+                            currentInventario.push(cleanItem);
+                        }
+                    }
+
+                    await characterCol.updateOne(
+                        { _id: pj._id },
+                        {
+                            $set: {
+                                "economia.Inventario": currentInventario,
+                                "economia.inventarioTalisman": []
+                            }
+                        }
+                    );
+
+                    transferInfo = "\n-# Todos los objetos de tu talismán se han transferido correctamente a tu inventario.";
+                }
+
                 const messages = [
-                    "La sabiduría no está solo en buscar, sino en saber cuándo descansar.",
-                    "Usa `/rol explorar` cuando estés listo para otra aventura",
-                    "El aire vibra con un susurro ancestral...\n Has decidido regresar"
+                    "-# La sabiduría no está solo en buscar, sino en saber cuándo descansar.",
+                    "-# Usa `/rol explorar` cuando estés listo para otra aventura",
+                    "-# El aire vibra con un susurro ancestral...\n-# Has decidido regresar"
                 ];
                 const messageSelect = messages[Math.floor(Math.random() * messages.length)];
                 const gifSelect = await getGifs("sleep");
@@ -93,7 +148,7 @@ class ExploracionManager {
                     },
                     {
                         "type": 10,
-                        "content": `${messageSelect}`
+                        "content": `${messageSelect}${transferInfo}`
                     },
                     {
                         "type": 14,
@@ -150,13 +205,21 @@ class ExploracionManager {
             }
 
             case "purificar": {
-                console.log("exploracionManager.js - Line aprox: 153", " Faro select")
-                return interaction.reply({ content: "Función en desarrollo", flags: ["Ephemeral"] })
+                exploracionCache.subzona = targetArea;
+                const purificarComp = await interfazCreate.purificarConfirmacion(client, interaction, exploracionCache.subzona, soul);
+                try {
+                    await interaction.deferUpdate().catch(() => { });
+                } catch (e) { }
+                return await editarOMandarMensaje(interaction, exploracionCache, message, { components: purificarComp, flags: ["IsComponentsV2"] });
             }
 
             case "mochila": {
-                console.log("exploracionManager.js - Line aprox: 153", " Faro select")
-                return interaction.reply({ content: "Función en desarrollo", flags: ["Ephemeral"] })
+                exploracionCache.subzona = targetArea;
+                const mochilaComp = await interfazCreate.mochilaExploración(client, interaction, exploracionCache.subzona, soul, 1, true);
+                try {
+                    await interaction.deferUpdate().catch(() => { });
+                } catch (e) { }
+                return await editarOMandarMensaje(interaction, exploracionCache, message, { components: mochilaComp, flags: ["IsComponentsV2"] });
             }
 
             default: {
@@ -175,10 +238,19 @@ class ExploracionManager {
                 });
             }
         }
+        } finally {
+            if (exploracionCache) {
+                exploracionCache.enProceso = false;
+            }
+        }
     }
 
     async procesarExploracion({ client, interaction, character, soul, areaSelect, interact, userCache, exploracionCache, subzonaSelect, message }) {
         try {
+            if (exploracionCache) {
+                exploracionCache.enFaro = false;
+            }
+
             if (!subzonaSelect) {
                 subzonaSelect = await this.obtenerSubzona(exploracionCache, areaSelect);
             }
@@ -215,10 +287,15 @@ class ExploracionManager {
                 "https://c.tenor.com/5lskg5Utj1QAAAAd/tenor.gif",
                 "https://c.tenor.com/kXniRU4h1AMAAAAd/tenor.gif",
                 "https://c.tenor.com/mPCZyTJgrkAAAAAd/tenor.gif",
-                "https://c.tenor.com/Bvm6RAQnf2wAAAAd/tenor.gif"
+                "https://c.tenor.com/Bvm6RAQnf2wAAAAd/tenor.gif",
+                "https://static2.klipy.com/ii/c3a19a0b747a76e98651f2b9a3cca5ff/08/e2/IC9EnP2m.gif",
+                "https://static2.klipy.com/ii/e7539ef2aad336edaa067c28ee130b3c/8b/84/DhIBnkCOeR6nTDAoI.gif",
+                "https://static2.klipy.com/ii/a8ada81afc59159ea5c8927feffa2e31/8d/39/cTUGC8CKuMmR4PHaEL0.gif",
+                "https://static2.klipy.com/ii/39f2394ae36df6e199be9eb7c9fa1012/af/18/5DKVdd5D.gif"
             ];
 
-            const gifSelect = gifsWalking[Math.floor(Math.random() * gifsWalking.length)];
+            const validGifs = gifsWalking.filter(g => typeof g === "string" && g.trim().length > 0);
+            const gifSelect = validGifs[Math.floor(Math.random() * validGifs.length)] || "https://c.tenor.com/2CjD23b-uaoAAAAd/tenor.gif";
             const messageIntermedio = exploracionCache?.profundidad === 1 ?
                 `Vuelves a tomar tus cosas y sigues explorando en **${subzonaSelect.nombre}...**` :
                 `Tomas tus cosas y te preparas para explorar **${subzonaSelect.nombre}**\n ¿Que cosas encontraras hoy?`;
@@ -394,7 +471,25 @@ class ExploracionManager {
                 const charId = soul?._id ?? soul?.id ?? soul?.ID;
                 const { recompensas, levelMessage: levMsg } = await this.getRewardsLoot(subzonaSelect.loot, charId, client, interaction);
                 levelMessage = levMsg;
-                const gifs = await getGifs("happy");
+                const gifsHappyArray = [
+                    "https://klipy.com/gifs/himouto-umaru-chan-sylphynford-tachibana-17",
+                    "https://klipy.com/gifs/saint-cecilia-and-pastor-lawrence-waku-waku",
+                    "https://static2.klipy.com/ii/9ed0121ed465c12e1f3dda331ed33f0e/9e/e9/Qe3idIInM5hw.gif",
+                    "https://static2.klipy.com/ii/4e7bea9f7a3371424e6c16ebc93252fe/46/ce/9iYjzrxfviqH7iuEU6gS.gif"
+                ];
+
+                let gifUrl = null;
+                if (Math.random() < 0.5) {
+                    const servicioGif = await getGifs("happy");
+                    gifUrl = servicioGif?.url;
+                } else {
+                    gifUrl = gifsHappyArray[Math.floor(Math.random() * gifsHappyArray.length)];
+                }
+
+                if (!gifUrl) {
+                    gifUrl = gifsHappyArray[Math.floor(Math.random() * gifsHappyArray.length)] || "https://c.tenor.com/2CjD23b-uaoAAAAd/tenor.gif";
+                }
+
                 const TitleMessages = [
                     "Botín descubierto...",
                     "Tesoros hallados en la penumbra...",
@@ -423,7 +518,7 @@ class ExploracionManager {
                         "items": [
                             {
                                 "media": {
-                                    "url": gifs.url
+                                    "url": gifUrl
                                 },
                                 "description": null,
                                 "spoiler": false
@@ -452,15 +547,6 @@ class ExploracionManager {
                                         },
                                         "default": false
                                     },
-                                    {
-                                        "label": `Dejar de explorar`,
-                                        "value": `surrend*${areaSelect}`,
-                                        "description": `Siempre es bueno saber hasta donde soltar las cosas`,
-                                        "emoji": {
-                                            name: "TuxedoSamTired",
-                                            id: "1350682023370555454"
-                                        }
-                                    }
                                 ],
                                 "placeholder": "",
                                 "min_values": 1,
@@ -482,8 +568,9 @@ class ExploracionManager {
             }
 
             case "faro": {
-                exploracionCache.profundidad = 0;
+                exploracionCache.profundidad = (exploracionCache.profundidad || 0) + 1;
                 exploracionCache.bloquearFaroSiguiente = true;
+                exploracionCache.enFaro = true;
                 eventMessage = await interfazCreate.faroExploración(client, interaction, areaSelect, soul);
                 break;
             }
@@ -574,15 +661,6 @@ class ExploracionManager {
                                             id: "1350682005691699220"
                                         },
                                         "default": false
-                                    },
-                                    {
-                                        "label": `Dejar de explorar`,
-                                        "value": `${areaSelect}*surrend`,
-                                        "description": `Siempre es bueno saber hasta donde soltar las cosas`,
-                                        "emoji": {
-                                            name: "TuxedoSamTired",
-                                            id: "1350682023370555454"
-                                        }
                                     }
                                 ],
                                 "placeholder": "",

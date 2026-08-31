@@ -43,33 +43,60 @@ module.exports = {
      * @returns 
      */
     setStatus: async (characterId, status, expired) => {
+        if (!characterId) return;
+        const numId = !isNaN(Number(characterId)) ? Number(characterId) : null;
+        const strId = String(characterId);
+
         if (!status) {
-            return playerStatus.delete(characterId)
+            playerStatus.delete(characterId);
+            playerStatus.delete(strId);
+            if (numId !== null) playerStatus.delete(numId);
+            return;
         } else {
-            playerStatus.set(characterId, { status: status, expired: expired?.active })
+            const entry = { status: status, expired: expired?.active };
+            playerStatus.set(characterId, entry);
+            playerStatus.set(strId, entry);
+            if (numId !== null) playerStatus.set(numId, entry);
+
             if (expired?.active) {
-                setTimeout(() => playerStatus.delete(characterId), 60 * 60 * expired.time)
+                const timeMs = (typeof expired.time === 'number' ? expired.time : 3000) * 1000;
+                setTimeout(() => {
+                    playerStatus.delete(characterId);
+                    playerStatus.delete(strId);
+                    if (numId !== null) playerStatus.delete(numId);
+                }, timeMs);
             } else {
                 const personajesColl = getPersonajesCollection();
-                await personajesColl.updateOne({ _id: characterId }, {
+                await personajesColl.updateOne({ _id: numId !== null ? numId : characterId }, {
                     $set: {
                         "status": status
                     }
-                })
+                }).catch(() => null);
             }
         }
-
     },
-    getStatus: (characterId) => playerStatus.get(characterId),
+    getStatus: (characterId) => {
+        if (!characterId) return null;
+        const numId = !isNaN(Number(characterId)) ? Number(characterId) : null;
+        const strId = String(characterId);
+        return playerStatus.get(characterId) ?? playerStatus.get(strId) ?? (numId !== null ? playerStatus.get(numId) : null);
+    },
     deleteStatus: async (characterId, Notexpired) => {
-        playerStatus.delete(characterId)
-        if(Notexpired) {
+        if (!characterId) return;
+        const numId = !isNaN(Number(characterId)) ? Number(characterId) : null;
+        const strId = String(characterId);
+
+        playerStatus.delete(characterId);
+        playerStatus.delete(strId);
+        if (numId !== null) playerStatus.delete(numId);
+
+        if (Notexpired) {
             const personajesColl = getPersonajesCollection();
-            await personajesColl.updateOne({_id: characterId}, {
+            await personajesColl.updateOne({ _id: numId !== null ? numId : characterId }, {
                 $set: {
                     "status": null
                 }   
-            })
+            }).catch(() => null);
         }
     }
 

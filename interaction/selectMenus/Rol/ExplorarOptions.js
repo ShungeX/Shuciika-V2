@@ -13,12 +13,51 @@ module.exports = crearStringSelectMenu({
 
     optionNames: ["data", "Data1", "Data2"],
 
-    ejecutar: async function ({ client, interaction, character, soul, componentData: { extras }, options: { data} }) {
-        const [areaSelect, interact, Data2] = data?.split("*")
-        console.log("ExplorarOptions.js", areaSelect, interact, Data2)
-        console.log("ExplorarOptions.js", extras)
-        if (extras === "subzona") {
+    ejecutar: async function ({ client, interaction, character, soul, componentData: { extras }, options: { data } }) {
+        const parts = data ? data.split("*") : [];
+        let interact = null;
+        let areaSelect = null;
 
+        const extraAction = Array.isArray(extras) ? extras[0] : extras;
+        const knownActions = new Set(["subzona", "mochila", "purificar", "continue", "surrend", "cambiarZona", "zona", "battle"]);
+
+        if (parts.length === 1) {
+            if (extraAction === "subzona") {
+                interact = "subzona";
+                areaSelect = parts[0];
+            } else if (knownActions.has(parts[0])) {
+                interact = parts[0];
+                areaSelect = null;
+            } else {
+                areaSelect = parts[0];
+                interact = extraAction || null;
+            }
+        } else if (parts.length === 2) {
+            if (knownActions.has(parts[0])) {
+                interact = parts[0];
+                areaSelect = parts[1] !== "null" ? parts[1] : null;
+            } else if (knownActions.has(parts[1])) {
+                interact = parts[1];
+                areaSelect = parts[0] !== "null" ? parts[0] : null;
+            } else {
+                interact = parts[0] === "null" ? parts[1] : parts[0];
+                areaSelect = parts[0] === "null" ? null : parts[1];
+            }
+        } else if (parts.length >= 3) {
+            // Estructuras como "null*mochila*TOB_INS_BIB" o "region*accion*area"
+            if (knownActions.has(parts[1])) {
+                interact = parts[1];
+                areaSelect = parts[2] !== "null" ? parts[2] : (parts[0] !== "null" ? parts[0] : null);
+            } else if (knownActions.has(parts[0])) {
+                interact = parts[0];
+                areaSelect = parts[2] !== "null" ? parts[2] : (parts[1] !== "null" ? parts[1] : null);
+            } else {
+                interact = parts[1] !== "null" ? parts[1] : parts[0];
+                areaSelect = parts[2] !== "null" ? parts[2] : null;
+            }
+        }
+
+        if (interact === "subzona" || extraAction === "subzona") {
             const userCache = transaccionCache.getUser(interaction.user.id);
 
             if (!userCache) {
@@ -35,14 +74,13 @@ module.exports = crearStringSelectMenu({
             }
 
             const currentEnergy = await recargarEnergia(soul.nucleo?.energy ?? 0, soul);
-            subzonaSelect = await exploracionManager.obtenerSubzona(exploracionCache, areaSelect);
-            if (currentEnergy < subzonaSelect.energiaNecesaria) {
+            const subzonaSelect = await exploracionManager.obtenerSubzona(exploracionCache, areaSelect);
+            if (subzonaSelect && currentEnergy < subzonaSelect.energiaNecesaria) {
                 if (interaction.deferred) {
-                    return interaction.followUp({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] })
+                    return interaction.followUp({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
                 }
                 return interaction.reply({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
             }
-
         }
 
         return await exploracionManager.ejecutarAccionExploracion({

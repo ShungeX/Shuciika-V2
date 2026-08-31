@@ -4,6 +4,8 @@ const { splitCustomId } = require("../utils/constructores/customId")
 const { construirOptions } = require("../utils/constructores/construirOptions")
 const { getCharacterData } = require("../utils/getDataCharacters")
 
+const usuariosEnProceso = new Set();
+
 /** @typedef {import('../utils/types').TipoComponente} TipoComponente */
 /** @typedef {import('../utils/types').ComponentConfig} ComponentConfig */
 
@@ -32,6 +34,16 @@ async function manejarComponente(client, interaction, handlers, tipo) {
         return interaction.reply({ embeds: [embed], flags: ["Ephemeral"] })
     }
 
+    // Prevenir doble clic rápido / race condition mientras se procesa otra acción del usuario
+    if (usuariosEnProceso.has(interaction.user.id)) {
+        if (!interaction.replied && !interaction.deferred) {
+            return interaction.deferUpdate().catch(() => { });
+        }
+        return;
+    }
+
+    usuariosEnProceso.add(interaction.user.id);
+
     try {
         const requirements = handler.requirements || {}
         const { character, soul, cachepj } = await getCharacterData(interaction.user.id, requirements, characterId)
@@ -56,6 +68,8 @@ async function manejarComponente(client, interaction, handlers, tipo) {
 
     } catch (e) {
         console.log(`Ocurrio un error al ejecutar el componente (${tipo})!`, e)
+    } finally {
+        usuariosEnProceso.delete(interaction.user.id);
     }
 }
 

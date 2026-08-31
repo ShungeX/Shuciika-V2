@@ -35,8 +35,23 @@ module.exports = crearBoton({
             return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
         }
 
-        // Caso 2: Paginación de Inventario en Mochila (extras: [key, action, page, filtrosJoined])
-        const [key, action, pageRaw, filtrosJoined] = extras;
+        // Caso 2: Paginación de Inventario en Mochila
+        let key = extras[0];
+        let isFaro = false;
+        let action, pageRaw, filtrosJoined;
+
+        if (extras[1] === "faro" || extras[1] === "normal") {
+            isFaro = extras[1] === "faro" || Boolean(cache?.enFaro);
+            action = extras[2];
+            pageRaw = extras[3];
+            filtrosJoined = extras[4];
+        } else {
+            isFaro = Boolean(cache?.enFaro);
+            action = extras[1];
+            pageRaw = extras[2];
+            filtrosJoined = extras[3];
+        }
+
         const page = Number(pageRaw) || 1;
         const filtros = filtrosJoined ? filtrosJoined.split("_") : ["fullbag"];
 
@@ -51,7 +66,7 @@ module.exports = crearBoton({
             if (action === "prev") newPage = Math.max(1, page - 1);
             if (action === "next") newPage = Math.min(totalPages, page + 1);
 
-            const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, newPage, key, activeFiltros);
+            const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, newPage, key, activeFiltros, isFaro);
             await interaction.deferUpdate().catch(() => {});
             return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
         }

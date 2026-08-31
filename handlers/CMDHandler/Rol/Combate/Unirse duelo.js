@@ -11,6 +11,7 @@ const { v4: uuidv4 } = require('uuid')
 const { duelSystem } = require("../../../../functions/Duelo/duelManager")
 const interfazCreate = require("../../../../functions/interfazCreate")
 const verificarCondiciones = require("../../../../functions/Duelo/verificarCondiciones")
+const { crearCustomId } = require("../../../../utils/constructores/customId")
 
 
 
@@ -142,7 +143,11 @@ module.exports = {
                         "label": "Equipo 1",
                         "emoji": null,
                         "disabled": data.length >= sala.limitTeam1,
-                        "custom_id": `preDuel-${interaction.user.id}-team1-${sala.code}`
+                        "custom_id": crearCustomId({
+                            action: "preDuel",
+                            userId: interaction.user.id,
+                            extras: ["team1", `${sala.code}`]
+                        })
                     },
                     {
                         "type": 2,
@@ -150,7 +155,11 @@ module.exports = {
                         "label": "Equipo 2",
                         "emoji": null,
                         "disabled": data2.length >= sala.limitTeam2,
-                        "custom_id": `preDuel-${interaction.user.id}-team2-${sala.code}`
+                        "custom_id": crearCustomId({
+                            action: "preDuel",
+                            userId: interaction.user.id,
+                            extras: ["team2", `${sala.code}`]
+                        })
                     }
                 ]
             }

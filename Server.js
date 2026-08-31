@@ -1691,9 +1691,8 @@ app.post('/api/combat/create-room', async (req, res) => {
         }
 
         // Estructura de characterData con la misma exclusión
-        const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil;
-        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo;
-        const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero;
+        const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {};
+        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
 
         const characterData = {
             ownerId: req.session.user.id,
@@ -1702,7 +1701,7 @@ app.post('/api/combat/create-room', async (req, res) => {
             nucleo: infoNucleo,
             stats: soul.stats,
             dominio: soul.dominio,
-            sendero: infoSendero
+            sendero: soul.sendero
         };
 
         const limitTeam1 = Number(limiteEquipo1) || 1;
@@ -1879,9 +1878,8 @@ app.post('/api/combat/create-npc-room', async (req, res) => {
             return res.status(400).json({ error: 'Tu personaje ya está en una sala de combate activa' });
         }
 
-        const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil;
-        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo;
-        const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero;
+        const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {};
+        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
 
         const characterData = {
             ownerId: req.session.user.id,
@@ -1890,7 +1888,7 @@ app.post('/api/combat/create-npc-room', async (req, res) => {
             nucleo: infoNucleo,
             stats: soul.stats,
             dominio: soul.dominio,
-            sendero: infoSendero
+            sendero: soul.sendero
         };
 
         const codeSala = await duelSystem.createCode(6);

@@ -15,13 +15,27 @@ module.exports = crearStringSelectMenu({
     optionNames: ["filtros"],
 
     ejecutar: async ({ client, interaction, character, componentData: { extras }, options: { filtros } }) => {
-        // extras = [key, action, page, filtrosJoined]
-        const [key, action, pageRaw, filtrosJoined] = extras;
-        const previousFilters = filtrosJoined ? filtrosJoined.split("_") : ["fullbag"];
-        const hadFullbag = previousFilters.includes("fullbag");
+        let key = extras[0];
+        let isFaro = false;
+        let action, pageRaw, filtrosJoined;
 
         const userCache = transaccionCache.getUser(interaction.user.id);
         const cache = userCache ? transaccionCache.get(userCache.explorarID) : null;
+
+        if (extras[1] === "faro" || extras[1] === "normal") {
+            isFaro = extras[1] === "faro" || Boolean(cache?.enFaro);
+            action = extras[2];
+            pageRaw = extras[3];
+            filtrosJoined = extras[4];
+        } else {
+            isFaro = Boolean(cache?.enFaro);
+            action = extras[1];
+            pageRaw = extras[2];
+            filtrosJoined = extras[3];
+        }
+
+        const previousFilters = filtrosJoined ? filtrosJoined.split("_") : ["fullbag"];
+        const hadFullbag = previousFilters.includes("fullbag");
 
         const selectedValues = Array.isArray(filtros) ? filtros : [filtros];
         let finalFiltros = [];
@@ -38,7 +52,7 @@ module.exports = crearStringSelectMenu({
             finalFiltros = selectedValues.length ? selectedValues : ["fullbag"];
         }
 
-        const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, key, finalFiltros);
+        const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, key, finalFiltros, isFaro);
         await interaction.deferUpdate().catch(() => {});
         return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
     }
