@@ -9,18 +9,19 @@ const Cachedb = db2.collection("CachePJ")
 const dataCache = new Map()
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
+const {crearBoton } = require("../../../utils/constructores/crearComponente")
 
-module.exports = {
+module.exports = crearBoton({
     customId: "crear_ficha",
-    buttonAuthor: true,
+    requirements: {
+        character: {obtener: true, required: false},
+        cachepj: {obtener: true, required: false},
+    },
 
-    /**
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction
-     */
+    soloAutor: true,
+    ejecutar: async({client, interaction, character, cachepj, componentData: {userId, extras}}) => {
 
-    ejecutar: async (client, interaction, extras) => {
-        let channel;
+     let channel;
         let message;
 
         const userfind = await userdb.findOne({ _id: interaction.user.id })
@@ -815,4 +816,5 @@ module.exports = {
 
 
     }
-}
+})
+       

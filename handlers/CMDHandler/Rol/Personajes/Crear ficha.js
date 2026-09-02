@@ -2,6 +2,7 @@ const { EmbedBuilder, ChatInputCommandInteraction, SlashCommandSubcommandBuilder
 const clientdb = require("../../../../Server")
 const { Client } = require("discord.js")
 const { formatearTextoLim } = require("../../../../interaction/modals/Rol/Modal crearFicha")
+const { crearCustomId } = require("../../../../utils/constructores/customId")
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 
@@ -127,7 +128,11 @@ module.exports = {
                                     "label": "Más info",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-selectStudent`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha", 
+                                        userId: interaction.user.id,
+                                        extras: ["selectStudent"]
+                                    })
                                 },
                                 "components": [
                                     {
@@ -170,7 +175,11 @@ module.exports = {
                                     "label": "Más info",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-selectMaster`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["selectMaster"]
+                                    })
                                 },
                                 "components": [
                                     {
@@ -232,7 +241,11 @@ module.exports = {
                                     "label": "Establecer foto",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-foto`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["foto"]
+                                    })
                                 },
                                 "components": [
                                     {
@@ -269,7 +282,10 @@ module.exports = {
                                 "components": [
                                     {
                                         "type": 3,
-                                        "custom_id": `crear_ficha-${interaction.user.id}`,
+                                        "custom_id": crearCustomId({
+                                            action: "crear_ficha",
+                                            userId: interaction.user.id
+                                        }),
                                         "options": [
                                             {
                                                 "label": "» Nombre .ᐟ.ᐟ",
