@@ -23,7 +23,7 @@ module.exports = {
         const personaje = await character.findOne({ID: characterId})
 
         if(!objinfo) {
-            return interaction.reply({content: "La transaccion ha expirado. vuelve a usar el comando", ephemeral: true})
+            return interaction.reply({content: "La transaccion ha expirado. vuelve a usar el comando", flags: ["Ephemeral"]})
         }
 
         const objfind = personaje.Inventario.find(obj => obj.ID === objinfo.objId)

@@ -23,11 +23,11 @@ module.exports = async(client, interaction) => {
 
 
     if(!personaje) {
-        return interaction.reply({content: `Todavia no tienes un personaje. -# ¿Por qué no intentas crearte uno?, usa el comando /rol crear_ficha`, ephemeral: true})
+        return interaction.reply({content: `Todavia no tienes un personaje. -# ¿Por qué no intentas crearte uno?, usa el comando /rol crear_ficha`, flags: ["Ephemeral"]})
     }
 
     if(!message) {
-        return interaction.reply({content: "Parece que no has escrito nada. ¡No puedo enviar una carta vacia! （︶^︶）", ephemeral: true})
+        return interaction.reply({content: "Parece que no has escrito nada. ¡No puedo enviar una carta vacia! （︶^︶）", flags: ["Ephemeral"]})
     }
 
     if(!channel) {
@@ -49,7 +49,7 @@ module.exports = async(client, interaction) => {
         .setThumbnail("https://i.pinimg.com/736x/f2/79/47/f27947de21ace726318164fd6d63f75f.jpg")
 
         channel.send({embeds: [embed]})
-        interaction.reply({content: "Envie tu confesion al canal <#717139454631870494>. (Recuerda esta confesión es anonima)", ephemeral: true})
+        interaction.reply({content: "Envie tu confesion al canal <#717139454631870494>. (Recuerda esta confesión es anonima)", flags: ["Ephemeral"]})
     }
 
     async function enviarbuzon() {

@@ -22,7 +22,7 @@ module.exports = async(client, interaction) => {
     await interaction.deferReply()
 
     if(!verifRoles) {
-        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+        return interaction.reply({content: "No tienes permisos para usar este comando", flags: ["Ephemeral"]})
     }
 
     try {

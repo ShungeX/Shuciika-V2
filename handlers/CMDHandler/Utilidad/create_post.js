@@ -20,7 +20,7 @@ module.exports = async(client, interaction) => {
 
 
     if(!verifRoles) {
-        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+        return interaction.reply({content: "No tienes permisos para usar este comando", flags: ["Ephemeral"]})
     }
 
     if(isMessage === 1) {

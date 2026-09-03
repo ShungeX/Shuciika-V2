@@ -21,7 +21,7 @@ module.exports = {
         }
 
         // Responder la interacción de inmediato para evitar "no respondió a tiempo"
-        await interaction.deferReply({ ephemeral: true })
+        await interaction.deferReply({ flags: ["Ephemeral"] })
 
         const targetIds = {
             damage: null,

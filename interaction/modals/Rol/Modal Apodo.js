@@ -35,7 +35,7 @@ module.exports = {
         }
 
         if(await Badwords()) {
-          return interaction.reply({content: "¡Hey! tu apodo contiene malas palabras （︶^︶）| [Verifica tu apodo]", ephemeral: true})
+          return interaction.reply({content: "¡Hey! tu apodo contiene malas palabras （︶^︶）| [Verifica tu apodo]", flags: ["Ephemeral"]})
         }
 
 

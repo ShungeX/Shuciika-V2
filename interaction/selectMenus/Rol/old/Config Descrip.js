@@ -23,16 +23,16 @@ module.exports = {
         const time =  (1_000*60) - (Date.now() - userf?.time?.pjDescripcion) 
 
         if(!character) {
-            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", flags: ["Ephemeral"]})
         }
     
 
         if((Date.now() - userf?.time?.pjDescripcion) < 1_000 * 60) {
-            return interaction.reply({ content: "¡Oye!, acabo de cambiar tu descripcion (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer una nueva descripción (⇀‸↼‶)", ephemeral: true})
+            return interaction.reply({ content: "¡Oye!, acabo de cambiar tu descripcion (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer una nueva descripción (⇀‸↼‶)", flags: ["Ephemeral"]})
         }
 
         if(cachepj) {
-            return interaction.reply({ content: "Esta funcion es exclusiva de personajes registrados\nQue tal si registras tu personaje usando el comando /rol enviar-ficha", ephemeral: true})
+            return interaction.reply({ content: "Esta funcion es exclusiva de personajes registrados\nQue tal si registras tu personaje usando el comando /rol enviar-ficha", flags: ["Ephemeral"]})
         }
 
         

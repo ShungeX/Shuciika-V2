@@ -53,14 +53,14 @@ class ExploracionManager {
         const exploracionCache = transaccionCache.get(userCache?.explorarID);
         if (!exploracionCache || !exploracionCache?.regionSelect || !exploracionCache?.zona) {
             if (!interaction.replied && !interaction.deferred) {
-                return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
+                return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
             }
             return;
         }
 
         if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
             if (!interaction.replied && !interaction.deferred) {
-                return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+                return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
             }
             return;
         }

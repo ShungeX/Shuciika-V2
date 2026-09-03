@@ -44,7 +44,7 @@ module.exports = {
                 // rondaCerrada handled in advanceCompas
 
 
-                await interaction.reply({ content: `${UseItem.message}`, ephemeral: true })
+                await interaction.reply({ content: `${UseItem.message}`, flags: ["Ephemeral"] })
                 return
 
             } catch (e) {

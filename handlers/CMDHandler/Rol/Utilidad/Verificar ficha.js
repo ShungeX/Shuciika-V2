@@ -68,7 +68,7 @@ module.exports = {
         const waiting = cachepj?.waiting
 
         if (!waiting) {
-            return interaction.reply({ content: "El usuario aun no termina su ficha. debes ser paciente y esperar a que el usuario envie su ficha ( •̀ ω •́ )✧", ephemeral: true })
+            return interaction.reply({ content: "El usuario aun no termina su ficha. debes ser paciente y esperar a que el usuario envie su ficha ( •̀ ω •́ )✧", flags: ["Ephemeral"] })
         }
 
         const apodo = cachepj?.apodo || "Sin apodo"
@@ -97,8 +97,8 @@ module.exports = {
             .setTitle(cachepj.nombre)
             .setDescription(cachepj?.historia ? cachepj.historia : "Sin Historia (¿In rol?)")
             .addFields(
-                { name: `Informacion`, value: "`📑` **Apodo: ** " + apodo + "\n`🎎` **Sexo: **" + cachepj.sexo + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true },
-                { name: `Extra`, value: "`🎂` **Cumple **" + cachepj.cumpleaños + "\n`👑` **Familia: **" + familia + "\n`❔`**  Estado:** " + waiting, inline: true },
+                { name: `Informacion`, value: "`📑` **Apodo: ** " + apodo + "\n`🎎` **Sexo biológico: **" + `${`${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` + "\n`🍭` **Edad: **" + cachepj.edad + "\n`🛫` **C/Org: **" + cachepj.ciudadOrg, inline: true },
+                { name: `Extra`, value: "`🎂` **Cumple **" + (cachepj.cumpleaños || (cachepj.cumpleDia && cachepj.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")) + "\n`👑` **Familia: **" + familia + "\n`❔`**  Estado:** " + waiting, inline: true },
                 { name: "🎭 Personalidad", value: cachepj.personalidad, inline: false },
                 { name: `🎮 Especialidad`, value: especialidad, inline: false }
 

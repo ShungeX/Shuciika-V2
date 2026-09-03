@@ -1,523 +1,507 @@
-const { EmbedBuilder, ActionRowBuilder, ChatInputCommandInteraction, ModalBuilder, TextInputBuilder, TextInputStyle } = require(`discord.js`);
+const { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, LabelBuilder, StringSelectMenuBuilder } = require(`discord.js`);
 const { updateMessage } = require("../../modals/Rol/Modal crearFicha");
 const clientdb = require("../../../Server");
-let buttonAuthor;
-const db = clientdb.db("Server_db")
-const userdb = db.collection("usuarios_server")
-const db2 = clientdb.db("Rol_db")
-const Cachedb = db2.collection("CachePJ")
-module.exports = {
+const db = clientdb.db("Server_db");
+const userdb = db.collection("usuarios_server");
+const db2 = clientdb.db("Rol_db");
+const Cachedb = db2.collection("CachePJ");
+const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente");
+const { crearCustomId } = require("../../../utils/constructores/customId");
+const { construirJsonV2Personalidad } = require("../../../utils/constructores/construirPersonalidad");
+
+// ==========================================
+// CONFIGURACIÓN DECLARATIVA DE MODALES
+// ==========================================
+
+const CONFIG_CAMPOS_MODAL = {
+    nombre: {
+        customId: "nombrepj",
+        label: "Nombra a tu personaje",
+        placeholder: "Ej: Shuciika",
+        style: TextInputStyle.Short,
+        minLength: 4,
+        maxLength: 18,
+        required: true,
+    },
+    apodo: {
+        customId: "apodopj",
+        label: "Apodo",
+        placeholder: "(Deja este campo vacio si no tiene apodo)",
+        style: TextInputStyle.Short,
+        minLength: 3,
+        maxLength: 18,
+        required: false,
+    },
+    edad: {
+        customId: "edadpj",
+        label: "¿Cuantos años tendra? (Edad)",
+        placeholder: "Responde con un numero (Edad Min: 13, Edad max: 22)",
+        style: TextInputStyle.Short,
+        minLength: 2,
+        maxLength: 2,
+        required: true,
+    },
+    ciudadorg: {
+        customId: "ciudadpj",
+        label: "¿Tu personaje vivía en...? (Ciudad de origen)",
+        placeholder: "Puede ser una ciudad inventada o real",
+        style: TextInputStyle.Short,
+        maxLength: 12,
+        required: true,
+    },
+    apellido: {
+        customId: "familiapj",
+        label: "¿Tu personaje tiene apellido (Familia)?",
+        placeholder: "Dejar en blanco si no tiene ningun apellido o linaje familiar",
+        style: TextInputStyle.Short,
+        maxLength: 10,
+        required: false,
+    },
+    especialidades: {
+        customId: "especialidadpj",
+        label: "¿En que es bueno tu personaje?",
+        placeholder: "Respuesta libre [Maximo 4 cosas] - [Deportes, cocina, etc. separalo con una coma (,)]",
+        style: TextInputStyle.Paragraph,
+        maxLength: 50,
+        required: false,
+    },
+    historia: {
+        customId: "historiapj",
+        label: "Cuentame más de tu personaje... (Prologo)",
+        placeholder: "[Opcional] Respuesta libre. ",
+        style: TextInputStyle.Paragraph,
+        maxLength: 2000,
+        minLength: 20,
+        required: false,
+    },
+    aspiracion: {
+        customId: "aspiracion",
+        label: "Aspiración",
+        placeholder: "¿Cuál es el objetivo principal de tu personaje al entrar al Instituto?",
+        style: TextInputStyle.Paragraph,
+        maxLength: 2000,
+        minLength: 20,
+        required: true,
+    },
+    peso: {
+        customId: "peso",
+        label: "Peso",
+        placeholder: "Se mide en kilogramos (kg) sin decimales. Min: 20kg - Max: 120kg",
+        style: TextInputStyle.Short,
+        maxLength: 3,
+        minLength: 2,
+        required: true,
+    },
+    estatura: {
+        customId: "estatura",
+        label: "Estatura",
+        placeholder: "Se mide en centimetros (cm), min: 120 - max: 210",
+        style: TextInputStyle.Short,
+        maxLength: 3,
+        minLength: 3,
+        required: true,
+    },
+};
+
+function mostrarModalCampo(interaction, campoKey, config) {
+    const modal = new ModalBuilder()
+        .setTitle("Creacion de ficha")
+        .setCustomId(crearCustomId({
+            action: "actualizarPerfil",
+            userId: interaction.user.id,
+            extras: [campoKey]
+        }));
+
+    const input = new TextInputBuilder()
+        .setCustomId(config.customId)
+        .setLabel(config.label)
+        .setStyle(config.style)
+        .setRequired(Boolean(config.required));
+
+    if (config.placeholder) input.setPlaceholder(config.placeholder);
+    if (config.minLength) input.setMinLength(config.minLength);
+    if (config.maxLength) input.setMaxLength(config.maxLength);
+
+    const row = new ActionRowBuilder().addComponents(input);
+    modal.addComponents(row);
+
+    return interaction.showModal(modal);
+}
+
+function mostrarModalCumpleaños(interaction) {
+    const modal = new ModalBuilder()
+        .setTitle("Cumpleaños de tu personaje")
+        .setCustomId(crearCustomId({
+            action: "actualizarPerfil",
+            userId: interaction.user.id,
+            extras: ["cumpleaños"]
+        }));
+
+    const mesLabel = new LabelBuilder()
+        .setLabel("Mes de nacimiento")
+        .setStringSelectMenuComponent(
+            new StringSelectMenuBuilder()
+                .setCustomId("cumple_mes")
+                .setPlaceholder("Selecciona un mes")
+                .addOptions(
+                    { label: "Enero", value: "1" },
+                    { label: "Febrero", value: "2" },
+                    { label: "Marzo", value: "3" },
+                    { label: "Abril", value: "4" },
+                    { label: "Mayo", value: "5" },
+                    { label: "Junio", value: "6" },
+                    { label: "Julio", value: "7" },
+                    { label: "Agosto", value: "8" },
+                    { label: "Septiembre", value: "9" },
+                    { label: "Octubre", value: "10" },
+                    { label: "Noviembre", value: "11" },
+                    { label: "Diciembre", value: "12" },
+                )
+        );
+
+    const diaLabel = new LabelBuilder()
+        .setLabel("Día de nacimiento (1-31)")
+        .setTextInputComponent(
+            new TextInputBuilder()
+                .setCustomId("cumple_dia")
+                .setStyle(TextInputStyle.Short)
+                .setMinLength(1)
+                .setMaxLength(2)
+                .setPlaceholder("Ej: 14")
+                .setRequired(true)
+        );
+
+    modal.addLabelComponents(mesLabel, diaLabel);
+
+    return interaction.showModal(modal);
+}
+
+// ==========================================
+// CONFIGURACIÓN DE PRONOMBRES Y SEXO
+// ==========================================
+
+const OPCIONES_PRONOMBRES = [
+    { label: "He/Him", value: "pronombres*HeHim", key: "HeHim", description: null },
+    { label: "She/Her", value: "pronombres*SheHer", key: "SheHer", description: null },
+    { label: "They/Them", value: "pronombres*TheyThem", key: "TheyThem", description: null },
+    { label: "Any/all", value: "pronombres*AnyAll", key: "AnyAll", description: null },
+    { label: "Ask me", value: "pronombres*askme", key: "askme", description: null },
+];
+
+const MAPA_PRONOMBRES = {
+    HeHim: "He/Him",
+    SheHer: "She/Her",
+    TheyThem: "They/Them",
+    AnyAll: "Any/all",
+    askme: "Ask me",
+    "pronombres*HeHim": "He/Him",
+    "pronombres*SheHer": "She/Her",
+    "pronombres*TheyThem": "They/Them",
+    "pronombres*AnyAll": "Any/all",
+    "pronombres*askme": "Ask me",
+    "He/Him": "He/Him",
+    "She/Her": "She/Her",
+    "They/Them": "They/Them",
+    "Any/all": "Any/all",
+    "Ask me": "Ask me",
+};
+
+const MAPA_SEXO_A_PRONOMBRE = {
+    "Masculino": "He/Him",
+    "Femenino": "She/Her",
+    "Sin especificar": "They/Them",
+};
+
+function obtenerPronombrePorSexo(sexo) {
+    return MAPA_SEXO_A_PRONOMBRE[sexo] || "They/Them";
+}
+
+function construirJsonV2Sex(userId, sexoActual = null, pronombreActual = null) {
+    const pronombreFormateado = pronombreActual ? (MAPA_PRONOMBRES[pronombreActual] || pronombreActual) : null;
+
+    const opcionesSexo = [
+        {
+            label: "Masculino",
+            value: "sexo*Masculino",
+            description: null,
+            emoji: { id: "1368440396614602853", name: "boy", animated: false },
+            default: sexoActual === "Masculino"
+        },
+        {
+            label: "Femenino",
+            value: "sexo*Femenino",
+            description: null,
+            emoji: { id: "1368440420824256672", name: "girl", animated: false },
+            default: sexoActual === "Femenino"
+        },
+        {
+            label: "Prefiero no especificar",
+            value: "sexo*Sin especificar",
+            description: null,
+            emoji: { id: "1368440451853582386", name: "question", animated: false },
+            default: sexoActual === "Sin especificar"
+        }
+    ];
+
+    const opcionesPronombres = OPCIONES_PRONOMBRES.map(opt => ({
+        label: opt.label,
+        value: opt.value,
+        description: opt.description,
+        default: Boolean(
+            pronombreFormateado && (
+                opt.label.toLowerCase() === pronombreFormateado.toLowerCase() ||
+                opt.key.toLowerCase() === pronombreFormateado.toLowerCase()
+            )
+        )
+    }));
+
+    return [
+        {
+            type: 17,
+            accent_color: null,
+            spoiler: false,
+            components: [
+                {
+                    type: 9,
+                    accessory: {
+                        type: 11,
+                        media: { url: "https://i.pinimg.com/736x/54/f5/34/54f5342560444a7bedce8d9854b8a401.jpg" },
+                        description: null,
+                        spoiler: false
+                    },
+                    components: [
+                        {
+                            type: 10,
+                            content: "# Elige el sexo biológico de tu personaje\n-# Tambien puedes elegir tus pronombres (Opcional). Se seleccionan de forma automática según el sexo biológico que elijas. ( •̀ ω •́ )✧"
+                        }
+                    ]
+                },
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 3,
+                            custom_id: crearCustomId({
+                                action: "crear_ficha",
+                                userId: userId,
+                                extras: ["sexo"]
+                            }),
+                            options: opcionesSexo,
+                            placeholder: "Selecciona una opción...",
+                            min_values: 1,
+                            max_values: 1,
+                            disabled: false
+                        }
+                    ]
+                },
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 3,
+                            custom_id: crearCustomId({
+                                action: "crear_ficha",
+                                userId: userId,
+                                extras: ["pronombres"]
+                            }),
+                            options: opcionesPronombres,
+                            placeholder: "Selecciona una opción...",
+                            min_values: 1,
+                            max_values: 1,
+                            disabled: false
+                        }
+                    ]
+                }
+            ]
+        }
+    ];
+}
+
+// ==========================================
+// HANDLERS ESPECÍFICOS DE INTERACCIÓN
+// ==========================================
+
+async function manejarSexo(interaction, msg, extra, extras) {
+    if (extra || extras?.length > 0) {
+        const sexoSeleccionado = extra;
+        const pronombreAuto = obtenerPronombrePorSexo(sexoSeleccionado);
+
+        try {
+            await Cachedb.updateOne({ _id: interaction.user.id }, {
+                $setOnInsert: { created: Date.now() },
+                $set: {
+                    sexo: sexoSeleccionado,
+                    pronombres: pronombreAuto,
+                    pronombre: pronombreAuto
+                }
+            }, { upsert: true });
+
+            const info = {
+                userId: interaction.user.id,
+                action: "sexo",
+                option: sexoSeleccionado,
+                pronombres: pronombreAuto
+            };
+
+            const jsonV2Actualizado = construirJsonV2Sex(interaction.user.id, sexoSeleccionado, pronombreAuto);
+
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.update({ components: jsonV2Actualizado });
+            } else {
+                await interaction.editReply({ components: jsonV2Actualizado });
+            }
+
+            if (msg) {
+                await updateMessage(interaction, msg, null, true, info);
+            }
+        } catch (error) {
+            console.log("Error al actualizar el sexo", error);
+        }
+        return;
+    }
+
+    const userCacheSexo = await Cachedb.findOne({ _id: interaction.user.id });
+    const jsonV2Sex = construirJsonV2Sex(interaction.user.id, userCacheSexo?.sexo, userCacheSexo?.pronombres);
+    return await interaction.reply({ components: jsonV2Sex, flags: ["Ephemeral", "IsComponentsV2"] });
+}
+
+async function manejarPronombres(interaction, msg, extra, extras) {
+    if (extra || extras?.length > 0) {
+        const pronombreFormateado = MAPA_PRONOMBRES[extra] || extra;
+
+        try {
+            await Cachedb.updateOne({ _id: interaction.user.id }, {
+                $setOnInsert: { created: Date.now() },
+                $set: {
+                    pronombres: pronombreFormateado,
+                    pronombre: pronombreFormateado
+                }
+            }, { upsert: true });
+
+            const userCachePj = await Cachedb.findOne({ _id: interaction.user.id });
+            const sexoActual = userCachePj?.sexo || null;
+
+            const info = {
+                userId: interaction.user.id,
+                action: "pronombres",
+                option: pronombreFormateado,
+                pronombres: pronombreFormateado
+            };
+
+            const jsonV2Actualizado = construirJsonV2Sex(interaction.user.id, sexoActual, pronombreFormateado);
+
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.update({ components: jsonV2Actualizado });
+            } else {
+                await interaction.editReply({ components: jsonV2Actualizado });
+            }
+
+            if (msg) {
+                await updateMessage(interaction, msg, null, true, info);
+            }
+        } catch (error) {
+            console.log("Error al actualizar los pronombres", error);
+        }
+        return;
+    }
+
+    const userCachePron = await Cachedb.findOne({ _id: interaction.user.id });
+    const jsonV2Pron = construirJsonV2Sex(interaction.user.id, userCachePron?.sexo, userCachePron?.pronombres);
+    return await interaction.reply({ components: jsonV2Pron, flags: ["Ephemeral", "IsComponentsV2"] });
+}
+
+async function manejarPersonalidad(interaction, msg, extra) {
+    if (extra) {
+        try {
+            await Cachedb.updateOne({ _id: interaction.user.id }, {
+                $setOnInsert: { created: Date.now() },
+                $set: { personalidad: extra }
+            }, { upsert: true });
+
+            const info = {
+                userId: interaction.user.id,
+                action: "personalidad",
+                option: extra
+            };
+
+            const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, extra, "crear_ficha");
+
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.update({ components: personalidadV2 });
+            } else {
+                await interaction.editReply({ components: personalidadV2 });
+            }
+
+            if (msg) {
+                await updateMessage(interaction, msg, null, true, info);
+            }
+        } catch (error) {
+            console.log("Error al actualizar la personalidad", error);
+        }
+        return;
+    }
+
+    const userCachePj = await Cachedb.findOne({ _id: interaction.user.id });
+    const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, userCachePj?.personalidad);
+    return await interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] });
+}
+
+// ==========================================
+// EXPORTACIÓN DEL COMPONENTE
+// ==========================================
+
+module.exports = crearStringSelectMenu({
     customId: "crear_ficha",
-    selectAutor: true,
+    soloAutor: true,
+    optionNames: ["action"],
 
-    /**
-     * 
-     * @param {*} client 
-     * @param {ChatInputCommandInteraction} interaction 
-     */
-    ejecutar: async ({client, interaction, character, componentData}) => {
-
-        const [action, extra] = componentData.split("*")
-
-        const userfind = await userdb.findOne({ _id: interaction.user.id })
-        const messageId = userfind?.fichaStatus?.messageTemp
-        const channel = await client.channels.fetch(userfind?.fichaStatus?.channelTemp)
-        const msg = await channel.messages.fetch(messageId)
-
-        const modal = new ModalBuilder()
-            .setTitle("Creacion de ficha")
-            .setCustomId("actualizarPerfil")
-        const row = new ActionRowBuilder()
-
-        switch ((action || interaction.values[0])) {
-            case "nombre":
-                const nombre = new TextInputBuilder()
-                    .setCustomId("nombrepj")
-                    .setLabel("Nombra a tu personaje")
-                    .setPlaceholder("Ej: Shuciika")
-                    .setStyle(TextInputStyle.Short)
-                    .setMinLength(4)
-                    .setMaxLength(18)
-                    .setRequired(true)
-
-                modal.setCustomId("actualizarPerfil-nombre")
-                row.addComponents(nombre)
-                break;
-            case "apodo":
-                const apodo = new TextInputBuilder()
-                    .setCustomId("apodopj")
-                    .setLabel("Apodo")
-                    .setPlaceholder("(Deja este campo vacio si no tiene apodo)")
-                    .setStyle(TextInputStyle.Short)
-                    .setMinLength(3)
-                    .setMaxLength(18)
-                    .setRequired(false)
-                modal.setCustomId("actualizarPerfil-apodo")
-                row.addComponents(apodo)
-                break;
-            case "sexo":
-
-
-                if (extra) {
-
-                    try {
-
-                        await Cachedb.updateOne({ _id: interaction.user.id }, {
-                            $setOnInsert: {
-                                created: Date.now(),
-                            },
-                            $set: {
-                                sexo: extra,
-                            }
-                        }, { upsert: true })
-
-                        const info = {
-                            userId: interaction.user.id,
-                            action: action,
-                            option: extra
-                        }
-
-
-                        await interaction.deferUpdate();
-
-                        await updateMessage(interaction, msg, null, true, info);
-
-                    } catch (error) {
-                        console.log("Error al actualizar el sexo", error);
-                    }
-                    return;
-                }
-
-                const jsonV2Sex = [
-                    {
-                        "type": 17,
-                        "accent_color": null,
-                        "spoiler": false,
-                        "components": [
-                            {
-                                "type": 9,
-                                "accessory": {
-                                    "type": 11,
-                                    "media": {
-                                        "url": "https://i.pinimg.com/736x/54/f5/34/54f5342560444a7bedce8d9854b8a401.jpg"
-                                    },
-                                    "description": null,
-                                    "spoiler": false
-                                },
-                                "components": [
-                                    {
-                                        "type": 10,
-                                        "content": "# Elige el sexo de tu personaje "
-                                    }
-                                ]
-                            },
-                            {
-                                "type": 1,
-                                "components": [
-                                    {
-                                        "type": 3,
-                                        "custom_id": `crear_ficha-${interaction.user.id}`,
-                                        "options": [
-                                            {
-                                                "label": "Masculino",
-                                                "value": "sexo*Masculino",
-                                                "description": null,
-                                                "emoji": {
-                                                    "id": "1368440396614602853",
-                                                    "name": "boy",
-                                                    "animated": false
-                                                },
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "Femenino",
-                                                "value": "sexo*Femenino",
-                                                "description": null,
-                                                "emoji": {
-                                                    "id": "1368440420824256672",
-                                                    "name": "girl",
-                                                    "animated": false
-                                                },
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "No binario",
-                                                "value": "sexo*No binario",
-                                                "description": null,
-                                                "emoji": {
-                                                    "id": "1368440451853582386",
-                                                    "name": "question",
-                                                    "animated": false
-                                                },
-                                                "default": false
-                                            }
-                                        ],
-                                        "placeholder": "Selecciona una opción...",
-                                        "min_values": 1,
-                                        "max_values": 1,
-                                        "disabled": false
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-
-                return await interaction.reply({ components: jsonV2Sex, flags: ["Ephemeral", "IsComponentsV2"] })
-                break;
-            case "edad":
-                const edad = new TextInputBuilder()
-                    .setCustomId("edadpj")
-                    .setLabel("¿Cuantos años tendra? (Edad)")
-                    .setPlaceholder("Responde con un numero (Edad Min: 13, Edad max: 22)")
-                    .setStyle(TextInputStyle.Short)
-                    .setMinLength(2)
-                    .setMaxLength(2)
-                    .setRequired(true)
-
-                modal.setCustomId("actualizarPerfil-edad")
-                row.addComponents(edad)
-                break;
-            case "cumpleaños":
-                const cumpleaños = new TextInputBuilder()
-                    .setCustomId("cumplepj")
-                    .setLabel("Cumpleaños de tu personaje")
-                    .setPlaceholder("**Respuesta con numeros. Recuerda respetar la diagonal para separar /** (04/12 => Día/Mes)")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setMinLength(3)
-                    .setMaxLength(5)
-                    .setRequired(true)
-                row.addComponents(cumpleaños)
-                modal.setCustomId("actualizarPerfil-cumpleaños")
-                break;
-            case "ciudadorg":
-                const ciudadorg = new TextInputBuilder()
-                    .setCustomId("ciudadpj")
-                    .setLabel("¿Tu personaje vivía en...? (Ciudad de origen)")
-                    .setPlaceholder("Puede ser una ciudad inventada o real")
-                    .setStyle(TextInputStyle.Short)
-                    .setMaxLength(12)
-                    .setRequired(true)
-                row.addComponents(ciudadorg)
-                modal.setCustomId("actualizarPerfil-ciudadorg")
-                break;
-            case "personalidad":
-
-                if (extra) {
-
-                    try {
-
-                        await Cachedb.updateOne({ _id: interaction.user.id }, {
-                            $setOnInsert: {
-                                created: Date.now(),
-                            },
-                            $set: {
-                                personalidad: extra,
-                            }
-                        }, { upsert: true })
-
-                        const info = {
-                            userId: interaction.user.id,
-                            action: action,
-                            option: extra
-                        }
-
-
-                        await interaction.deferUpdate();
-
-                        await updateMessage(interaction, msg, null, true, info);
-
-                    } catch (error) {
-                        console.log("Error al actualizar el apodo", error);
-                    }
-                    return;
-                }
-
-                const personalidadV2 = [
-                    {
-                        "type": 17,
-                        "accent_color": null,
-                        "spoiler": false,
-                        "components": [
-                            {
-                                "type": 9,
-                                "accessory": {
-                                    "type": 11,
-                                    "media": {
-                                        "url": "https://i.pinimg.com/originals/9b/77/07/9b7707ecb96eb24a57b7c6531236b540.gif"
-                                    },
-                                    "description": null,
-                                    "spoiler": false
-                                },
-                                "components": [
-                                    {
-                                        "type": 10,
-                                        "content": "# Elige la personalidad de tu personaje"
-                                    }
-                                ]
-                            },
-                            {
-                                "type": 14,
-                                "divider": true,
-                                "spacing": 1
-                            },
-                            {
-                                "type": 1,
-                                "components": [
-                                    {
-                                        "type": 3,
-                                        "custom_id": `crear_ficha-${interaction.user.id}`,
-                                        "options": [
-                                            {
-                                                "label": "𖹭.ᐟ ANALISTAS:",
-                                                "value": "notOpcion*A",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Arquitecto Arcano (INTJ) ࣪",
-                                                "value": "personalidad*INTJ",
-                                                "description": "Estrategas meticulosos que dominan la teoría mágica",
-                                                "emoji": null,
-                                                "default": false,
-                                            },
-                                            {
-                                                "label": "⤿ Lógico Místico (INTP) ࣪",
-                                                "value": "personalidad*INTP",
-                                                "description": "Inventores de nuevos hechizos y teorías mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Comandante de Hechiceros (ENTJ)",
-                                                "value": "personalidad*ENTJ",
-                                                "description": "Líderes naturales de grupos mágicos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Innovador Arcano (ENTP)",
-                                                "value": "personalidad*ENTP",
-                                                "description": "Debatientes que desafían las normas mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "ָ☾. DIPLOMÁTICOS:",
-                                                "value": "notOpcion*B",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Consejero Visionario (INFJ)",
-                                                "value": "personalidad*INFJ",
-                                                "description": "Guardianes de antiguas profecías",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Sanador Empático (INFP)",
-                                                "value": "personalidad*INFP",
-                                                "description": "Curadores que conectan con las emociones",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Líder Inspirador (ENFJ)",
-                                                "value": "personalidad*ENFJ",
-                                                "description": "Mentores carismáticos de jóvenes magos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Activista Mágico (ENFP)",
-                                                "value": "personalidad*ENFP",
-                                                "description": "Revolucionarios que luchan por la igualdad",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⋆˙⟡ CENTINELAS: ",
-                                                "value": "notOpcion*C",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Guardián del Orden (ISTJ)",
-                                                "value": "personalidad*ISTJ",
-                                                "description": "Defensores de las tradiciones mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Protector Devoto (ISFJ)",
-                                                "value": "personalidad*ISFJ",
-                                                "description": "Guardaespaldas mágicos y cuidadores",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Ejecutor de Leyes (ESTJ)",
-                                                "value": "personalidad*ESTJ",
-                                                "description": "Administradores de instituciones mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Embajador Mágico (ESFJ)",
-                                                "value": "personalidad*ESFJ",
-                                                "description": "Mediadores entre comunidades",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⋆☀︎. EXPLORADORES: ",
-                                                "value": "notOpcion*D",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Artesano Místico (ISTP)",
-                                                "value": "personalidad*ISTP",
-                                                "description": "Maestros en la creación de objetos mágicos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Artista Elemental (ISFP)",
-                                                "value": "personalidad*ISFP",
-                                                "description": "Creadores que expresan magia a través del arte",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Aventurero Mágico (ESTP)",
-                                                "value": "personalidad*ESTP",
-                                                "description": "Exploradores de lugares peligrosos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Animador Ilusionista (ESFP)",
-                                                "value": "personalidad*ESFP",
-                                                "description": "Entretenedores con magia espectacular",
-                                                "emoji": null,
-                                                "default": false
-                                            }
-                                        ],
-                                        "placeholder": "Selecciona una opción...",
-                                        "min_values": 1,
-                                        "max_values": 1,
-                                        "disabled": false
-                                    }
-                                ]
-                            },
-                            {
-                                "type": 10,
-                                "content": "Si tienes dudas, recuerda revisar los [Arquetipos de personalidad](https://canary.discord.com/channels/716342375303217285/1362988047578435605) ( •̀ ω •́ )✧\n\n" +
-                                    `-# Nota:  Manifiesten para que Discord agregue la posibilidad de deshabilitar opciones de los Select Menus >:`
-                            }
-                        ]
-                    }
-                ]
-
-                return interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] })
-            case "apellido":
-                const familia = new TextInputBuilder()
-                    .setCustomId("familiapj")
-                    .setLabel("¿Tu personaje tiene apellido (Familia)?")
-                    .setPlaceholder("Dejar en blanco si no tiene ningun apellido o linaje familiar")
-                    .setStyle(TextInputStyle.Short)
-                    .setMaxLength(10)
-                    .setRequired(false)
-                modal.setCustomId("actualizarPerfil-apellido")
-                row.addComponents(familia)
-                break;
-            case "especialidades":
-                const especialidad = new TextInputBuilder()
-                    .setCustomId("especialidadpj")
-                    .setLabel("¿En que es bueno tu personaje?")
-                    .setPlaceholder("Respuesta libre [Maximo 4 cosas] - [Deportes, cocina, etc. separalo con una coma (,)]")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setMaxLength(50)
-                    .setRequired(false)
-                row.addComponents(especialidad)
-                modal.setCustomId("actualizarPerfil-especialidades")
-                break;
-            case "historia":
-                const historia = new TextInputBuilder()
-                    .setCustomId("historiapj")
-                    .setLabel("Cuentame más de tu personaje... (Prologo)")
-                    .setPlaceholder("[Opcional] Respuesta libre. ")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setMaxLength(2000)
-                    .setMinLength(20)
-                    .setRequired(false)
-                row.addComponents(historia)
-                modal.setCustomId("actualizarPerfil-historia")
-                break;
-            case "aspiracion":
-                const aspiracion = new TextInputBuilder()
-                    .setCustomId("aspiracion")
-                    .setLabel("Aspiración")
-                    .setPlaceholder("¿Cuál es el objetivo principal de tu personaje al entrar al Instituto?")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setMaxLength(2000)
-                    .setMinLength(20)
-                    .setRequired(true)
-                row.addComponents(aspiracion)
-                modal.setCustomId("actualizarPerfil-aspiracion")
-                break;
-            case "peso":
-                const peso = new TextInputBuilder()
-                    .setCustomId("peso")
-                    .setLabel("Peso")
-                    .setPlaceholder("Se mide en kilogramos (kg) sin decimales. Min: 20kg - Max: 120kg")
-                    .setStyle(TextInputStyle.Short)
-                    .setMaxLength(3)
-                    .setMinLength(2)
-                    .setRequired(true)
-                row.addComponents(peso)
-                modal.setCustomId("actualizarPerfil-peso")
-                break;
-            case "estatura":
-                const estatura = new TextInputBuilder()
-                    .setCustomId("estatura")
-                    .setLabel("Estatura")
-                    .setPlaceholder("Se mide en centimetros (cm), min: 120 - max: 210")
-                    .setStyle(TextInputStyle.Short)
-                    .setMaxLength(3)
-                    .setMinLength(3)
-                    .setRequired(true)
-                row.addComponents(estatura)
-                modal.setCustomId("actualizarPerfil-estatura")
-                break;
-            case "notOpcion":
-                return interaction.reply({ content: "Hey, eso es solo una opción de decoración ＞﹏＜", flags: ["Ephemeral"] })
-            default:
-                break;
+    ejecutar: async ({ client, interaction, componentData: { extras }, options: { action } }) => {
+        let extra;
+        if (action?.includes("*")) {
+            const [actionPrincipal, ext] = action.split("*");
+            action = actionPrincipal;
+            extra = ext;
         }
 
+        const selectedAction = action || interaction.values?.[0];
 
+        // 1. Si la acción corresponde a cumpleaños o a un campo de modal, abrirlo de inmediato (sin esperar fetchs de red)
+        if (selectedAction === "cumpleaños") {
+            return await mostrarModalCumpleaños(interaction);
+        }
 
-        const MDs = new TextInputBuilder()
-            .setCustomId("mds")
-            .setLabel("¿Te envío tu ficha por mensaje directo?")
-            .setPlaceholder('Responde solamente con "Si" y "No"')
-            .setStyle(TextInputStyle.Short)
-            .setMaxLength(2)
-            .setRequired(true)
+        const configModal = CONFIG_CAMPOS_MODAL[selectedAction];
+        if (configModal) {
+            return await mostrarModalCampo(interaction, selectedAction, configModal);
+        }
 
+        // 2. Acciones interactivas que requieren el mensaje de previsualización temporal
+        let msg = null;
+        try {
+            const userfind = await userdb.findOne({ _id: interaction.user.id });
+            const messageId = userfind?.fichaStatus?.messageTemp;
+            const channelId = userfind?.fichaStatus?.channelTemp;
+            if (channelId && messageId) {
+                const channel = await client.channels.fetch(channelId);
+                msg = await channel.messages.fetch(messageId);
+            }
+        } catch (err) {
+            console.log("No se pudo obtener el mensaje preview temporal", err);
+        }
 
-        modal.addComponents(row)
-        await interaction.showModal(modal)
+        // 3. Manejo de componentes interactivos y decorativos
+        switch (selectedAction) {
+            case "sexo":
+                return await manejarSexo(interaction, msg, extra, extras);
+            case "pronombres":
+                return await manejarPronombres(interaction, msg, extra, extras);
+            case "personalidad":
+                return await manejarPersonalidad(interaction, msg, extra);
+            case "notOpcion":
+                return await interaction.reply({ content: "Hey, eso es solo una opción de decoración ＞﹏＜", flags: ["Ephemeral"] });
+            default:
+                console.log("fichas.js - Acción no reconocida:", selectedAction);
+                return await interaction.reply({ content: "Acción no reconocida. Por favor, intenta de nuevo.", flags: ["Ephemeral"] });
+        }
     }
-};
+});

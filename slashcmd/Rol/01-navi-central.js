@@ -55,10 +55,10 @@ module.exports = {
         const subcommand     = this.subcommands.get(subcommandName);
         console.log("Nombre del subcomando:", subcommandName)
 
-        if (!subcommand || subcommand?.enMantenimiento) return interaction.reply({ content: "Este comando esta en mantenimiento. Se paciente （︶^︶)", ephemeral: true })
+        if (!subcommand || subcommand?.enMantenimiento) return interaction.reply({ content: "Este comando esta en mantenimiento. Se paciente （︶^︶)", flags: ["Ephemeral"] })
 
         try {
-            if (subcommand.isDevOnly && !devs.includes(interaction.member.id)) return interaction.reply({ content: "Este comando solo esta disponible para el Staff 〒▽〒", ephemeral: true })
+            if (subcommand.isDevOnly && !devs.includes(interaction.member.id)) return interaction.reply({ content: "Este comando solo esta disponible para el Staff 〒▽〒", flags: ["Ephemeral"] })
 
             const requirements = subcommand.requirements || {};
 
@@ -72,17 +72,17 @@ module.exports = {
 
             if (requirements.character?.required && !character) {
                 if (cachepj) {
-                    return interaction.reply({ content: "No puedes usar este comando porque necesitas que tu ficha primero se verifique 〒▽〒\n-# Sé paciente y espera a alguien del staff.", ephemeral: true });
+                    return interaction.reply({ content: "No puedes usar este comando porque necesitas que tu ficha primero se verifique 〒▽〒\n-# Sé paciente y espera a alguien del staff.", flags: ["Ephemeral"] });
                 }
-                return interaction.reply({ content: "No puedes usar este comando porque necesitas un personaje＞﹏＜\n-# Intenta crear uno con `/rol crear_ficha`.", ephemeral: true });
+                return interaction.reply({ content: "No puedes usar este comando porque necesitas un personaje＞﹏＜\n-# Intenta crear uno con `/rol crear_ficha`.", flags: ["Ephemeral"] });
             }
 
             if (requirements.soul?.required && !soul) {
-                return interaction.reply({ content: "Tu personaje necesita despertar su poder para usar este comando 〒▽〒\n-# Debes esperar a que ocurra en el rol.", ephemeral: true });
+                return interaction.reply({ content: "Tu personaje necesita despertar su poder para usar este comando 〒▽〒\n-# Debes esperar a que ocurra en el rol.", flags: ["Ephemeral"] });
             }
 
             if (requirements.cache?.required && !cachepj) {
-                return interaction.reply({ content: "Necesitas tener un personaje en proceso de registro 〒▽〒\n-# Intenta crear uno con `/rol crear_ficha`.", ephemeral: true });
+                return interaction.reply({ content: "Necesitas tener un personaje en proceso de registro 〒▽〒\n-# Intenta crear uno con `/rol crear_ficha`.", flags: ["Ephemeral"] });
             }
 
             await subcommand.ejecutar(client, interaction, {
@@ -95,9 +95,9 @@ module.exports = {
             console.error("Error al ejecutar subcomando en 01-navi-central.js:", error);
             try {
                 if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true }).catch(() => {});
+                    await interaction.editReply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", flags: ["Ephemeral"] }).catch(() => {});
                 } else {
-                    await interaction.reply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", ephemeral: true }).catch(() => {});
+                    await interaction.reply({ content: "Ocurrió un error al ejecutar este comando... 〒▽〒\n-# Envía esta captura al MD del owner (<@!665421882694041630>)", flags: ["Ephemeral"] }).catch(() => {});
                 }
 
                 const stackTrace = require('stack-trace');

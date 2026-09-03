@@ -20,7 +20,7 @@ module.exports = {
         const userf = await userdb.findOne({_id: interaction.user.id})
         
         if(!character) {
-            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+            return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", flags: ["Ephemeral"]})
         }
 
         switch (options) {
@@ -28,7 +28,7 @@ module.exports = {
             case "fotoselect" : 
             if((Date.now() - userf?.time?.pjFoto) < 300000) {
                 const time =  300000 - (Date.now() - userf?.time?.pjFoto)
-                return interaction.reply({ content: "¡Oye!, Acabo de pegar tu foto... Bueno, es lo de menos (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra foto nueva (⇀‸↼‶)", ephemeral: true})
+                return interaction.reply({ content: "¡Oye!, Acabo de pegar tu foto... Bueno, es lo de menos (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra foto nueva (⇀‸↼‶)", flags: ["Ephemeral"]})
             }
             await optionFoto()
             break;
@@ -80,7 +80,7 @@ module.exports = {
             const time =  (3600000*24) - (Date.now() - userf?.time?.pjApodo) 
 
             if((Date.now() - userf?.time?.pjApodo) < (3600000 * 24) ) {
-                return interaction.reply({ content: "¡Oye!, Acabo de decirle a mis amigos de tu nuevo apodo... (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["h", "m", "s"], round: true, conjunction: " y "})}` + "`** para establecer un nuevo apodo (⇀‸↼‶)", ephemeral: true})
+                return interaction.reply({ content: "¡Oye!, Acabo de decirle a mis amigos de tu nuevo apodo... (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["h", "m", "s"], round: true, conjunction: " y "})}` + "`** para establecer un nuevo apodo (⇀‸↼‶)", flags: ["Ephemeral"]})
             }
     
             const modal = new ModalBuilder()
@@ -109,11 +109,11 @@ module.exports = {
 
 
             if((Date.now() - userf?.time?.pjDescripcion) < 1_000 * 60) {
-                return interaction.reply({ content: "¡Oye!, acabo de cambiar tu descripcion (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer una nueva descripción (⇀‸↼‶)", ephemeral: true})
+                return interaction.reply({ content: "¡Oye!, acabo de cambiar tu descripcion (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer una nueva descripción (⇀‸↼‶)", flags: ["Ephemeral"]})
             }
     
             if(cachepj) {
-                return interaction.reply({ content: "Esta funcion es exclusiva de personajes registrados\nQue tal si registras tu personaje usando el comando /rol enviar-ficha", ephemeral: true})
+                return interaction.reply({ content: "Esta funcion es exclusiva de personajes registrados\nQue tal si registras tu personaje usando el comando /rol enviar-ficha", flags: ["Ephemeral"]})
             }
     
             
@@ -141,7 +141,7 @@ module.exports = {
             const time = 60000 - (Date.now() - userf?.time?.pjHistoria) 
 
             if((Date.now() - userf?.time?.pjHistoria) < 60000) {
-                return interaction.reply({ content: "¡Oye!, Acabo de escribir mucho... estoy cansada (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra historia(⇀‸↼‶)", ephemeral: true})
+                return interaction.reply({ content: "¡Oye!, Acabo de escribir mucho... estoy cansada (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y "})}` + "`** para establecer otra historia(⇀‸↼‶)", flags: ["Ephemeral"]})
             }
         
     
@@ -166,11 +166,11 @@ module.exports = {
 
         async function optionNombre() {
             if(userf?.PermissionsTime?.editname <= 0) {
-                return interaction.reply({ content: "¡Oye!, no hay más autocorrector para cambiar tu nombre... quizás debas obtener más con un `permiso especial` (￣へ￣)", ephemeral: true})
+                return interaction.reply({ content: "¡Oye!, no hay más autocorrector para cambiar tu nombre... quizás debas obtener más con un `permiso especial` (￣へ￣)", flags: ["Ephemeral"]})
             }
     
             if(!character) {
-                return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", ephemeral: true})
+                return interaction.reply({ content: "Primero empecemos por crear tu personaje, ¿que dices (´･ᴗ･´)?\n-# ¿Porque no intentas crear uno?, usa el comando `/rol crear_ficha`", flags: ["Ephemeral"]})
             }
         
     

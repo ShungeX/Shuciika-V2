@@ -30,9 +30,9 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
     const userfind = await userdb.findOne({_id: interaction.user.id})
 
     if(character) {
-        return interaction.reply({content: "¡Ya tienes registrado a un personaje!. ☆⌒(>。<) " + `**(${character.Nombre})**` + "\nUsa `/rol perfil` para verlo \n", ephemeral: true})
+        return interaction.reply({content: "¡Ya tienes registrado a un personaje!. ☆⌒(>。<) " + `**(${character.Nombre})**` + "\nUsa `/rol perfil` para verlo \n", flags: ["Ephemeral"]})
     }else if(cachepj?.isFinish) {
-        return interaction.reply({content: '¡Ya tienes una ficha!. ☆⌒(>。<) \n para poder enviarla solo usa **`' + `/rol enviar-ficha` + '`**', ephemeral: true})
+        return interaction.reply({content: '¡Ya tienes una ficha!. ☆⌒(>。<) \n para poder enviarla solo usa **`' + `/rol enviar-ficha` + '`**', flags: ["Ephemeral"]})
     }else if(userfind?.messageTemp) {
         const channel = await client.channels.fetch(userfind.channelTemp) || null
         
@@ -45,7 +45,7 @@ ejecutar: async(client, interaction, {character, cachepj}) => {
                 .setURL(`https://discord.com/channels/${interaction.guildId}/${channel.id}/${userfind.messageTemp}`)
                 .setDescription(`Ya existe una interacccion activa en ${channel}`)
                 .setColor("Red")
-                return interaction.reply({embeds: [embed], ephemeral: true})
+                return interaction.reply({embeds: [embed], flags: ["Ephemeral"]})
             }
         }catch(e) {
             console.log("No se encontro el mensaje")

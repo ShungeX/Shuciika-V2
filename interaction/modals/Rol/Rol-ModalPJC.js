@@ -69,19 +69,19 @@ module.exports = {
 
 
         if(await Badwords()) {
-            return interaction.reply({content: "¡Hey! Tu nombre o apodo tiene malas palabras （︶^︶）| [Verifica el nombre de tu personaje]", ephemeral: true})
+            return interaction.reply({content: "¡Hey! Tu nombre o apodo tiene malas palabras （︶^︶）| [Verifica el nombre de tu personaje]", flags: ["Ephemeral"]})
         }
 
         if(!sexo.includes(sexopj)) {
-            return interaction.reply({ content: "Colocaste un valor incorrecto o no valido en **`Sexo`** (・・ )?.\n `[¿Tienes dudas?, revisa:]` <#920368782126510201>", ephemeral: true})
+            return interaction.reply({ content: "Colocaste un valor incorrecto o no valido en **`Sexo`** (・・ )?.\n `[¿Tienes dudas?, revisa:]` <#920368782126510201>", flags: ["Ephemeral"]})
           }
     
           if(edadpj <= 11 || edadpj >= 19) {
-            return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 12 y menores a 18]`", ephemeral: true})
+            return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 12 y menores a 18]`", flags: ["Ephemeral"]})
           }
     
           if(isNaN(edadpj)) {
-            return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", ephemeral: true})
+            return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"]})
           }
 
 
@@ -182,7 +182,7 @@ module.exports = {
               }else if(No.includes(mdsop)) {
                 mdsop = false
               }else {
-                return interaction.reply({ content: "No colocaste un valor correcto en la primera pregunta. \n Responde con un **`Si`** o un **`No`**", ephemeral: true })
+                return interaction.reply({ content: "No colocaste un valor correcto en la primera pregunta. \n Responde con un **`Si`** o un **`No`**", flags: ["Ephemeral"] })
               }
           }
 

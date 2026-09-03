@@ -37,7 +37,7 @@ ejecutar: async(client, interaction) => {
         .setAuthor({ name: `${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true })})
         .setThumbnail(`${characterCache.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png"}`)
         .setDescription(` **Nombre:** ${characterCache.name} \n **Apodo:** ${characterCache.apodo || "No establecido"}` +
-         "\n\n`🎎 Sexo:`" + ` *${characterCache.sexo}*` +
+         "\n\n`🎎 Sexo:`" + ` *${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + 
          "\n\n`🍭 Edad:`" + ` *${characterCache.edad}*` + 
          "\n\n`🎂 Cumpleaños:`" + ` *${characterCache.cumpleaños}*` +
          "\n\n`🏙 Ciudad Origen:`" + ` *${characterCache.ciudadOrg}*` +

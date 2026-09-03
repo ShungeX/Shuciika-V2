@@ -7,18 +7,21 @@ const characters = db2.collection("Personajes")
 const Cachedb = db2.collection("CachePJ")
 const dataCache = new Map()
 const { formatearTextoLim } = require("../../../utils/textStrings")
+const { crearModal } = require("../../../utils/constructores/crearComponente");
+const { crearCustomId } = require("../../../utils/constructores/customId");
+const { construirJsonV2Personalidad } = require("../../../utils/constructores/construirPersonalidad");
 
-module.exports = {
+module.exports = crearModal({
     customId: "actualizarPerfil",
-    /**
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction
-     */
+    formatearTextoLim,
 
-    ejecutar: async function (client, interaction, selectOption, messageIds) {
+    ejecutar: async function ({ client, interaction, componentData: { extras }, options: { defaultField } }) {
+
+        const [selectOption, messageIds] = extras
         const userfind = await userdb.findOne({ _id: interaction.user.id })
         const fechaRegex = /^(\d{1,2})[\/\-](\d{1,2})$/;
 
+        // Validar y formatear elementos de la ficha
         if (messageIds) {
             const messag = await interaction.channel.messages.fetch(messageIds)
             switch (selectOption) {
@@ -26,7 +29,7 @@ module.exports = {
                     const nombre = interaction.fields.getTextInputValue("nombrepj")
 
                     if (await Badwords()) {
-                        return interaction.reply({ content: `¡Hey! El nombre **${nombre}** contiene malas palabras（︶^︶）\n-# [Verifica el nombre de tu personaje]`, ephemeral: true })
+                        return interaction.reply({ content: `¡Hey! El nombre **${nombre}** contiene malas palabras（︶^︶）\n-# [Verifica el nombre de tu personaje]`, flags: ["Ephemeral"] })
                     }
 
                     try {
@@ -55,7 +58,7 @@ module.exports = {
                     const apodo = interaction.fields.getTextInputValue("apodopj")
 
                     if (await Badwords(apodo)) {
-                        return interaction.reply({ content: `¡Hey! El apodo **${apodo}** contiene malas palabras（︶^︶）\n-# [Verifica el apodo de tu personaje]`, ephemeral: true })
+                        return interaction.reply({ content: `¡Hey! El apodo **${apodo}** contiene malas palabras（︶^︶）\n-# [Verifica el apodo de tu personaje]`, flags: ["Ephemeral"] })
                     }
 
                     try {
@@ -80,11 +83,11 @@ module.exports = {
                     const edadpj = interaction.fields.getTextInputValue("edadpj")
 
                     if (isNaN(edadpj)) {
-                        return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", ephemeral: true })
+                        return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                     }
 
                     if (edadpj <= 13 || edadpj >= 22) {
-                        return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", ephemeral: true })
+                        return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", flags: ["Ephemeral"]   })
                     }
 
                     try {
@@ -107,15 +110,43 @@ module.exports = {
 
 
                     break;
-                case "cumpleaños":
-                    let cumplepj = interaction.fields.getTextInputValue("cumplepj");
-                    const validarFecha = validarYformatearFecha(cumplepj)
+                case "cumpleaños": {
+                    const DIAS_POR_MES = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-                    if (validarFecha?.error) {
-                        return interaction.reply({ content: validarFecha.error, flags: "Ephemeral" })
-                    } else {
-                        cumplepj = validarFecha
+                    function validarCumple(mes, dia) {
+                        return Number.isInteger(mes) && mes >= 1 && mes <= 12
+                            && Number.isInteger(dia) && dia >= 1 && dia <= DIAS_POR_MES[mes - 1];
                     }
+
+                    let mes = null;
+                    let dia = null;
+
+                    try {
+                        const rawMes = interaction.fields.getStringSelectValues("cumple_mes")?.[0];
+                        if (rawMes) mes = parseInt(rawMes, 10);
+                    } catch (e) {}
+
+                    try {
+                        const rawDia = interaction.fields.getTextInputValue("cumple_dia");
+                        if (rawDia) dia = parseInt(rawDia, 10);
+                    } catch (e) {}
+
+                    if ((!mes || !dia)) {
+                        try {
+                            const rawCumple = interaction.fields.getTextInputValue("cumplepj");
+                            const match = rawCumple?.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+                            if (match) {
+                                dia = parseInt(match[1], 10);
+                                mes = parseInt(match[2], 10);
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (!validarCumple(mes, dia)) {
+                        return interaction.reply({ content: "Ese día no existe para ese mes, revísalo. ＞﹏＜", flags: ["Ephemeral"] });
+                    }
+
+                    const cumpleFormateado = `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}`;
 
                     try {
                         await characters.updateOne({ _id: interaction.user.id }, {
@@ -123,23 +154,29 @@ module.exports = {
                                 created: Date.now(),
                             },
                             $set: {
-                                Cumpleaños: cumplepj,
+                                Cumpleaños: cumpleFormateado,
+                                cumpleaños: cumpleFormateado,
+                                CumpleMes: mes,
+                                cumpleMes: mes,
+                                CumpleDia: dia,
+                                cumpleDia: dia
                             }
-                        }, { upsert: true })
+                        }, { upsert: true });
 
-                        await interaction.deferUpdate()
+                        await interaction.deferUpdate();
 
-                        await this.updateMessage(interaction, messag, "character")
+                        await this.updateMessage(interaction, messag, "character");
                     } catch (error) {
-                        console.error("Error al actualizar el cumpleaños", error)
+                        console.error("Error al actualizar el cumpleaños", error);
                     }
 
                     break;
+                }
                 case "ciudadorg":
                     const ciudadOrg = interaction.fields.getTextInputValue("ciudadpj")
 
                     if (await Badwords(ciudadOrg)) {
-                        return interaction.reply({ content: `¡Hey! la ciudad **${ciudadOrg}** contiene malas palabras（︶^︶）\n-# [Verifica la ciudad de tu personaje]`, ephemeral: true })
+                        return interaction.reply({ content: `¡Hey! la ciudad **${ciudadOrg}** contiene malas palabras（︶^︶）\n-# [Verifica la ciudad de tu personaje]`, flags: ["Ephemeral"] })
                     }
 
                     try {
@@ -174,7 +211,12 @@ module.exports = {
                             }, { upsert: true })
 
 
-                            await interaction.deferUpdate();
+                            const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, extra, "crear_ficha");
+                            if (!interaction.deferred && !interaction.replied) {
+                                await interaction.update({ components: personalidadV2 });
+                            } else {
+                                await interaction.editReply({ components: personalidadV2 });
+                            }
 
                             await this.updateMessage(interaction, messag, "character");
                         } catch (error) {
@@ -183,208 +225,14 @@ module.exports = {
                         return;
                     }
 
-                    const personalidadV2 = [
-                        {
-                            "type": 17,
-                            "accent_color": null,
-                            "spoiler": false,
-                            "components": [
-                                {
-                                    "type": 9,
-                                    "accessory": {
-                                        "type": 11,
-                                        "media": {
-                                            "url": "https://i.pinimg.com/originals/9b/77/07/9b7707ecb96eb24a57b7c6531236b540.gif"
-                                        },
-                                        "description": null,
-                                        "spoiler": false
-                                    },
-                                    "components": [
-                                        {
-                                            "type": 10,
-                                            "content": "# Elige la personalidad de tu personaje"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": 14,
-                                    "divider": true,
-                                    "spacing": 1
-                                },
-                                {
-                                    "type": 1,
-                                    "components": [
-                                        {
-                                            "type": 3,
-                                            "custom_id": "4d437fa68917439283ea331acff41ae0",
-                                            "options": [
-                                                {
-                                                    "label": "𖹭.ᐟ ANALISTAS:",
-                                                    "value": "notOpcion*A",
-                                                    "description": null,
-                                                    "emoji": null,
-                                                    "default": false,
-                                                    "disabled": true
-                                                },
-                                                {
-                                                    "label": "⤿ Arquitecto Arcano (INTJ) ࣪",
-                                                    "value": "personalidad*INTJ",
-                                                    "description": "Estrategas meticulosos que dominan la teoría mágica",
-                                                    "emoji": null,
-                                                    "default": false,
-                                                },
-                                                {
-                                                    "label": "⤿ Lógico Místico (INTP) ࣪",
-                                                    "value": "personalidad*INTP",
-                                                    "description": "Inventores de nuevos hechizos y teorías mágicas",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Comandante de Hechiceros (ENTJ)",
-                                                    "value": "personalidad*ENTJ",
-                                                    "description": "Líderes naturales de grupos mágicos",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Innovador Arcano (ENTP)",
-                                                    "value": "personalidad*ENTP",
-                                                    "description": "Debatientes que desafían las normas mágicas",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "ָ☾. DIPLOMÁTICOS:",
-                                                    "value": "notOpcion*B",
-                                                    "description": null,
-                                                    "emoji": null,
-                                                    "default": false,
-                                                    "disabled": true
-                                                },
-                                                {
-                                                    "label": "⤿ Consejero Visionario (INFJ)",
-                                                    "value": "personalidad*INFJ",
-                                                    "description": "Guardianes de antiguas profecías",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Sanador Empático (INFP)",
-                                                    "value": "personalidad*INFP",
-                                                    "description": "Curadores que conectan con las emociones",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Líder Inspirador (ENFJ)",
-                                                    "value": "personalidad*ENFJ",
-                                                    "description": "Mentores carismáticos de jóvenes magos",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Activista Mágico (ENFP)",
-                                                    "value": "personalidad*ENFP",
-                                                    "description": "Revolucionarios que luchan por la igualdad",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⋆˙⟡ CENTINELAS: ",
-                                                    "value": "notOpcion*C",
-                                                    "description": null,
-                                                    "emoji": null,
-                                                    "default": false,
-                                                    "disabled": true
-                                                },
-                                                {
-                                                    "label": "⤿ Guardián del Orden (ISTJ)",
-                                                    "value": "personalidad*ISTJ",
-                                                    "description": "Defensores de las tradiciones mágicas",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Protector Devoto (ISFJ)",
-                                                    "value": "personalidad*ISFJ",
-                                                    "description": "Guardaespaldas mágicos y cuidadores",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Ejecutor de Leyes (ESTJ)",
-                                                    "value": "personalidad*ESTJ",
-                                                    "description": "Administradores de instituciones mágicas",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Embajador Mágico (ESFJ)",
-                                                    "value": "personalidad*ESFJ",
-                                                    "description": "Mediadores entre comunidades",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⋆☀︎. EXPLORADORES: ",
-                                                    "value": "notOpcion*D",
-                                                    "description": null,
-                                                    "emoji": null,
-                                                    "default": false,
-                                                    "disabled": true
-                                                },
-                                                {
-                                                    "label": "⤿ Artesano Místico (ISTP)",
-                                                    "value": "personalidad*ISTP",
-                                                    "description": "Maestros en la creación de objetos mágicos",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Artista Elemental (ISFP)",
-                                                    "value": "personalidad*ISFP",
-                                                    "description": "Creadores que expresan magia a través del arte",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Aventurero Mágico (ESTP)",
-                                                    "value": "personalidad*ESTP",
-                                                    "description": "Exploradores de lugares peligrosos",
-                                                    "emoji": null,
-                                                    "default": false
-                                                },
-                                                {
-                                                    "label": "⤿ Animador Ilusionista (ESFP)",
-                                                    "value": "personalidad*ESFP",
-                                                    "description": "Entretenedores con magia espectacular",
-                                                    "emoji": null,
-                                                    "default": false
-                                                }
-                                            ],
-                                            "placeholder": "Selecciona una opción...",
-                                            "min_values": 1,
-                                            "max_values": 1,
-                                            "disabled": false
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "Si tienes dudas, recuerda revisar los [Arquetipos de personalidad](https://canary.discord.com/channels/716342375303217285/1362988047578435605) ( •̀ ω •́ )✧\n\n" +
-                                        `-# Nota:  Manifiesten para que Discord agregue la posibilidad de deshabilitar opciones de los Select Menus >:`
-                                }
-                            ]
-                        }
-                    ]
-
-                    return interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] })
+                    const char = await characters.findOne({ _id: interaction.user.id });
+                    const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, char?.perfil?.Personalidad, "crear_ficha");
+                    return interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] });
                 case "apellido":
                     const family = interaction.fields.getTextInputValue("familiapj")
 
                     if (await Badwords(family)) {
-                        return interaction.reply({ content: `¡Hey! el apellido **${family}** contiene malas palabras（︶^︶）\n-# [Verifica el apellido de tu personaje]`, ephemeral: true })
+                        return interaction.reply({ content: `¡Hey! el apellido **${family}** contiene malas palabras（︶^︶）\n-# [Verifica el apellido de tu personaje]`, flags: ["Ephemeral"] })
                     }
 
                     try {
@@ -514,7 +362,10 @@ module.exports = {
                 apodo: dbcharacter?.apodo,
                 edad: dbcharacter?.edad,
                 sexo: dbcharacter?.sexo,
-                cumpleaños: dbcharacter?.cumpleaños,
+                pronombres: dbcharacter?.pronombres,
+                cumpleaños: dbcharacter?.cumpleaños || (dbcharacter?.cumpleDia && dbcharacter?.cumpleMes ? `${String(dbcharacter.cumpleDia).padStart(2, '0')}/${String(dbcharacter.cumpleMes).padStart(2, '0')}` : null),
+                cumpleMes: dbcharacter?.cumpleMes,
+                cumpleDia: dbcharacter?.cumpleDia,
                 ciudadOrg: dbcharacter?.ciudadOrg,
                 personalidad: dbcharacter?.personalidad,
                 familia: dbcharacter?.familia,
@@ -536,8 +387,8 @@ module.exports = {
             case "nombre":
                 const nombre = interaction.fields.getTextInputValue("nombrepj")
 
-                if (await Badwords()) {
-                    return interaction.reply({ content: `¡Hey! El nombre **${nombre}** contiene malas palabras（︶^︶）\n-# [Verifica el nombre de tu personaje]`, ephemeral: true })
+                if (await Badwords(nombre)) {
+                    return interaction.reply({ content: `¡Hey! El nombre **${nombre}** contiene malas palabras（︶^︶）\n-# [Verifica el nombre de tu personaje]`, flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -567,7 +418,7 @@ module.exports = {
                 const apodo = interaction.fields.getTextInputValue("apodopj")
 
                 if (await Badwords(apodo)) {
-                    return interaction.reply({ content: `¡Hey! El apodo **${apodo}** contiene malas palabras（︶^︶）\n-# [Verifica el apodo de tu personaje]`, ephemeral: true })
+                    return interaction.reply({ content: `¡Hey! El apodo **${apodo}** contiene malas palabras（︶^︶）\n-# [Verifica el apodo de tu personaje]`, flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -593,11 +444,11 @@ module.exports = {
                 const edadpj = interaction.fields.getTextInputValue("edadpj")
 
                 if (isNaN(edadpj)) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                 }
 
                 if (edadpj < 13 || edadpj > 22) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -621,40 +472,74 @@ module.exports = {
 
 
                 break;
-            case "cumpleaños":
-                let cumplepj = interaction.fields.getTextInputValue("cumplepj");
-                const validarFecha = validarYformatearFecha(cumplepj)
+            case "cumpleaños": {
+                const DIAS_POR_MES = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-                if (validarFecha?.error) {
-                    return interaction.reply({ content: validarFecha.error, flags: "Ephemeral" })
-                } else {
-                    cumplepj = validarFecha
+                function validarCumple(mes, dia) {
+                    return Number.isInteger(mes) && mes >= 1 && mes <= 12
+                        && Number.isInteger(dia) && dia >= 1 && dia <= DIAS_POR_MES[mes - 1];
                 }
 
+                let mes = null;
+                let dia = null;
+
                 try {
-                    cacheCharacter.cumpleaños = cumplepj
+                    const rawMes = interaction.fields.getStringSelectValues("cumple_mes")?.[0];
+                    if (rawMes) mes = parseInt(rawMes, 10);
+                } catch (e) {}
+
+                try {
+                    const rawDia = interaction.fields.getTextInputValue("cumple_dia");
+                    if (rawDia) dia = parseInt(rawDia, 10);
+                } catch (e) {}
+
+                if ((!mes || !dia)) {
+                    try {
+                        const rawCumple = interaction.fields.getTextInputValue("cumplepj");
+                        const match = rawCumple?.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+                        if (match) {
+                            dia = parseInt(match[1], 10);
+                            mes = parseInt(match[2], 10);
+                        }
+                    } catch (e) {}
+                }
+
+                if (!validarCumple(mes, dia)) {
+                    return interaction.reply({ content: "Ese día no existe para ese mes, revísalo.  ＞﹏＜", flags: ["Ephemeral"] });
+                }
+
+                const cumpleFormateado = `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}`;
+
+                try {
+                    cacheCharacter.cumpleaños = cumpleFormateado;
+                    cacheCharacter.cumpleMes = mes;
+                    cacheCharacter.cumpleDia = dia;
+
                     await Cachedb.updateOne({ _id: interaction.user.id }, {
                         $setOnInsert: {
                             created: Date.now(),
                         },
                         $set: {
-                            cumpleaños: cumplepj,
+                            cumpleaños: cumpleFormateado,
+                            cumpleMes: mes,
+                            cumpleDia: dia
                         }
-                    }, { upsert: true })
+                    }, { upsert: true });
 
-                    await interaction.deferUpdate()
+                    await interaction.deferUpdate();
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await this.updateMessage(interaction, msg, cacheCharacter);
                 } catch (error) {
-                    console.error("Error al actualizar el cumpleaños", error)
+                    console.error("Error al actualizar el cumpleaños", error);
                 }
 
                 break;
+            }
             case "ciudadorg":
                 const ciudadOrg = interaction.fields.getTextInputValue("ciudadpj")
 
                 if (await Badwords(ciudadOrg)) {
-                    return interaction.reply({ content: `¡Hey! la ciudad **${ciudadOrg}** contiene malas palabras（︶^︶）\n-# [Verifica la ciudad de tu personaje]`, ephemeral: true })
+                    return interaction.reply({ content: `¡Hey! la ciudad **${ciudadOrg}** contiene malas palabras（︶^︶）\n-# [Verifica la ciudad de tu personaje]`, flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -688,221 +573,29 @@ module.exports = {
                             $set: {
                                 personalidad: extra,
                             }
-                        }, { upsert: true })
+                        }, { upsert: true });
 
+                        const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, extra, "crear_ficha");
+                            if (!interaction.deferred && !interaction.replied) {
+                                await interaction.update({ components: personalidadV2 });
+                            } else {
+                                await interaction.editReply({ components: personalidadV2 });
+                            }
 
-                        await interaction.deferUpdate();
-
-                        await this.updateMessage(interaction, msg, cacheCharacter);
-                    } catch (error) {
-                        console.log("Error al actualizar la personalidad", error);
-                    }
+                            await this.updateMessage(interaction, msg, cacheCharacter);
+                        } catch (error) {
+                            console.log("Error al actualizar la personalidad", error);
+                        }
                     return;
                 }
 
-                const personalidadV2 = [
-                    {
-                        "type": 17,
-                        "accent_color": null,
-                        "spoiler": false,
-                        "components": [
-                            {
-                                "type": 9,
-                                "accessory": {
-                                    "type": 11,
-                                    "media": {
-                                        "url": "https://i.pinimg.com/originals/9b/77/07/9b7707ecb96eb24a57b7c6531236b540.gif"
-                                    },
-                                    "description": null,
-                                    "spoiler": false
-                                },
-                                "components": [
-                                    {
-                                        "type": 10,
-                                        "content": "# Elige la personalidad de tu personaje"
-                                    }
-                                ]
-                            },
-                            {
-                                "type": 14,
-                                "divider": true,
-                                "spacing": 1
-                            },
-                            {
-                                "type": 1,
-                                "components": [
-                                    {
-                                        "type": 3,
-                                        "custom_id": "4d437fa68917439283ea331acff41ae0",
-                                        "options": [
-                                            {
-                                                "label": "𖹭.ᐟ ANALISTAS:",
-                                                "value": "notOpcion*A",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Arquitecto Arcano (INTJ) ࣪",
-                                                "value": "personalidad*INTJ",
-                                                "description": "Estrategas meticulosos que dominan la teoría mágica",
-                                                "emoji": null,
-                                                "default": false,
-                                            },
-                                            {
-                                                "label": "⤿ Lógico Místico (INTP) ࣪",
-                                                "value": "personalidad*INTP",
-                                                "description": "Inventores de nuevos hechizos y teorías mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Comandante de Hechiceros (ENTJ)",
-                                                "value": "personalidad*ENTJ",
-                                                "description": "Líderes naturales de grupos mágicos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Innovador Arcano (ENTP)",
-                                                "value": "personalidad*ENTP",
-                                                "description": "Debatientes que desafían las normas mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "ָ☾. DIPLOMÁTICOS:",
-                                                "value": "notOpcion*B",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Consejero Visionario (INFJ)",
-                                                "value": "personalidad*INFJ",
-                                                "description": "Guardianes de antiguas profecías",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Sanador Empático (INFP)",
-                                                "value": "personalidad*INFP",
-                                                "description": "Curadores que conectan con las emociones",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Líder Inspirador (ENFJ)",
-                                                "value": "personalidad*ENFJ",
-                                                "description": "Mentores carismáticos de jóvenes magos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Activista Mágico (ENFP)",
-                                                "value": "personalidad*ENFP",
-                                                "description": "Revolucionarios que luchan por la igualdad",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⋆˙⟡ CENTINELAS: ",
-                                                "value": "notOpcion*C",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Guardián del Orden (ISTJ)",
-                                                "value": "personalidad*ISTJ",
-                                                "description": "Defensores de las tradiciones mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Protector Devoto (ISFJ)",
-                                                "value": "personalidad*ISFJ",
-                                                "description": "Guardaespaldas mágicos y cuidadores",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Ejecutor de Leyes (ESTJ)",
-                                                "value": "personalidad*ESTJ",
-                                                "description": "Administradores de instituciones mágicas",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Embajador Mágico (ESFJ)",
-                                                "value": "personalidad*ESFJ",
-                                                "description": "Mediadores entre comunidades",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⋆☀︎. EXPLORADORES: ",
-                                                "value": "notOpcion*D",
-                                                "description": null,
-                                                "emoji": null,
-                                                "default": false,
-                                                "disabled": true
-                                            },
-                                            {
-                                                "label": "⤿ Artesano Místico (ISTP)",
-                                                "value": "personalidad*ISTP",
-                                                "description": "Maestros en la creación de objetos mágicos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Artista Elemental (ISFP)",
-                                                "value": "personalidad*ISFP",
-                                                "description": "Creadores que expresan magia a través del arte",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Aventurero Mágico (ESTP)",
-                                                "value": "personalidad*ESTP",
-                                                "description": "Exploradores de lugares peligrosos",
-                                                "emoji": null,
-                                                "default": false
-                                            },
-                                            {
-                                                "label": "⤿ Animador Ilusionista (ESFP)",
-                                                "value": "personalidad*ESFP",
-                                                "description": "Entretenedores con magia espectacular",
-                                                "emoji": null,
-                                                "default": false
-                                            }
-                                        ],
-                                        "placeholder": "Selecciona una opción...",
-                                        "min_values": 1,
-                                        "max_values": 1,
-                                        "disabled": false
-                                    }
-                                ]
-                            },
-                            {
-                                "type": 10,
-                                "content": "Si tienes dudas, recuerda revisar los [Arquetipos de personalidad](https://canary.discord.com/channels/716342375303217285/1362988047578435605) ( •̀ ω •́ )✧\n\n" +
-                                    `-# Nota:  Manifiesten para que Discord agregue la posibilidad de deshabilitar opciones de los Select Menus >:`
-                            }
-                        ]
-                    }
-                ]
-                
-                interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] })
-                break;
+                const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, cacheCharacter?.personalidad, "crear_ficha");
+                return interaction.reply({ components: personalidadV2, flags: ["Ephemeral", "IsComponentsV2"] });
             case "apellido":
                 const family = interaction.fields.getTextInputValue("familiapj")
 
                 if (await Badwords(family)) {
-                    return interaction.reply({ content: `¡Hey! el apellido **${family}** contiene malas palabras（︶^︶）\n-# [Verifica el apellido de tu personaje]`, ephemeral: true })
+                    return interaction.reply({ content: `¡Hey! el apellido **${family}** contiene malas palabras（︶^︶）\n-# [Verifica el apellido de tu personaje]`, flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -998,11 +691,11 @@ module.exports = {
                 const peso = interaction.fields.getTextInputValue("peso")
 
                 if (isNaN(peso)) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se admiten valores numericos]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                 }
 
                 if (peso < 20 || peso > 120) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`peso`** (・・;).\n `[Solo se permiten pesos mayores a 20 y menores a 120]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`peso`** (・・;).\n `[Solo se permiten pesos mayores a 20 y menores a 120]`", flags: ["Ephemeral"] })
                 }
 
                 cacheCharacter.peso = peso
@@ -1026,11 +719,11 @@ module.exports = {
                 const estatura = interaction.fields.getTextInputValue("estatura")
 
                 if (isNaN(estatura)) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se admiten valores numericos]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                 }
 
                 if (estatura < 120 || estatura > 210) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se permiten estaturas menores a 210 y mayores a 120]`", ephemeral: true })
+                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`estatura`** (・・;).\n `[Solo se permiten estaturas menores a 210 y mayores a 120]`", flags: ["Ephemeral"] })
                 }
 
 
@@ -1178,7 +871,10 @@ module.exports = {
                     apodo: dbcharacter?.apodo,
                     edad: dbcharacter?.edad,
                     sexo: dbcharacter?.sexo,
-                    cumpleaños: dbcharacter?.cumpleaños,
+                    pronombres: dbcharacter?.pronombres,
+                    cumpleaños: dbcharacter?.cumpleaños || (dbcharacter?.cumpleDia && dbcharacter?.cumpleMes ? `${String(dbcharacter.cumpleDia).padStart(2, '0')}/${String(dbcharacter.cumpleMes).padStart(2, '0')}` : null),
+                    cumpleMes: dbcharacter?.cumpleMes,
+                    cumpleDia: dbcharacter?.cumpleDia,
                     ciudadOrg: dbcharacter?.ciudadOrg,
                     personalidad: dbcharacter?.personalidad,
                     familia: dbcharacter?.familia,
@@ -1197,6 +893,9 @@ module.exports = {
             }
 
             data[info.action] = info.option
+            if (info.pronombres !== undefined) {
+                data.pronombres = info.pronombres
+            }
         }
 
         const camposRequeridos = ["nombre", "edad", "sexo", "cumpleaños", "ciudadOrg", "personalidad"];
@@ -1258,11 +957,11 @@ module.exports = {
                     },
                     {
                         "type": 10,
-                        "content": "# Información: \n-# `🎎` **Sexo:** " + `${data?.sexo || "** **"}` +
-                            "\n-# `🍭` **Edad:** " + `${data?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${data?.cumpleaños || "** **"}` + "\n-# `🛫` **C/Org:** "
+                        "content": "# Información: \n-# `🎎` **Sexo:** " + `${`${data?.sexo} ${data?.pronombres ? `(${data.pronombres})` : ''}` || "** **"}` +
+                            "\n-# `🍭` **Edad:** " + `${data?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${data?.cumpleaños || (data?.cumpleDia && data?.cumpleMes ? `${String(data.cumpleDia).padStart(2, '0')}/${String(data.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                             + `${data?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${data?.familia || "** **"}` +
                             "\n-# `🎭` **Personalidad:** " + `${data?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${data?.especialidad || "** **"}` +
-                            "\n\n-# `📏` **Estatura:** " + `${data?.estatura ? `${data.estatura}cm` : "** **"}` + 
+                            "\n\n-# `📏` **Estatura:** " + `${data?.estatura ? `${data.estatura}cm` : "** **"}` +
                             "\n-# `🪨` **Peso:** " + `${data?.peso ? `${data.peso}kg` : "** **"}`
                     },
                     {
@@ -1296,9 +995,9 @@ module.exports = {
                                         "default": false
                                     },
                                     {
-                                        "label": "» Sexo .ᐟ.ᐟ",
+                                        "label": "» Sexo & Pronombres .ᐟ.ᐟ",
                                         "value": `sexo`,
-                                        "description": "El sexo de tu personaje",
+                                        "description": "Sexo biológico y pronombres de tu personaje",
                                         "emoji": null,
                                         "default": false
                                     },
@@ -1394,7 +1093,11 @@ module.exports = {
                                 "label": "Guía / Tutorial",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `crear_ficha-${interaction.user.id}-guia`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["guia"]
+                                })
                             },
                             {
                                 "type": 2,
@@ -1402,7 +1105,11 @@ module.exports = {
                                 "label": "Da tu opinión",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `crear_ficha-${interaction.user.id}-opinion`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["opinion"]
+                                })
                             },
                             {
                                 "type": 2,
@@ -1410,7 +1117,11 @@ module.exports = {
                                 "label": "Enviar ficha",
                                 "emoji": null,
                                 "disabled": !validSend,
-                                "custom_id": `crear_ficha-${interaction.user.id}-enviar_Ficha`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["enviar_Ficha"]
+                                })
                             }
                         ]
                     }
@@ -1425,8 +1136,6 @@ module.exports = {
         }
 
 
-
-    },
-
-
-}
+    }
+},
+)

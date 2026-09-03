@@ -61,27 +61,27 @@ module.exports = {
 
 
         if (!objeto) {
-            return interaction.reply({ content: `El objeto con la ID: ${objetoSelect} no existe (╥﹏╥)`, ephemeral: true })
+            return interaction.reply({ content: `El objeto con la ID: ${objetoSelect} no existe (╥﹏╥)`, flags: ["Ephemeral"] })
         }
         const newLumens = (objeto.precio * cantidad)
 
         if (objeto?.inStore === false) {
-            return interaction.reply({ content: `El objeto **${objeto.Nombre}** no esta disponible para la compra`, ephemeral: true })
+            return interaction.reply({ content: `El objeto **${objeto.Nombre}** no esta disponible para la compra`, flags: ["Ephemeral"] })
         }
 
         if (character.Dinero < (objeto.precio * cantidad)) {
             return interaction.reply({
                 content: "No tienes suficiente **`Lumens`** para comprar **``" + `${objeto.Nombre} x ${cantidad}` + "``** \n" +
-                    "-# Te hacen falta **``" + `${Math.max(0, newLumens - character.Dinero)}` + " Lumens``** ", ephemeral: true
+                    "-# Te hacen falta **``" + `${Math.max(0, newLumens - character.Dinero)}` + " Lumens``** ", flags: ["Ephemeral"]
             })
         }
 
         if (objeto.Cantidad < cantidad && objeto.Cantidad !== null) {
-            return interaction.reply({ content: `No hay suficiente stock de **${objeto.Nombre}** para comprar **${cantidad}** unidades`, ephemeral: true })
+            return interaction.reply({ content: `No hay suficiente stock de **${objeto.Nombre}** para comprar **${cantidad}** unidades`, flags: ["Ephemeral"] })
         }
 
         if (cantidad >= objeto?.maxStock) {
-            return interaction.reply({ content: `No puedes comprar mas de **${objeto.maxStock}** unidades de **${objeto.Nombre}**`, ephemeral: true })
+            return interaction.reply({ content: `No puedes comprar mas de **${objeto.maxStock}** unidades de **${objeto.Nombre}**`, flags: ["Ephemeral"] })
         }
 
 

@@ -85,8 +85,11 @@ module.exports = {
                         Nombre: cachepj.nombre,
                         Apodo: defaultIfEmpty(cachepj?.apodo, ""),
                         Sexo: cachepj.sexo,
+                        Pronombres: cachepj.pronombres,
                         Edad: cachepj.edad,
                         Cumpleaños: cachepj.cumpleaños,
+                        cumpleMes: cachepj?.cumpleMes,
+                        cumpleDia: cachepj?.cumpleDia,
                         CiudadOrg: cachepj.ciudadOrg,
                         Personalidad: cachepj.personalidad,
                         Peso: cachepj.peso,
@@ -407,7 +410,7 @@ module.exports = {
                 console.log(e)
                 interaction.deleteReply()
                 await errorMessage(e, interaction)
-                return interaction.followUp({ content: "*Ocurrio un error al insertar los datos del usuario ❌*" + '```' + e + '``` \n-# Envia captura de este error a <@!665421882694041630>', ephemeral: true })
+                return interaction.followUp({ content: "*Ocurrio un error al insertar los datos del usuario ❌*" + '```' + e + '``` \n-# Envia captura de este error a <@!665421882694041630>', flags: ["Ephemeral"] })
 
             }
         }

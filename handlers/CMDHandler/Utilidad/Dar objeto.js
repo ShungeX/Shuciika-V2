@@ -31,7 +31,7 @@ module.exports = async(client, interaction) => {
 
 
     if(!verifRoles) {
-        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+        return interaction.reply({content: "No tienes permisos para usar este comando", flags: ["Ephemeral"]})
     }
 
     const objeto = await bdobjeto.findOne({"Objetos.ID": uniqueID},
@@ -41,11 +41,11 @@ module.exports = async(client, interaction) => {
     const objfind = objeto?.Objetos[0]
 
     if(!pj) {
-        return interaction.reply({content: "El usuario no tiene un personaje registrado", ephemeral: true})
+        return interaction.reply({content: "El usuario no tiene un personaje registrado", flags: ["Ephemeral"]})
     }
 
     if(!objfind) {
-        return interaction.reply({content: "El objeto con la ID `" + uniqueID + "` no existe", ephemeral: true})
+        return interaction.reply({content: "El objeto con la ID `" + uniqueID + "` no existe", flags: ["Ephemeral"]})
     }
 
     const question = new EmbedBuilder()

@@ -24,7 +24,7 @@ module.exports = {
         const [action, cacheId, items] = interaction.values[0].split("/")
         const data = transaccionCache.get(cacheId)
 
-        if(!data) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", ephemeral: true})
+        if(!data) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: ["Ephemeral"]})
 
         let inventoryPage = 0;
         let inventoryFilter = null;
@@ -93,7 +93,7 @@ module.exports = {
 
         }
 
-        await interaction.reply({content: "Espera... ", flags: "Ephemeral", withResponse: true})
+        await interaction.reply({content: "Espera... ", flags: ["Ephemeral"], withResponse: true})
 
         if(action === "Agregar") {
             await this.crearInventario(interaction, interaction.user.id, cacheId, character)
@@ -148,7 +148,7 @@ module.exports = {
         const data = transaccionCache.get(cacheId)
         const character = await characters.findOne({ID: characterI.ID})
 
-        if(!data) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", ephemeral: true})
+        if(!data) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: ["Ephemeral"]})
 
         
         const matchFilter = { _id: interaction.user.id}

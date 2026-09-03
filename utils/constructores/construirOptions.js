@@ -20,8 +20,13 @@ function construirOptions(interaction, tipo, handler) {
     if (tipo === "modal") {
         const mapeo = handler.fieldNames || {}              // { "campoIDEnElModal": "sesionID" }
         const resultado = {}
+        if (!mapeo || Object.keys(mapeo).length === 0) {
+            console.warn("construirOptions - No se proporcionó un mapeo de campos. Se devolverá el valor por defecto.")
+            return { "defaultField": "sin_mapeo"}
+        }
+
         for (const [campoId, alias] of Object.entries(mapeo)) {
-            resultado[alias] = interaction.fields.getTextInputValue(campoId)
+            resultado[campoId] = interaction.fields.getTextInputValue(alias)
         }
         return resultado
     }

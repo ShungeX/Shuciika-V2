@@ -88,7 +88,7 @@ module.exports = {
         })
 
         if (buzon.length === 0) {
-            return interaction.editReply({ content: 'Tu buzón está vacío 〒▽〒', ephemeral: true });
+            return interaction.editReply({ content: 'Tu buzón está vacío 〒▽〒', flags: ["Ephemeral"] });
         }
 
         const embed = new EmbedBuilder()
@@ -141,7 +141,7 @@ module.exports = {
             const carta = character.buzon.find(c => c.ID === cartaEspecific)
             console.log(cartaEspecific)
 
-            if (!carta) return interaction.editReply({ content: "No se ha podido encontrar la carta seleccionada. 〒▽〒\n-# Vuelve a intentarlo", ephemeral: true })
+            if (!carta) return interaction.editReply({ content: "No se ha podido encontrar la carta seleccionada. 〒▽〒\n-# Vuelve a intentarlo", flags: ["Ephemeral"] })
 
             let estado = `${carta.leido ? '`📭 Leído`' : '`📪 No leído`'}`;
             let contenido;
@@ -211,7 +211,7 @@ module.exports = {
         })
 
         if (buzon.length === 0) {
-            return interaction.editReply({ content: 'Tu buzón está vacío 〒▽〒', ephemeral: true });
+            return interaction.editReply({ content: 'Tu buzón está vacío 〒▽〒', flags: ["Ephemeral"] });
         }
 
         const embed = new EmbedBuilder()

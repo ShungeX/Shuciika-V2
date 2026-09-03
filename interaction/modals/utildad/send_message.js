@@ -32,7 +32,7 @@ module.exports = {
             const id = interaction.fields.getTextInputValue("id")
             const channel = client.channels.cache.get(id)
 
-            if(!channel || channel.type !== 15) return interaction.reply({content: "La id no es un canal de Foro", ephemeral: true})
+            if(!channel || channel.type !== 15) return interaction.reply({content: "La id no es un canal de Foro", flags: ["Ephemeral"]})
             if(!mensaje2) {
                 const post = await channel.threads.create({
                     name: titulo,
@@ -57,7 +57,7 @@ module.exports = {
 
                 } catch (e) {
                     console.log(e)
-                    return interaction.reply({content: "Ocurrio un error al intentar enviar el mensaje", ephemeral: true})
+                    return interaction.reply({content: "Ocurrio un error al intentar enviar el mensaje", flags: ["Ephemeral"]})
                 }
 
                 interaction.reply({content: `Se ha creado el post en el foro ${channel}`})

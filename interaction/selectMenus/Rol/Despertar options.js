@@ -63,7 +63,7 @@ module.exports = {
         const souls = await soul.findOne({ _id: character._id })
 
         if (souls?.isFinish === true) {
-            return interaction.reply({ content: "Una estrella guarda aquello que resuena en tu alma.", ephemeral: true })
+            return interaction.reply({ content: "Una estrella guarda aquello que resuena en tu alma.", flags: ["Ephemeral"] })
         }
 
         const md = await interaction.user.createDM()
@@ -141,7 +141,7 @@ module.exports = {
 
 
             if (!message) {
-                return interaction.reply({ content: "Esta interaccion no esta disponible. Intenta iniciar el evento de nuevo", ephemeral: true })
+                return interaction.reply({ content: "Esta interaccion no esta disponible. Intenta iniciar el evento de nuevo", flags: ["Ephemeral"] })
             }
 
 
@@ -444,7 +444,7 @@ module.exports = {
 
                 // Comprobación corregida para los valores
                 if (typeof resonancia === 'undefined' || typeof disonancia === 'undefined') {
-                    return interaction.followUp({ content: "No se ha podido asignar los valores a tu personaje, intenta nuevamente. Si el error persiste contacta con administracion", ephemeral: true });
+                    return interaction.followUp({ content: "No se ha podido asignar los valores a tu personaje, intenta nuevamente. Si el error persiste contacta con administracion", flags: ["Ephemeral"] });
                 }
 
                 if (resonancia === disonancia) {

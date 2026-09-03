@@ -49,7 +49,7 @@ module.exports = async(client, interaction) => {
     
     const rol = interaction.guild.roles.cache.find((r) => r.id === "745503889297637478")
     if(!interaction.member.roles.cache.has(rol.id)) {
-        return interaction.reply({ content: 'Lo siento, solo el **staff** puede usar este comando (╥﹏╥)', ephemeral: true})
+        return interaction.reply({ content: 'Lo siento, solo el **staff** puede usar este comando (╥﹏╥)', flags: ["Ephemeral"]})
       }
 
 
@@ -58,7 +58,7 @@ module.exports = async(client, interaction) => {
 
 
     const channel = interaction.member.voice.channel;
-    if(!channel) return interaction.reply({content: "No estas conectado a un canal de voz", ephemeral: true})
+    if(!channel) return interaction.reply({content: "No estas conectado a un canal de voz", flags: ["Ephemeral"]})
 
     
     await musicdb.aggregate([{ $sample: {size: 1}}]).forEach(e => {
@@ -135,16 +135,16 @@ module.exports = async(client, interaction) => {
                 ffmpeg.kill()
                 player.stop()
                 transaccionCache.delete("ShuciikaMusic")
-                return interaction.editReply({content: "Conexion Destruida", ephemeral: true})
+                return interaction.editReply({content: "Conexion Destruida", flags: ["Ephemeral"]})
             }
 
             if(pauseoption == "pausepy") {
                 player.pause()
-                return interaction.editReply({ content: "Reproductor Pausado", ephemeral: true})
+                return interaction.editReply({ content: "Reproductor Pausado", flags: ["Ephemeral"]})
             }
             if(pauseoption == "unpausepy") {
                 player.unpause
-                return interaction.editReply({ content: "Reproductor Resumido", ephemeral: true})
+                return interaction.editReply({ content: "Reproductor Resumido", flags: ["Ephemeral"]})
             }
 
         }
@@ -183,7 +183,7 @@ module.exports = async(client, interaction) => {
 
     } catch (e) {
         console.log(e)
-        return interaction.reply({content: "Ocurrio un error al intentar reproducir el audio", ephemeral: true})
+        return interaction.reply({content: "Ocurrio un error al intentar reproducir el audio", flags: ["Ephemeral"]})
     }
 
  
@@ -332,7 +332,7 @@ module.exports = async(client, interaction) => {
                 
                message.edit({embeds: [embed]}).catch(e => {
                 console.log(`Parece ser que borraron el mensaje, ${e}`)
-                interaction.followUp({content: "He detenido la reproduccion de la radio porque se ha borrado el mensaje. Vuelve a usar el comando ＞﹏＜", ephemeral: true})
+                interaction.followUp({content: "He detenido la reproduccion de la radio porque se ha borrado el mensaje. Vuelve a usar el comando ＞﹏＜", flags: ["Ephemeral"]})
                 player.removeAllListeners()
                 clearInterval(interval)
                 interval = false

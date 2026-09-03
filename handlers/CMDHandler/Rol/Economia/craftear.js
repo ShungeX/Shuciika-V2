@@ -67,7 +67,7 @@ module.exports = {
             if (isActive) {
                 return interaction.reply({
                     content: "Ya tienes un crafteo en proceso. ( •̀ ω •́ )✧\n-# " +
-                        `[Haz click aqui para ir al mensaje](https://discord.com/channels/${messages.guildId}/${messages.channelId}/${messages.id})`, ephemeral: true
+                        `[Haz click aqui para ir al mensaje](https://discord.com/channels/${messages.guildId}/${messages.channelId}/${messages.id})`, flags: ["Ephemeral"]
                 })
             } else {
                 transaccionCache.delete(craftActive)
@@ -85,13 +85,13 @@ module.exports = {
 
 
         if (objPrincipal?.Metadata?.restricciones?.crafteable === false && !isFinish) {
-            return interaction.reply({ content: "Este objeto no se puede mezclar ni craftear 〒▽〒\n-# Los regalos y algunos objetos especificos no se pueden mezclar", flags: "Ephemeral" })
+            return interaction.reply({ content: "Este objeto no se puede mezclar ni craftear 〒▽〒\n-# Los regalos y algunos objetos especificos no se pueden mezclar", flags: ["Ephemeral"] })
         }
 
 
         if (cantidadS?.Cantidad < cantidadInt || !cantidadS) return interaction.reply({
             content: "No tienes la cantidad suficiente para dar este objeto 〒▽〒\n-# Tienes: **`" +
-                cantidadS?.Cantidad + "`**, y quieres enviar: **`" + cantidadInt + "`**", ephemeral: true
+                cantidadS?.Cantidad + "`**, y quieres enviar: **`" + cantidadInt + "`**", flags: ["Ephemeral"]
         })
 
 
@@ -140,11 +140,11 @@ module.exports = {
 
             bagSelect(objetoPrincipal, objetoSecundario, tempDatal, exist)
         } else {
-            return interaction.reply({ content: "Solamente se admiten objetos para regalar.\n-# Espera pacientemente hasta que esta funcion este por completa", flags: "Ephemeral" })
+            return interaction.reply({ content: "Solamente se admiten objetos para regalar.\n-# Espera pacientemente hasta que esta funcion este por completa", flags: ["Ephemeral"] })
         }
 
 
-        if (!objetoPrincipal || !objetoSecundario) return interaction.reply({ content: "No se ha podido encontrar ese objeto. ＞﹏＜\n-# Probablemente no sea la ID correcta o el objeto ya no exista", ephemeral: true })
+        if (!objetoPrincipal || !objetoSecundario) return interaction.reply({ content: "No se ha podido encontrar ese objeto. ＞﹏＜\n-# Probablemente no sea la ID correcta o el objeto ya no exista", flags: ["Ephemeral"] })
 
         if (!objetoSecundario.intercambiable) {
 
@@ -165,11 +165,11 @@ module.exports = {
 
 
             if (!exist) {
-                if (!item.intercambiable) return interaction.reply({ content: "**`" + item.Nombre + "`** No se puede agregar este objeto a la bolsa 〒▽〒\n-# Este objeto no es intercambiable", ephemeral: true })
+                if (!item.intercambiable) return interaction.reply({ content: "**`" + item.Nombre + "`** No se puede agregar este objeto a la bolsa 〒▽〒\n-# Este objeto no es intercambiable", flags: ["Ephemeral"] })
 
                 if ((data.Capacidad || bag.atributos.capacidad) < pesoTotal) return interaction.reply({
                     content: "**`" + bag.Nombre + "`** No tiene la capacidad suficiente para almacenar el peso de tantos objetos\n"
-                        + `-# Los objetos que agregaste son muy pesados, verifica el peso y vuelve a intentarlo`, flags: "Ephemeral"
+                        + `-# Los objetos que agregaste son muy pesados, verifica el peso y vuelve a intentarlo`, flags: ["Ephemeral"]
                 })
 
                 await characters.updateOne({ _id: interaction.user.id, Inventario: { $elemMatch: { ID: bag.ID, Region: bag.Region } } }, {
@@ -288,7 +288,7 @@ module.exports = {
     bagHome: async function (interaction, dataId) {
         const data = transaccionCache.get(dataId)
 
-        if (!data) return interaction.reply({ content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: "Ephemeral" })
+        if (!data) return interaction.reply({ content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: ["Ephemeral"] })
 
         let item = data.bagContent
 

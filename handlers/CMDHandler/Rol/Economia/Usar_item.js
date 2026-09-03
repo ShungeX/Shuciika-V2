@@ -57,7 +57,7 @@ module.exports = {
         const objinfoa = await dbobjetos.findOne({ _id: Region, "Objetos.ID": idObjeto }, { projection: { _id: 0, "Objetos.$": 1 } })
 
         if (!objinfoa) {
-            return interaction.reply({ content: `El objeto con la ID **${idObjeto}** no existe (╥﹏╥)`, ephemeral: true })
+            return interaction.reply({ content: `El objeto con la ID **${idObjeto}** no existe (╥﹏╥)`, flags: ["Ephemeral"] })
         }
         const objinfo = objinfoa.Objetos[0]
 
@@ -67,7 +67,7 @@ module.exports = {
 
 
         if (!objfind) {
-            return interaction.reply({ content: `No tienes el objeto con la ID: ${objeto} en tu inventario (╥﹏╥)`, ephemeral: true })
+            return interaction.reply({ content: `No tienes el objeto con la ID: ${objeto} en tu inventario (╥﹏╥)`, flags: ["Ephemeral"] })
         }
 
         try {
@@ -88,7 +88,7 @@ module.exports = {
             }
         } catch (error) {
             console.error(error)
-            return interaction.reply({ content: "Ha ocurrido un error al intentar usar el objeto (╥﹏╥)", ephemeral: true })
+            return interaction.reply({ content: "Ha ocurrido un error al intentar usar el objeto (╥﹏╥)", flags: ["Ephemeral"] })
         }
 
 
@@ -100,14 +100,14 @@ module.exports = {
 
 
             if (objinfo.isBag) {
-                if (objfind?.Metadata?.cache?.isFinish === false) return interaction.reply({ content: "Este objeto esta en proceso de crafteo. Para poder usarlo debes terminarlo (╥﹏╥)", flags: "Ephemeral" })
+                if (objfind?.Metadata?.cache?.isFinish === false) return interaction.reply({ content: "Este objeto esta en proceso de crafteo. Para poder usarlo debes terminarlo (╥﹏╥)", flags: ["Ephemeral"] })
 
                 await interaction.deferReply()
                 return manejarContenido()
             } else if (Object.keys(objinfo?.atributos).length > 0) {
                 if (!soul) return interaction.reply({
                     content: "Este objeto requiere de Stats especificos que solamente se pueden obtener al despertar tu alma.\n" +
-                        "-# Debes esperar a que el Director realice la ceremonia de iniciación", flags: "Ephemeral"
+                        "-# Debes esperar a que el Director realice la ceremonia de iniciación", flags: ["Ephemeral"]
                 })
 
                 if (objinfo.atributos?.alimento) {
@@ -125,7 +125,7 @@ module.exports = {
 
                 const result = await duelSystem.useItem(false, soul, null, objinfo)
 
-                return interaction.reply({ content: result.message, ephemeral: true })
+                return interaction.reply({ content: result.message, flags: ["Ephemeral"] })
             }
 
             if (objinfo.ID === 320) {
@@ -215,7 +215,7 @@ module.exports = {
                     console.log(error)
                 }
             } else {
-                return interaction.reply({ content: "El objeto aun no tiene una funcion definida (╥﹏╥)", ephemeral: true })
+                return interaction.reply({ content: "El objeto aun no tiene una funcion definida (╥﹏╥)", flags: ["Ephemeral"] })
             }
         }
 

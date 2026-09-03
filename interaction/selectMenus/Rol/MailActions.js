@@ -26,7 +26,7 @@ module.exports = {
         const carta = character.buzon.find(c => c.ID === interactId)
         const message = transaccionCache.get(cacheId)
 
-        if(!message) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", ephemeral: true})
+        if(!message) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: ["Ephemeral"]})
   
             if(action === "regresar"){
                 await interaction.reply({content: "Procesando... (∪｡∪)｡｡｡zzZ", flags: ["Ephemeral"]})
@@ -34,7 +34,7 @@ module.exports = {
                 return await interaction.deleteReply()
             }
 
-        if(!carta) return interaction.reply({content: "No se ha podido realizar la accion a esta carta...", ephemeral: true})
+        if(!carta) return interaction.reply({content: "No se ha podido realizar la accion a esta carta...", flags: ["Ephemeral"]})
 
         let contenido;
         let IDItem
@@ -219,7 +219,7 @@ module.exports = {
                         contenido = contenido?.contenido[0]
 
 
-                        if(!contenido) return interaction.editReply({content: "No se pudo encontrar el objeto... 〒▽〒\n-# Seguramente se trate de algun error o este ya fue reclamado", flags: "Ephemeral"})
+                        if(!contenido) return interaction.editReply({content: "No se pudo encontrar el objeto... 〒▽〒\n-# Seguramente se trate de algun error o este ya fue reclamado", flags: ["Ephemeral"]})
 
                         if(contenido?.instanciaID) {                            
 

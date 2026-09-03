@@ -65,7 +65,7 @@ module.exports = {
             }
 
             await message.edit({embeds: [characterInEmbed], components: []})
-            interaction.reply({content: "Has aceptado ( •̀ ω •́ )✧", ephemeral: true})
+            interaction.reply({content: "Has aceptado ( •̀ ω •́ )✧", flags: ["Ephemeral"]})
             transaccionCache.delete(cache)
                 }else {
                     const characterInEmbed = new EmbedBuilder()
@@ -76,7 +76,7 @@ module.exports = {
 
                     await message.edit({embeds: [characterInEmbed], components: []})
         
-                    interaction.reply({content: "Te has negado ＞﹏＜", ephemeral: true})
+                    interaction.reply({content: "Te has negado ＞﹏＜", flags: ["Ephemeral"]})
             transaccionCache.delete(cache)
                 }
             

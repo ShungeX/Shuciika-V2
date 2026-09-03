@@ -284,16 +284,16 @@ class InterfazCreate {
         const exploracionCache = transaccionCache.get(userCache?.explorarID);
 
         if (!exploracionCache) {
-            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
+            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         const regionDoc = await regiones.findOne({ _id: exploracionCache.regionSelect });
         if (!regionDoc) {
-            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", ephemeral: true });
+            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
         }
 
         let zonaKey = key || exploracionCache.zona;
@@ -310,7 +310,7 @@ class InterfazCreate {
         }
 
         if (!zonaSelect) {
-            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", ephemeral: true });
+            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
         }
 
         exploracionCache.zona = zonaKey;
@@ -418,7 +418,7 @@ class InterfazCreate {
             await editarOMandarMensaje(interaction, exploracionCache, msg, { components: v2Exploracion, flags: ["IsComponentsV2"] });
         } catch (error) {
             console.error("Error en zonaMessage [interfazCreate]:", error);
-            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true }).catch(() => { });
+            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] }).catch(() => { });
         }
     }
 

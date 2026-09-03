@@ -24,7 +24,7 @@ module.exports = {
         const pincel = pjuser.economia.Inventario.find(i => i.ID === 120 && i.Region === "TOB-01")
 
         if (page === "addHistory") {
-            if (!pincel) return interaction.reply({ content: "No se puede agregar un capitulo porque no tienes suficientes `Pincel Magico` ＞﹏＜", flags: "Ephemeral" })
+            if (!pincel) return interaction.reply({ content: "No se puede agregar un capitulo porque no tienes suficientes `Pincel Magico` ＞﹏＜", flags: ["Ephemeral"] })
 
             const modal = new ModalBuilder()
                 .setTitle("Creacion de historia")

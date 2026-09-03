@@ -64,7 +64,7 @@ module.exports = {
             })
 
             if (!personaje) {
-                return interaction.reply({ content: "El usuario que mencionaste no tiene un personaje registrado (╥﹏╥)\n-# ¿O quizás fue la ID?", ephemeral: true })
+                return interaction.reply({ content: "El usuario que mencionaste no tiene un personaje registrado (╥﹏╥)\n-# ¿O quizás fue la ID?", flags: ["Ephemeral"] })
             }
 
             user = interaction.guild.members.resolve(personaje.ownerID)
@@ -84,8 +84,8 @@ module.exports = {
                 .setTitle(`${cachepj?.nombre} ${cachepj?.apodo ? `[${cachepj?.apodo}]` : ''}`)
                 .setDescription(cachepj.historia ? cachepj.historia : "Sin Historia (¿In rol?)")
                 .addFields(
-                    { name: "Informacion", value: "`📑` **Apodo: ** " + cachepj?.apodo + "\n`🎎` **Sexo: **" + cachepj?.sexo + "\n`🍭` **Edad: **" + cachepj?.edad + "\n`🛫` **C/Org: **" + cachepj?.ciudadOrg, inline: true },
-                    { name: "Extra", value: "`🎂` **Cumple **" + cachepj?.cumpleaños + "\n`👑` **Linaje Familiar **" + cachepj?.familia + "\n`❔`** Estado:** " + estado, inline: true },
+                    { name: "Informacion", value: "`📑` **Apodo: ** " + cachepj?.apodo + "\n`🎎` **Sexo biológico: **" + `${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` + "\n`🍭` **Edad: **" + cachepj?.edad + "\n`🛫` **C/Org: **" + cachepj?.ciudadOrg, inline: true },
+                    { name: "Extra", value: "`🎂` **Cumpleaños **" + (cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")) + "\n`👑` **Linaje Familiar **" + cachepj?.familia + "\n`❔`** Estado:** " + estado, inline: true },
                     { name: "🎭 Personalidad", value: cachepj?.personalidad, inline: false },
                     { name: "🎮 Especialidad", value: (cachepj?.especialidad || "No definido"), inline: false }
                 )
@@ -157,8 +157,8 @@ module.exports = {
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + perfil.Sexo +
-                                        "\n-# `🍭` *Edad:* " + perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + perfil.Cumpleaños +
+                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${perfil.Sexo} ${perfil.Pronombres ? `(${perfil.Pronombres})` : ''}` || "** **"}` +
+                                        "\n-# `🍭` *Edad:* " + perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + (perfil.Cumpleaños || (perfil.cumpleDia && perfil.cumpleMes ? `${String(perfil.cumpleDia).padStart(2, '0')}/${String(perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
                                         "\n-# `🎭` *Personalidad:* " + perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + perfil.CiudadOrg
                                 }
                             ]

@@ -43,9 +43,9 @@ module.exports = {
 
         if (inter) {
             if (!pj2) {
-                return interaction.reply({ content: "No encontre ningun personaje con esa ID. revisa que la ID proporcionada sea la correcta", ephemeral: true })
+                return interaction.reply({ content: "No encontre ningun personaje con esa ID. revisa que la ID proporcionada sea la correcta", flags: ["Ephemeral"] })
             } else if (character._id === pj2._id) {
-                return interaction.reply({ content: "**cof, cof.** Esa ID parece ser la tuya... (・・ )?", ephemeral: true })
+                return interaction.reply({ content: "**cof, cof.** Esa ID parece ser la tuya... (・・ )?", flags: ["Ephemeral"] })
             }
 
             await personaje2()

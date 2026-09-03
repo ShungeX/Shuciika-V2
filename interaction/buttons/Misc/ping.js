@@ -27,7 +27,7 @@ module.exports = {
                 .setDescription(`[T. Respuesta] ${Date.now() - interactionPing}ms\n[Websocket] ${client.ws.ping}ms`)
                 .setColor("Random")
 
-                interaction.update({embeds: [embed], components: [row], ephemeral: true})
+                interaction.update({embeds: [embed], components: [row], flags: ["Ephemeral"]})
         
     }
 };

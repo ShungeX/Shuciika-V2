@@ -25,13 +25,13 @@ module.exports = {
         const cacheObj = transaccionCache.get(cacheId)
         console.log(actions)
 
-       await interaction.deferReply({flags: "Ephemeral"})
+       await interaction.deferReply({flags: ["Ephemeral"]})
 
-        if(!cacheObj) return interaction.editReply({content: "Esta interacción ya no es valida ＞﹏＜\n-# Vuelve a usar el comando", ephemeral: true})
+        if(!cacheObj) return interaction.editReply({content: "Esta interacción ya no es valida ＞﹏＜\n-# Vuelve a usar el comando", flags: ["Ephemeral"]})
 
         const character = await characters.findOne({_id: interaction.user.id})
 
-        if(!character) return interaction.editReply({content: "No se ha podido encontrar este personaje, seguramente debido a un error... ＞﹏＜", ephemeral: true})
+        if(!character) return interaction.editReply({content: "No se ha podido encontrar este personaje, seguramente debido a un error... ＞﹏＜", flags: ["Ephemeral"]})
 
         let itemInventario;
         
@@ -45,7 +45,7 @@ module.exports = {
 
         if(!itemInventario || itemInventario.Cantidad < cacheObj.cantidad) {
             interaction.editReply({content: 
-            "El objeto que intentas regalar ya no esta en tu inventario o la cantidad es insuficiente\n-# Vuelve a usar el comando o verifica que no hayas usado antes el objeto", ephemeral: true
+            "El objeto que intentas regalar ya no esta en tu inventario o la cantidad es insuficiente\n-# Vuelve a usar el comando o verifica que no hayas usado antes el objeto", flags: ["Ephemeral"]
             })
 
             cacheObj.message.editReply({components: []}).catch(e => e)
@@ -55,7 +55,7 @@ module.exports = {
         }
 
         if(actions === "rechazar") {
-            interaction.editReply({content: "Haz cancelado esta operación X﹏X\n-# Vuelve a usar el comando si cambias de opinion", ephemeral: true})
+            interaction.editReply({content: "Haz cancelado esta operación X﹏X\n-# Vuelve a usar el comando si cambias de opinion", flags: ["Ephemeral"]})
             cacheObj.message.editReply({components: []})
             transaccionCache.delete(cacheId)
            return transaccionCache.deleteUser(interaction.user.id)

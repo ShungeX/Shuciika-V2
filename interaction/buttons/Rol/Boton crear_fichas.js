@@ -9,27 +9,29 @@ const Cachedb = db2.collection("CachePJ")
 const dataCache = new Map()
 const util = require(`util`);
 const sleep = util.promisify(setTimeout)
-const {crearBoton } = require("../../../utils/constructores/crearComponente")
+const { crearBoton } = require("../../../utils/constructores/crearComponente");
+const { crearCustomId } = require("../../../utils/constructores/customId");
 
 module.exports = crearBoton({
     customId: "crear_ficha",
-    requirements: {
-        character: {obtener: true, required: false},
-        cachepj: {obtener: true, required: false},
-    },
-
     soloAutor: true,
-    ejecutar: async({client, interaction, character, cachepj, componentData: {userId, extras}}) => {
+    requirements: {
+        character: { obtener: true, required: false },
+        cachepj: { obtener: true, required: false },
+    },
+    ejecutar: async ({ client, interaction, character, cachepj, componentData: { userId, extras } }) => {
 
-     let channel;
+        const selectOption = extras[0];
+
+        let channel;
         let message;
 
         const userfind = await userdb.findOne({ _id: interaction.user.id })
         const messageId = userfind?.fichaStatus?.messageTemp
-        const cachepj = await Cachedb.findOne({ _id: interaction.user.id })
 
         if (userfind && messageId) {
             try {
+                console.log("Se esta intentando obtener el mensaje de la ficha temporal")
                 channel = await client.channels.fetch(userfind.fichaStatus.channelTemp)
                 message = await channel.messages.fetch(messageId)
             } catch (error) {
@@ -38,8 +40,8 @@ module.exports = crearBoton({
 
         }
 
-
-        if (extras === "opinion") {
+        console.log(selectOption)
+        if (selectOption === "opinion") {
             const opinion = new TextInputBuilder()
                 .setCustomId("opinionpj")
                 .setLabel("¿Te gustaria dejar tu opinion?")
@@ -51,7 +53,12 @@ module.exports = crearBoton({
 
             const modal = new ModalBuilder()
                 .setTitle("Creacion de ficha")
-                .setCustomId("actualizarPerfil-opinion")
+                .setCustomId(crearCustomId(
+                    {
+                        action: "actualizarPerfil",
+                        userId: interaction.user.id,
+                        extras: ["opinion"]
+                    }))
             const row = new ActionRowBuilder()
 
             row.addComponents(opinion)
@@ -61,7 +68,7 @@ module.exports = crearBoton({
             return await interaction.showModal(modal)
         }
 
-        if (extras === "selectStudent") {
+        if (selectOption === "selectStudent") {
             const studentJson = [
                 {
                     "type": 17,
@@ -120,7 +127,11 @@ module.exports = crearBoton({
                                     "label": "Seleccionar",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-rolStudent`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["rolStudent"]
+                                    })
                                 },
                                 {
                                     "type": 2,
@@ -128,7 +139,11 @@ module.exports = crearBoton({
                                     "label": "Otra opción",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-menuOpciones`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["menuOpciones"]
+                                    })
                                 }
                             ]
                         }
@@ -137,7 +152,7 @@ module.exports = crearBoton({
             ]
 
             return await interaction.update({ components: studentJson })
-        } else if (extras === "selectMaster") {
+        } else if (selectOption === "selectMaster") {
             const masterJson = [
                 {
                     "type": 17,
@@ -201,7 +216,11 @@ module.exports = crearBoton({
                                     "label": "Seleccionar",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-solicitud`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["solicitud"]
+                                    })
                                 },
                                 {
                                     "type": 2,
@@ -209,7 +228,11 @@ module.exports = crearBoton({
                                     "label": "Otra opción",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-menuOpciones`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["menuOpciones"]
+                                    })
                                 }
                             ]
                         }
@@ -218,7 +241,7 @@ module.exports = crearBoton({
             ]
 
             return await interaction.update({ components: masterJson })
-        } else if (extras === "menuOpciones") {
+        } else if (selectOption === "menuOpciones") {
             const infoRoles = [
                 {
                     "type": 17,
@@ -280,7 +303,11 @@ module.exports = crearBoton({
                                 "label": "Más info",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `crear_ficha-${interaction.user.id}-selectStudent`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["selectStudent"]
+                                })
                             },
                             "components": [
                                 {
@@ -323,7 +350,11 @@ module.exports = crearBoton({
                                 "label": "Más info",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `crear_ficha-${interaction.user.id}-selectMaster`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["selectMaster"]
+                                })
                             },
                             "components": [
                                 {
@@ -337,14 +368,14 @@ module.exports = crearBoton({
             ]
 
             return interaction.update({ components: infoRoles })
-        } else if (extras === "solicitud") {
+        } else if (selectOption === "solicitud") {
 
             return
-        } else if (extras === "rolStudent") {
+        } else if (selectOption === "rolStudent") {
             if (message) {
                 await interaction.update({}).then(m => setTimeout(() => m.delete(), 500));
 
-                await interaction.followUp({content: "No puedes seleccionar esta opción porque ya tienes un personaje en creación...", flags: ["Ephemeral"]})
+                await interaction.followUp({ content: "No puedes seleccionar esta opción porque ya tienes un personaje en creación...", flags: ["Ephemeral"] })
 
                 return;
 
@@ -397,7 +428,11 @@ module.exports = crearBoton({
                                 "label": "Establecer foto",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `crear_ficha-${interaction.user.id}-foto`
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["foto"]
+                                })
                             },
                             "components": [
                                 {
@@ -413,8 +448,8 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "# Información: \n-# `🎎` **Sexo:** " + `${cachepj?.sexo || "** **"}` +
-                                "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || "** **"}` + "\n-# `🛫` **C/Org:** "
+                            "content": "# Información: \n-# `🎎` **Sexo:** " + `${`${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
+                                "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                                 + `${cachepj?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia || "** **"}` +
                                 "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad || "** **"}` +
                                 "\n\n-# `📏` **Estatura:** " + `${cachepj?.estatura ? `${cachepj.estatura}cm` : "** **"}` +
@@ -434,7 +469,11 @@ module.exports = crearBoton({
                             "components": [
                                 {
                                     "type": 3,
-                                    "custom_id": `crear_ficha-${interaction.user.id}`,
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: []
+                                    }),
                                     "options": [
                                         {
                                             "label": "» Nombre .ᐟ.ᐟ",
@@ -549,7 +588,11 @@ module.exports = crearBoton({
                                     "label": "Guía / Tutorial",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-guia`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["guia"]
+                                    })
                                 },
                                 {
                                     "type": 2,
@@ -557,7 +600,11 @@ module.exports = crearBoton({
                                     "label": "Da tu opinión",
                                     "emoji": null,
                                     "disabled": false,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-opinion`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["opinion"]
+                                    })
                                 },
                                 {
                                     "type": 2,
@@ -565,7 +612,11 @@ module.exports = crearBoton({
                                     "label": "Enviar ficha",
                                     "emoji": null,
                                     "disabled": !validSend,
-                                    "custom_id": `crear_ficha-${interaction.user.id}-enviar_Ficha`
+                                    "custom_id": crearCustomId({
+                                        action: "crear_ficha",
+                                        userId: interaction.user.id,
+                                        extras: ["enviar_Ficha"]
+                                    })
                                 }
                             ]
                         }
@@ -598,7 +649,7 @@ module.exports = crearBoton({
 
         await interaction.deferReply({ flags: ["Ephemeral"] })
 
-        if (extras === "enviar_true") {
+        if (selectOption === "enviar_true") {
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
 
             if (!characterCache) return interaction.editReply({ content: "Mmm, es raro. no deberia aparecer este mensaje a menos que intentaras buguear el bot =.=\n-# Ficha ya enviada o inexistente" })
@@ -661,8 +712,8 @@ module.exports = crearBoton({
 
             channelfichas.send({
                 content:
-                    "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + characterCache.cumpleaños
-                    + "\n**✧ Genero.** " + characterCache.sexo + "\n**✧ Personalidad.** "
+                    "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + (characterCache.cumpleaños || (characterCache.cumpleDia && characterCache.cumpleMes ? `${String(characterCache.cumpleDia).padStart(2, '0')}/${String(characterCache.cumpleMes).padStart(2, '0')}` : "** **"))
+                    + "\n**✧ Genero.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
                     + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + familia + "\n**✧ Aptitud.** "
                     + characterCache.especialidad + "\n**✧ Peso: " + characterCache?.peso + "\n**✧ estatura: " + characterCache?.estatura +
                     `\n**✧ Historia:** ` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${interaction.user}`,
@@ -672,10 +723,10 @@ module.exports = crearBoton({
                 { $set: { waiting: true } }
             )
 
-            return await interaction.editReply({ content: "Muchas gracias por querer formar parte de este instituto. ♡( ◡‿◡ )\n **Espera hasta que un miembro del staff verifique tu ficha**" })
+            return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial.**\n-# *No te preocupes, yo te avisare cuando esto suceda.~*" })
         }
 
-        if (extras === "foto") {
+        if (selectOption === "foto") {
             await interaction.editReply({ content: "Por favor, envía tu imagen (archivo/desde tu galeria o URL) en este canal en los próximos dos minutos" })
 
             const filter = msg => msg.author.id === interaction.user.id &&
@@ -721,7 +772,7 @@ module.exports = crearBoton({
                     interaction.editReply('⏰ Se acabó el tiempo. Vuelve a pulsar “Establecer foto” para intentarlo de nuevo.');
                 }
             });
-        } else if (extras === "guia") {
+        } else if (selectOption === "guia") {
             const tutorialV2 = [
                 {
                     "type": 17,
@@ -785,36 +836,55 @@ module.exports = crearBoton({
             ]
 
             interaction.editReply({ components: tutorialV2, flags: ["IsComponentsV2"] })
-        } else if (extras === "enviar_Ficha") {
+        } else if (selectOption === "enviar_Ficha") {
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
 
             if (!characterCache?.avatarURL) {
-                interaction.editReply({ content: "-# Parece que tu personaje aun no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", ephemeral: true })
+                interaction.editReply({ content: "-# Parece que tu personaje aun no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", flags: ["Ephemeral"] })
                 await sleep(4000)
-            }
+            } 
+            const jsonV2 = [
+                {
+                    "type": 17,
+                    "accent_color": 16711680,
+                    "spoiler": false,
+                    "components": [
+                        {
+                            "type": 10,
+                            "content": "## ¿Estás seguro de que deseas enviar tu ficha?"
+                        },
+                        {
+                            "type": 10,
+                            "content": "Revisa los siguientes puntos antes de continuar:"
+                        },
+                        {
+                            "type": 9,
+                            "accessory": {
+                                "type": 2,
+                                "style": 3,
+                                "label": "[✅] Enviar",
+                                "emoji": null,
+                                "disabled": false,
+                                "custom_id": crearCustomId({
+                                    action: "crear_ficha",
+                                    userId: interaction.user.id,
+                                    extras: ["enviar_true"]
+                                })
+                            },
+                            "components": [
+                                {
+                                    "type": 10,
+                                    "content": "- **Campos vacíos:** la información no completada se mostrará como `Desconocido` o quedará oculta en tu perfil.\n- **Bloqueo de edición:** una vez enviada, la ficha quedará congelada y no podrás editarla hasta que el staff la apruebe.\n- **Edición posterior:** podrás ajustar ciertos datos una vez que esté verificada.\n\n-# Para cancelar o seguir editando, simplemente descarta este mensaje.  (✿◡‿◡)"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
 
-
-
-            const Row = new ActionRowBuilder()
-            const accept = new ButtonBuilder()
-                .setCustomId(`crear_ficha-${interaction.user.id}-enviar_true`)
-                .setStyle(ButtonStyle.Success)
-                .setLabel("Enviar")
-                .setEmoji("✅")
-
-            Row.addComponents(accept)
-
-            const embed = new EmbedBuilder()
-                .setDescription("# ¿Estás seguro de que deseas enviar tu ficha?\n\n-# La información no agregada aparecerá como `Desconocido` o simplemente no se mostrará en tu perfil."
-                    + "\n-# - Podrás modificar algunos datos de tu personaje más adelante.\n-# - Si deseas cancelar esta acción, simplemente descarta este mensaje." +
-                    "\n\n-# **¡Una vez enviada tu ficha no podras ajustar nada de ella hasta que sea verificada por un administrador!**"
-                )
-                .setColor("Red")
-
-            await interaction.editReply({ embeds: [embed], components: [Row] })
+            await interaction.editReply({ components: jsonV2, flags: ["IsComponentsV2", "Ephemeral"] })
         }
 
 
     }
 })
-       

@@ -206,7 +206,7 @@ module.exports = {
 
             if (key) {
                 const historiaData = personaje.perfil.Capitulos.find(c => c.ID === key)
-                if (!historiaData) return interaction.reply({ content: "Hubo un error al intentar mostrar este capitulo. Intentalo de nuevo ＞﹏＜", flags: "Ephemeral" })
+                if (!historiaData) return interaction.reply({ content: "Hubo un error al intentar mostrar este capitulo. Intentalo de nuevo ＞﹏＜", flags: ["Ephemeral"] })
 
                 title = `# ${historiaData.Titulo}`
                 historiaShow = historiaData.Historia
@@ -449,7 +449,7 @@ module.exports = {
         async function stats(pjuser) {
             console.log(interaction.values[0])
             if (key) {
-                if (soul.sendero.StelarFragments < 1) return interaction.reply({ content: "No puedes mejorar esta habilidad porque no tienes los fragmentos estelares suficientes", flags: "Ephemeral" })
+                if (soul.sendero.StelarFragments < 1) return interaction.reply({ content: "No puedes mejorar esta habilidad porque no tienes los fragmentos estelares suficientes", flags: ["Ephemeral"] })
 
                 await souls.updateOne({ _id: pjuser._id }, {
                     $inc: {
@@ -587,7 +587,7 @@ module.exports = {
             await interaction.update({ components: statsV2 })
 
             if (key) {
-                await interaction.followUp({ content: "Puntos estelares aplicados correctamente", flags: "Ephemeral" })
+                await interaction.followUp({ content: "Puntos estelares aplicados correctamente", flags: ["Ephemeral"] })
             }
 
         }

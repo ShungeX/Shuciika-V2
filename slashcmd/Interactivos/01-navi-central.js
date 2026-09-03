@@ -43,19 +43,19 @@ ejecutar: async(client, interaction) => {
             subcommands.Bite(client, interaction)
             break;
         case "cheeks":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
         case "lick":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
         case "cuddle":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
         case "highfive":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
         case "poke":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, ephemeral: true}) 
+            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
             
         

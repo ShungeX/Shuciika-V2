@@ -16,7 +16,7 @@ module.exports = {
     ejecutar: async(client, interaction, cache, items, correct,{ character }) => {
         const getCache = transaccionCache.get(cache)
 
-        if(!getCache) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", ephemeral: true})
+        if(!getCache) return interaction.reply({content: "Esta interacción ya expiró 〒▽〒\n-# Vuelve a usar el comando (Esto ocurre si usaste otra vez el comando o pasó más de 3h)", flags: ["Ephemeral"]})
         const [ID, reg] = items.split("*")
         const Region = `${reg}-${correct}`
 
@@ -25,7 +25,7 @@ module.exports = {
             getCache.bagContent.Titulo = titulo 
             await guardarBolsa(interaction, getCache, 0, null, character, null, titulo)
             await bagHome(interaction, cache)
-            await interaction.reply({content: `-# Se agrego correctamente el titulo`, flags: "Ephemeral"})
+            await interaction.reply({content: `-# Se agrego correctamente el titulo`, flags: ["Ephemeral"]})
             return;
         };
 
@@ -34,7 +34,7 @@ module.exports = {
             getCache.bagContent.mensaje = message 
             await guardarBolsa(interaction, getCache, 0, null, character, message)
             await bagHome(interaction, cache)
-            await interaction.reply({content: `-# Se agrego correctamente el mensaje`, flags: "Ephemeral"})
+            await interaction.reply({content: `-# Se agrego correctamente el mensaje`, flags: ["Ephemeral"]})
             return;
         };
 
@@ -49,7 +49,7 @@ module.exports = {
         console.log("ItemData", getCache.bagContent)
 
         if(cantidadS?.Cantidad < cantidad || !cantidadS) return interaction.reply({content: "No tienes la cantidad suficiente para dar este objeto 〒▽〒\n-# Tienes: **`" + 
-            cantidadS?.Cantidad + "`**, y quieres enviar: **`" + cantidad + "`**", ephemeral: true 
+            cantidadS?.Cantidad + "`**, y quieres enviar: **`" + cantidad + "`**", flags: ["Ephemeral"] 
         })
 
         
@@ -58,7 +58,7 @@ module.exports = {
         let pesoTotal =  getCache.bagContent.pesoTotal + ((item.atributos?.peso || 1) * cantidad)
 
         if(pesoTotal > getCache.bagContent.Capacidad) return interaction.reply({content: "**`" + getCache.bagContent.Nombre + "`** No tiene la capacidad suficiente para almacenar el peso de tantos objetos\n" + 
-            `-# Los objetos que agregaste son muy pesados, verifica el peso y vuelve a intentarlo`, flags: "Ephemeral"})
+            `-# Los objetos que agregaste son muy pesados, verifica el peso y vuelve a intentarlo`, flags: ["Ephemeral"]})
 
         const index = getCache.bagContent.items.findIndex(i => i.ID === item.ID && i.Region === item.Region);
 
@@ -85,6 +85,6 @@ module.exports = {
 
         await guardarBolsa(interaction, getCache, cantidad, item, character)
         await crearInventario(interaction, interaction.user.id, cache, character)
-        await interaction.reply({content: `-# Se agregó **${item.Nombre} x ${cantidad}**`, flags: "Ephemeral"})
+        await interaction.reply({content: `-# Se agregó **${item.Nombre} x ${cantidad}**`, flags: ["Ephemeral"]})
     }
 }

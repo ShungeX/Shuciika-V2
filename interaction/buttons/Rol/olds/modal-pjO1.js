@@ -44,7 +44,7 @@ module.exports = {
         const sexo = new TextInputBuilder()
         .setCustomId("sexopj")
         .setLabel("¿El sexo de tu personaje es...?")
-        .setPlaceholder("Respuestas: Masculino, Femenino, No binario")
+        .setPlaceholder("Respuestas: Masculino, Femenino, Prefiero no especificar")
         .setStyle(TextInputStyle.Short)
         .setMinLength(8)
         .setMaxLength(10)

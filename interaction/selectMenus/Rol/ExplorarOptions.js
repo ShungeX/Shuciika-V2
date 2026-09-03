@@ -61,7 +61,7 @@ module.exports = crearStringSelectMenu({
             const userCache = transaccionCache.getUser(interaction.user.id);
 
             if (!userCache) {
-                return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+                return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
             }
 
             const exploracionCache = transaccionCache.get(userCache.explorarID);

@@ -381,7 +381,7 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         message = await interaction.channel.messages.fetch(`${exploracionCache.message.id}`);
     } catch (error) {
         if (!interaction.deferred && !interaction.replied) {
-            return interaction.reply({ content: "Error al iniciar el duelo [Mensaje no encontrado]", ephemeral: true }).catch(() => { });
+            return interaction.reply({ content: "Error al iniciar el duelo [Mensaje no encontrado]", flags: ["Ephemeral"] }).catch(() => { });
         }
         return;
     }
@@ -418,7 +418,7 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         if (!sesion) {
             console.error(`[battleExploration] Error al crear la sesión de combate ${channelDuel.id}.`);
             if (!interaction.deferred && !interaction.replied) {
-                return interaction.reply({ content: "Error al iniciar el duelo [Sesión ocupada o no disponible]", ephemeral: true }).catch(() => { });
+                return interaction.reply({ content: "Error al iniciar el duelo [Sesión ocupada o no disponible]", flags: ["Ephemeral"] }).catch(() => { });
             }
             return;
         }
@@ -523,10 +523,10 @@ async function obtenerPersonajeYAlma(interaction, exploracionCache) {
 async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
     const { calcularAmenaza, generateMessage } = require("./exploracionManager");
     const exploracionCache = transaccionCache.get(cache?.explorarID);
-    if (!exploracionCache) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
+    if (!exploracionCache) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
 
     if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
-        return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+        return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
     }
 
     const region = await regiones.findOne({ _id: exploracionCache.regionSelect });
@@ -539,16 +539,16 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
 
     try {
         message = await interaction.channel.messages.fetch(`${exploracionCache.message.id}`);
-        if (!message) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
+        if (!message) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
 
         await MdAuthor.send({ content: "-# Comprobando DM...\n-# Este mensaje se borra automáticamente", flags: ["SuppressNotifications"] })
             .then(m => setTimeout(() => m.delete(), 3000));
     } catch (error) {
-        return interaction.reply({ content: "No puedes iniciar un duelo si tienes los **mensajes directos** desactivados.\n-# Intenta activar 'Mensajes directos de otros' o pide ayuda en el foro <#1064054917662265404>", ephemeral: true });
+        return interaction.reply({ content: "No puedes iniciar un duelo si tienes los **mensajes directos** desactivados.\n-# Intenta activar 'Mensajes directos de otros' o pide ayuda en el foro <#1064054917662265404>", flags: ["Ephemeral"] });
     }
 
     if (!enemy) {
-        return interaction.reply({ content: "Hubo un error al cargar el duelo. [Enemigo no encontrado]\n-# Intenta cancelar el encuentro o contacta a soporte...", ephemeral: true });
+        return interaction.reply({ content: "Hubo un error al cargar el duelo. [Enemigo no encontrado]\n-# Intenta cancelar el encuentro o contacta a soporte...", flags: ["Ephemeral"] });
     }
 
     if (action === "runAway") {
@@ -698,7 +698,7 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
         if (resolvedSoul) soul = resolvedSoul;
 
         if (!character || !soul) {
-            return interaction.reply({ content: "No se ha podido obtener tu personaje.", ephemeral: true });
+            return interaction.reply({ content: "No se ha podido obtener tu personaje.", flags: ["Ephemeral"] });
         }
 
         const messageDuel = await generateMessage(exploracionCache, soul, subzonaSelect[0], jsonAccept, true);

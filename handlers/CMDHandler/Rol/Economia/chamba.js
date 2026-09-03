@@ -222,7 +222,7 @@ module.exports = {
                 break;
             default:
                 if (lastTrabajo >= timeSeconds) {
-                    return interaction.reply({ content: `Tu personaje debe descansar antes de volver a trabajar. Debes esperar <t:${lastTrabajo}:R>`, ephemeral: true })
+                    return interaction.reply({ content: `Tu personaje debe descansar antes de volver a trabajar. Debes esperar <t:${lastTrabajo}:R>`, flags: ["Ephemeral"] })
                 }
 
 
@@ -380,7 +380,7 @@ module.exports = {
         } catch (error) {
             console.log(error)
             if (interaction.deferred || interaction.replied) {
-                await interaction.followUp({ content: "Ocurrio un error en esta interacción... (┬┬﹏┬┬)\n-# Es posible que hayas intentado interactuar con otro mensaje de trabajo, evita hacer eso. (┬┬﹏┬┬)", flags: "Ephemeral" })
+                await interaction.followUp({ content: "Ocurrio un error en esta interacción... (┬┬﹏┬┬)\n-# Es posible que hayas intentado interactuar con otro mensaje de trabajo, evita hacer eso. (┬┬﹏┬┬)", flags: ["Ephemeral"] })
                 await errorMessage(error, interaction)
             } else {
                 await errorMessage(error, interaction)

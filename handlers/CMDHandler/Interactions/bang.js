@@ -45,10 +45,10 @@ module.exports = async(client, interaction) => {
     
         if(pjId) {
             if(!pjfind) {
-                return interaction.reply({ content: `El personaje con el ID **${pjId}** no parece estar inscrito (・・ ) ?\nVerifica la ID`, ephemeral: true})
+                return interaction.reply({ content: `El personaje con el ID **${pjId}** no parece estar inscrito (・・ ) ?\nVerifica la ID`, flags: ["Ephemeral"] })
     
             }else if(!pjuser) {
-                return interaction.reply({ content: "Esta opcion solo esta disponible con un **personaje registrado** (｡• ᵕ • ｡)\nSi quieres crear tu personaje usa **`/rol crear-personaje`**", ephemeral: true})
+                return interaction.reply({ content: "Esta opcion solo esta disponible con un **personaje registrado** (｡• ᵕ • ｡)\nSi quieres crear tu personaje usa **`/rol crear-personaje`**", flags: ["Ephemeral"] })
             }else if(pjfind.ID === pjuser.ID) {
                 const embed = new EmbedBuilder()
                 .setDescription("**" + `${pjfind.Nombre}` + "**  Se auto-disparo X﹏X")
@@ -79,7 +79,7 @@ module.exports = async(client, interaction) => {
            }
             member()
         }else {
-            return interaction.reply({content: "Ha Ocurrido un error", ephemeral: true})
+            return interaction.reply({content: "Ha Ocurrido un error", flags: ["Ephemeral"]})
         }
     
     

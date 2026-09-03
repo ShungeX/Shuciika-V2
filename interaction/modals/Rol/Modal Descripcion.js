@@ -33,7 +33,7 @@ module.exports = {
         }
 
         if(await Badwords()) {
-          return interaction.reply({content: "¡Hey! Tu escripcion contiene malas palabras （︶^︶）| [Verifica nuevamente la descripcion]", ephemeral: true})
+          return interaction.reply({content: "¡Hey! Tu escripcion contiene malas palabras （︶^︶）| [Verifica nuevamente la descripcion]", flags: ["Ephemeral"]})
         }
 
 

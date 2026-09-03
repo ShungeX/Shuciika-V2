@@ -774,7 +774,7 @@ class DialogueSystem {
                         if (interaction.replied || interaction.deferred) {
                             message = await interaction.followUp({ ...messageOptions, fetchReply: true });
                         } else {
-                            await interaction.deferReply({ ephemeral: dialogueData.ephemeral });
+                            await interaction.deferReply({ flags: [dialogueData.ephemeral ? "Ephemeral" : ''] });
                             message = await interaction.editReply(messageOptions);
                         }
                     } else {

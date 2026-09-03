@@ -27,7 +27,7 @@ module.exports = async(client, interaction) => {
 
 
     if(!verifRoles) {
-        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+        return interaction.reply({content: "No tienes permisos para usar este comando", flags: ["Ephemeral"]})
     }
 
     await generateID()
@@ -42,7 +42,7 @@ module.exports = async(client, interaction) => {
     console.log("BD", objeto.Objetos[0].Nombre, "ID:", uniqueID)
 
     if(!objeto) {
-        return interaction.reply({content: "No pude guardar el objeto <( _ _ )>", ephemeral: true})
+        return interaction.reply({content: "No pude guardar el objeto <( _ _ )>", flags: ["Ephemeral"]})
     }
 
     const embed = new EmbedBuilder()

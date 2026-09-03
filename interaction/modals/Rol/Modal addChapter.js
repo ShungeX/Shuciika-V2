@@ -48,11 +48,11 @@ module.exports = {
   
         if(img) {
             if(await isValidImage(img) === false) {
-              return interaction.editReply({ content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1330769969428041822>", ephemeral: true})
+              return interaction.editReply({ content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1330769969428041822>", flags: ["Ephemeral"]})
             }
         }
 
-        if(!pincel || pincel?.Cantidad < 1) return interaction.reply({content: "No se puede agregar un capitulo porque no tienes suficientes `Pincel Magico` ＞﹏＜", flags: "Ephemeral"})
+        if(!pincel || pincel?.Cantidad < 1) return interaction.reply({content: "No se puede agregar un capitulo porque no tienes suficientes `Pincel Magico` ＞﹏＜", flags: ["Ephemeral"]})
         const totalHistorias = personaje?.Capitulos?.length || 0;
 
         // Asignar campos automáticos
@@ -98,7 +98,7 @@ module.exports = {
         .setColor("Green")
         .setTimestamp()
 
-        return interaction.reply({content: "Se asigno correctamente el capitulo al perfil de tu personaje", embeds: [embed], flags: "Ephemeral"})
+        return interaction.reply({content: "Se asigno correctamente el capitulo al perfil de tu personaje", embeds: [embed], flags: ["Ephemeral"]})
 
 
 

@@ -29,7 +29,7 @@ module.exports = crearBoton({
 
         console.log("Cache obtenida:", response, id)
 
-        if (!getCache) return interaction.reply({ content: "Esta interacción ya expiro ＞﹏＜", ephemeral: true });
+        if (!getCache) return interaction.reply({ content: "Esta interacción ya expiro ＞﹏＜", flags: ["Ephemeral"] });
 
         //Aqui empieza la logica para unirse a la sala
         if (getCache.code) {
@@ -521,13 +521,13 @@ module.exports = crearBoton({
 
             if (await duelSystem.personajeEnDuelo(characterRival.ID)) {
                 getCache.Message.edit({ components: [] })
-                return interaction.reply({ content: "No puedes aceptar este duelo porque ya estas en uno", ephemeral: true })
+                return interaction.reply({ content: "No puedes aceptar este duelo porque ya estas en uno", flags: ["Ephemeral"] })
             }
 
 
             if (await duelSystem.personajeEnDuelo(characterAuthor.ID)) {
                 getCache.Message.edit({ components: [] })
-                return interaction.reply({ content: "No puedes aceptar este duelo. Quien te reto ya esta en un duelo actualmente", ephemeral: true })
+                return interaction.reply({ content: "No puedes aceptar este duelo. Quien te reto ya esta en un duelo actualmente", flags: ["Ephemeral"] })
             }
 
 

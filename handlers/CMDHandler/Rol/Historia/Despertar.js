@@ -48,7 +48,7 @@ module.exports = {
         console.log(cacheId)
         if (soul) {
             if (soul?.isFinish) {
-                return interaction.reply({ content: "Una estrella guarda aquello que resuena en tu alma.", ephemeral: true })
+                return interaction.reply({ content: "Una estrella guarda aquello que resuena en tu alma.", flags: ["Ephemeral"] })
             }
 
 
@@ -58,7 +58,7 @@ module.exports = {
             console.log(message)
 
             if (message) {
-                return interaction.reply({ content: "Ya tienes una sesión de despertar en curso. Aqui esta el mensaje: " + `https://discord.com/channels/@me/${message.channelId}/${message.id}`, ephemeral: true })
+                return interaction.reply({ content: "Ya tienes una sesión de despertar en curso. Aqui esta el mensaje: " + `https://discord.com/channels/@me/${message.channelId}/${message.id}`, flags: ["Ephemeral"] })
             } else {
                 await soul.deleteOne({ _id: interaction.user.id })
             }
@@ -66,16 +66,16 @@ module.exports = {
         }
 
         if (cacheId?.activity) {
-            return interaction.reply({ content: "Ya tienes una sesión de despertar en curso. Por favor revisa tus mensajes privados", ephemeral: true })
+            return interaction.reply({ content: "Ya tienes una sesión de despertar en curso. Por favor revisa tus mensajes privados", flags: ["Ephemeral"] })
         }
 
 
         if (!md) {
-            return interaction.reply({ content: "Para usar este comando debes tener los mensajes directos (MD) activados", ephemeral: true })
+            return interaction.reply({ content: "Para usar este comando debes tener los mensajes directos (MD) activados", flags: ["Ephemeral"] })
         }
 
         if (options === 1) {
-            interaction.reply({ content: "Se ha omitido el dialogo de despertar [Staff Only]", ephemeral: true })
+            interaction.reply({ content: "Se ha omitido el dialogo de despertar [Staff Only]", flags: ["Ephemeral"] })
             skip()
         } else {
             dialogo()

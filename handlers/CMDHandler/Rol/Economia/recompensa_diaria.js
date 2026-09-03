@@ -38,7 +38,7 @@ module.exports = {
         if (ahora < proximaDisponible) {
             return interaction.reply({
                 content: `Ya has reclamado tu recompensa diaria. Vuelve <t:${proximaDisponible}:R>`,
-                ephemeral: true
+                flags: ["Ephemeral"]
             })
         }
 
@@ -111,7 +111,7 @@ module.exports = {
             console.error("[recompensa_diaria]", error)
             await interaction.reply({
                 content: "No se pudo reclamar la recompensa diaria. Contacta a un administrador.",
-                ephemeral: true
+                flags: ["Ephemeral"]
             })
         }
     }

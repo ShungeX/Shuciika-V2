@@ -81,7 +81,7 @@ module.exports = {
                     const enfriamiento = Math.floor(Date.now() / 1000) + (4 * 60 * 60)
 
                     if (lastTrabajo >= timeSeconds) {
-                        return interaction.reply({ content: `Tu personaje debe descansar antes de volver a trabajar. Debes esperar <t:${lastTrabajo}:R>`, ephemeral: true })
+                        return interaction.reply({ content: `Tu personaje debe descansar antes de volver a trabajar. Debes esperar <t:${lastTrabajo}:R>`, flags: ["Ephemeral"] })
                     }
 
 
@@ -418,7 +418,7 @@ module.exports = {
 
             } catch (error) {
                 activeGames.delete(interaction.user.id)
-                await interaction.reply({ content: "ocurrio un error en el minijuego, no se ha gastado tu energía pero tampoco has obtenido recompensas", flags: "Ephemeral" })
+                await interaction.reply({ content: "ocurrio un error en el minijuego, no se ha gastado tu energía pero tampoco has obtenido recompensas", flags: ["Ephemeral"] })
                 console.error(error)
             }
 

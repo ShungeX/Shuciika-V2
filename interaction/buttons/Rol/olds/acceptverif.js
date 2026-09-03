@@ -30,7 +30,7 @@ module.exports = {
 
         channelfichas.send({content: 
              "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + characterCache.cumpleaños 
-            + "\n**✧ Genero.** " + characterCache.sexo + "\n**✧ Personalidad.** " 
+            + "\n**✧ Genero.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** " 
             + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + characterCache.familia + "\n**✧ Aptitud.** " 
             + characterCache.especialidad + `\n**✧ Historia:** ` + `${characterCache?.historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${interaction.user}`, 
             files: [characterCache.avatarURL]
@@ -39,7 +39,7 @@ module.exports = {
             {$set: {waiting: true}}
         )
         
-        await interaction.reply({content: "Muchas gracias por querer formar parte de este instituto. ♡( ◡‿◡ )\n **Espera hasta que un miembro del staff verifique tu ficha**"})
+        return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial.**\n-# *No te preocupes, yo te avisare cuando esto suceda.~*" })
 
     }
 }

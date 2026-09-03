@@ -44,7 +44,7 @@ module.exports = {
             const time = 300000 - (Date.now() - userdb?.time?.pjFoto)
 
             if ((Date.now() - userdb?.time?.pjFoto) < 300000) {
-                return interaction.editReply({ content: "¡Oye!, Acabo de pegar tu foto... Bueno, es lo de menos (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y " })}` + "`** para establecer otra foto nueva (⇀‸↼‶)", ephemeral: true })
+                return interaction.editReply({ content: "¡Oye!, Acabo de pegar tu foto... Bueno, es lo de menos (￣へ￣)\nEspera al menos **`" + `${timeconvert(time, { language: "es", units: ["m", "s"], round: true, conjunction: " y " })}` + "`** para establecer otra foto nueva (⇀‸↼‶)", flags: ["Ephemeral"] })
             }
 
 
@@ -246,7 +246,7 @@ module.exports = {
                     {
                         "type": 10,
                         "content": "# Información: \n-# `🎎` **Sexo:** " + `${character.perfil?.Sexo || "** **"}` +
-                            "\n-# `🍭` **Edad:** " + `${character.perfil?.Edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${character.perfil?.Cumpleaños || "** **"}` + "\n-# `🛫` **C/Org:** "
+                            "\n-# `🍭` **Edad:** " + `${character.perfil?.Edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${character.perfil?.Cumpleaños || (character.perfil?.cumpleDia && character.perfil?.cumpleMes ? `${String(character.perfil.cumpleDia).padStart(2, '0')}/${String(character.perfil.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                             + `${character.perfil?.CiudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${character.perfil?.Familia || "** **"}` +
                             "\n-# `🎭` **Personalidad:** " + `${character.perfil?.Personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${character.perfil?.Especialidad || "** **"}`
                     },

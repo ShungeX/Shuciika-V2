@@ -23,7 +23,7 @@ module.exports = crearBoton({
         const userCache = transaccionCache.getUser(interaction.user.id);
 
         if (!userCache) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", ephemeral: true });
+            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         const exploracionCache = transaccionCache.get(userCache.explorarID);
@@ -76,7 +76,7 @@ module.exports = crearBoton({
                     await interaction.deferUpdate().catch(() => { });
                     if (!exploracionCache || !exploracionCache?.regionSelect || !exploracionCache?.zona) {
                         if (!interaction.replied && !interaction.deferred) {
-                            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", ephemeral: true });
+                            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
                         }
                         return;
                     }

@@ -21,9 +21,9 @@ module.exports = {
         console.log(cacheId)
         console.log(actions)
 
-        if(!cacheObj) return interaction.reply({content: "Esta interacción ya no es valida ＞﹏＜\n-# Vuelve a usar el comando", ephemeral: true})
+        if(!cacheObj) return interaction.reply({content: "Esta interacción ya no es valida ＞﹏＜\n-# Vuelve a usar el comando", flags: ["Ephemeral"]})
 
-        await interaction.reply({content: "Espera... ", flags: "Ephemeral", withResponse: true})
+        await interaction.reply({content: "Espera... ", flags: ["Ephemeral"], withResponse: true})
 
 
         if(actions === "itemsClose") {

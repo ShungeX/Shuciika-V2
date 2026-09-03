@@ -32,7 +32,7 @@ module.exports = {
 
 
         if(!personalidades.includes(interaction.fields.getTextInputValue("personalpj"))) {
-          return interaction.reply({ content: "Recuerda que solo se admiten las personalidades del canal <#926688416433860638>.\ **[Tambien recuerda que todo es en Mayus]**", ephemeral: true})
+          return interaction.reply({ content: "Recuerda que solo se admiten las personalidades del canal <#926688416433860638>.\ **[Tambien recuerda que todo es en Mayus]**", flags: ["Ephemeral"]})
         }
 
         function validarYformatearFecha(input) {
@@ -85,7 +85,7 @@ module.exports = {
 
     
         if(validarFecha?.error) {
-            return interaction.reply({ content: validarFecha.error, flags: "Ephemeral"})
+            return interaction.reply({ content: validarFecha.error, flags: ["Ephemeral"]})
         }else {
             cumplepj = validarFecha
         }

@@ -68,7 +68,7 @@ module.exports = {
 
             return interaction.reply({
                 content: "Ya tienes una interacción de regalo activa.\n-# " +
-                    `[Haz click aqui para ir al mensaje](https://discord.com/channels/${messages.guildId}/${messages.channelId}/${messages.id})\n-# Por seguridad el cache se almacena durante 3 horas, si por error eliminaste el mensaje, tendras que esperar ese tiempo. Disculpa las molestias ＞﹏＜`, ephemeral: true
+                    `[Haz click aqui para ir al mensaje](https://discord.com/channels/${messages.guildId}/${messages.channelId}/${messages.id})\n-# Por seguridad el cache se almacena durante 3 horas, si por error eliminaste el mensaje, tendras que esperar ese tiempo. Disculpa las molestias ＞﹏＜`, flags: ["Ephemeral"]
             })
         }
 
@@ -81,29 +81,29 @@ module.exports = {
         }
 
 
-        if (character.ID === pjID) return interaction.reply({ content: "Ehm... no puedes regalarte a ti mismo un objeto 〒▽〒\n-# Menciona otro personaje que no seas tu mismo", ephemeral: true })
+        if (character.ID === pjID) return interaction.reply({ content: "Ehm... no puedes regalarte a ti mismo un objeto 〒▽〒\n-# Menciona otro personaje que no seas tu mismo", flags: ["Ephemeral"] })
 
         const pjFriend = await characters.findOne({ ID: pjID })
 
-        if (!pjFriend) return interaction.reply({ content: "No se pudo encontrar el personaje con la siguiente ID: `" + pjID + "`", ephemeral: true })
+        if (!pjFriend) return interaction.reply({ content: "No se pudo encontrar el personaje con la siguiente ID: `" + pjID + "`", flags: ["Ephemeral"] })
 
         console.log(cantidadInventario)
         if (cantidadInventario?.Cantidad < cantidad || !cantidadInventario) return interaction.reply({
             content: "No tienes la cantidad suficiente para dar este objeto 〒▽〒\n-# Tienes: **`" +
-                cantidadInventario?.Cantidad + "`**, y quieres enviar: **`" + cantidad + "`**", ephemeral: true
+                cantidadInventario?.Cantidad + "`**, y quieres enviar: **`" + cantidad + "`**", flags: ["Ephemeral"]
         })
 
         const soulFriend = await souls.findOne({ ID: pjFriend.ID })
 
-        if (!soulFriend) return interaction.reply({ content: "Este personaje aun no puede recibir objetos... 〒▽〒", flags: "Ephemeral" })
+        if (!soulFriend) return interaction.reply({ content: "Este personaje aun no puede recibir objetos... 〒▽〒", flags: ["Ephemeral"] })
 
 
         const objeto = await duelSystem.getObjetInfo(region, cantidadInventario.ID)
 
-        if (!objeto) return interaction.reply({ content: "No se ha podido encontrar ese objeto. ＞﹏＜\n-# Probablemente no sea la ID correcta o el objeto ya no exista", ephemeral: true })
+        if (!objeto) return interaction.reply({ content: "No se ha podido encontrar ese objeto. ＞﹏＜\n-# Probablemente no sea la ID correcta o el objeto ya no exista", flags: ["Ephemeral"] })
 
         if (!objeto.intercambiable || cantidadInventario?.Metadata?.restricciones?.intercambiable === false) {
-            return interaction.reply({ content: "**`" + objeto.Nombre + "`** No se puede regalar 〒▽〒\n-# Este objeto no es intercambiable", ephemeral: true })
+            return interaction.reply({ content: "**`" + objeto.Nombre + "`** No se puede regalar 〒▽〒\n-# Este objeto no es intercambiable", flags: ["Ephemeral"] })
         }
 
 
@@ -199,7 +199,7 @@ module.exports = {
         if (!resultadoValidacion.valido) {
             return interaction.reply({
                 content: `No se puede regalar el siguiente objeto porque no se cumplen una o más de los siguientes requisitos:\n
-            ${resultadoValidacion.errores.join("\n")}`, ephemeral: true
+            ${resultadoValidacion.errores.join("\n")}`, flags: ["Ephemeral"]
             })
         }
 
@@ -246,7 +246,7 @@ module.exports = {
 
 
 
-        await interaction.reply({ embeds: [embed], components: [row], withResponse: true, flags: "Ephemeral" })
+        await interaction.reply({ embeds: [embed], components: [row], withResponse: true, flags: ["Ephemeral"] })
 
         const obj = {
             objData: objFinal,

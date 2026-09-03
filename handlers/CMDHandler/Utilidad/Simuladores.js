@@ -21,7 +21,7 @@ module.exports = async(client, interaction) => {
     const verifRoles = roles.some(role => interaction.member.roles.cache.has(role))
 
     if(!verifRoles) {
-        return interaction.reply({content: "No tienes permisos para usar este comando", ephemeral: true})
+        return interaction.reply({content: "No tienes permisos para usar este comando", flags: ["Ephemeral"]})
     }
 
 

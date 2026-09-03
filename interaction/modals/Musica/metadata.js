@@ -23,7 +23,7 @@ module.exports = {
 
         const infometa = await transaccionCache.get(options)
 
-        if(!infometa) return interaction.reply({content: "Esta interaccion ya no esta disponible", ephemeral: true})
+        if(!infometa) return interaction.reply({content: "Esta interaccion ya no esta disponible", flags: ["Ephemeral"]})
 
         const musicdb = await db.collection(`${infometa.categoria}`)
 

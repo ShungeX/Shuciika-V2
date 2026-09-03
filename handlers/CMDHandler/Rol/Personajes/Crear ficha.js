@@ -40,7 +40,7 @@ module.exports = {
             })
             message()
         } else if (cachepj?.waiting) {
-            return interaction.reply({ content: '¡Ya has enviado tu ficha!. ☆⌒(>。<) \n-# Espera a que un administrador la verifique', ephemeral: true })
+            return interaction.reply({ content: '¡Ya has enviado tu ficha!. ☆⌒(>。<) \n-# Espera a que un administrador la verifique', flags: ["Ephemeral"] })
         } else if (userfind?.fichaStatus?.messageTemp) {
             const channel = await client.channels.fetch(userfind?.fichaStatus?.channelTemp) || null
 
@@ -53,7 +53,7 @@ module.exports = {
                         .setURL(`https://discord.com/channels/${interaction.guildId}/${channel.id}/${userfind?.fichaStatus?.messageTemp}`)
                         .setDescription(`Ya existe una interacccion activa en ${channel}`)
                         .setColor("Red")
-                    return interaction.reply({ embeds: [embed], ephemeral: true })
+                    return interaction.reply({ embeds: [embed], flags: ["Ephemeral"] })
                 }
             } catch (e) {
                 console.log("No se encontro el mensaje")
@@ -261,8 +261,8 @@ module.exports = {
                             },
                             {
                                 "type": 10,
-                                "content": "# Información: \n-# `🎎` **Sexo:** " + `${cachepj?.sexo || "** **"}` +
-                                    "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || "** **"}` + "\n-# `🛫` **C/Org:** "
+                                "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + `${`${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
+                                    "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                                     + `${cachepj?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia || "** **"}` +
                                     "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad || "** **"}` +
                                     "\n\n-# `📏` **Estatura:** " + `${cachepj?.estatura ? `${cachepj.estatura}cm` : "** **"}` +
@@ -302,9 +302,9 @@ module.exports = {
                                                 "default": false
                                             },
                                             {
-                                                "label": "» Sexo .ᐟ.ᐟ",
+                                                "label": "» Sexo & Pronombres .ᐟ.ᐟ",
                                                 "value": `sexo`,
-                                                "description": "El sexo de tu personaje",
+                                                "description": "Sexo biológico y pronombres de tu personaje",
                                                 "emoji": null,
                                                 "default": false
                                             },
@@ -400,7 +400,11 @@ module.exports = {
                                         "label": "Guía / Tutorial",
                                         "emoji": null,
                                         "disabled": false,
-                                        "custom_id": `crear_ficha-${interaction.user.id}-guia`
+                                        "custom_id": crearCustomId({
+                                            action: "crear_ficha",
+                                            userId: interaction.user.id,
+                                            extras: ["guia"]
+                                        })
                                     },
                                     {
                                         "type": 2,
@@ -408,7 +412,11 @@ module.exports = {
                                         "label": "Da tu opinión",
                                         "emoji": null,
                                         "disabled": false,
-                                        "custom_id": `crear_ficha-${interaction.user.id}-opinion`
+                                        "custom_id": crearCustomId({
+                                            action: "crear_ficha",
+                                            userId: interaction.user.id,
+                                            extras: ["opinion"]
+                                        })
                                     },
                                     {
                                         "type": 2,
@@ -416,7 +424,11 @@ module.exports = {
                                         "label": "Enviar ficha",
                                         "emoji": null,
                                         "disabled": !validSend,
-                                        "custom_id": `crear_ficha-${interaction.user.id}-enviar_Ficha`
+                                        "custom_id": crearCustomId({
+                                            action: "crear_ficha",
+                                            userId: interaction.user.id,
+                                            extras: ["enviar_Ficha"]
+                                        })
                                     }
                                 ]
                             }
