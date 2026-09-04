@@ -59,7 +59,7 @@ function construirMensajeCorreccionesHilo(pj, correcciones = []) {
             components: [
                 {
                     type: 10,
-                    content: `# Se necesitan correcciones en tu ficha\nHola <@!${userId}>, tu ficha ha sido revisada por el equipo de administración y se han detectado algunos detalles que deben ser corregidos antes de poder ser aceptada. Por favor, revisa los puntos señalados a continuación y actualiza tu ficha.`
+                    content: `# Corrección de datos\n¡Hola de nuevo! <@!${userId}>, tu ficha ha sido revisada por la administración y antes de darle la bienvenida oficial a tu ficha, hay algunos detalles que me gustaría que ajustaras. ♡( ◡‿◡ )`
                 }
             ]
         }
@@ -79,7 +79,7 @@ function construirMensajeCorreccionesHilo(pj, correcciones = []) {
 
     components.push({
         type: 10,
-        content: "-# Para corregir estos errores, usa el comando `/rol configuración` y selecciona **Editar personaje**, posterior a esto vuelve a mandar tu ficha para revisión. Si tienes alguna duda, puedes consultar con un miembro del equipo o abrir un ticket de soporte en <#1319812744035438642>."
+        content: "-# Para corregirlo, usa el comando `/rol configuración` y selecciona la opción \"Editar personaje\". Si tienes problemas al editar, puedes abrir una publicación en <#1319812744035438642> y con gusto te ayudamos.\n\n-# Cuando termines, no olvides volver a enviar tu ficha para que pueda revisarla de nuevo."
     });
 
     return [
@@ -123,7 +123,7 @@ function construirDetalleFicha(pj, userId) {
 
     let resumenCorrecciones = "";
     if (correcciones.length > 0) {
-        resumenCorrecciones = `\n\n-# **⚠️ Correcciones pendientes (${correcciones.length}):**\n` +
+        resumenCorrecciones = `-# **⚠️ Correcciones pendientes (${correcciones.length}):**\n` +
             correcciones.map(c => `-# • **${c.etiqueta || c.campo}:** ${c.motivo}`).join("\n");
     }
 
@@ -132,9 +132,7 @@ function construirDetalleFicha(pj, userId) {
         `-# **Usuario:** <@!${pj?._id}>\n` +
         `-# **Estado:** \`${estadoRaw}\`\n` +
         `-# **Hilo de revisión:** ${hilo}` +
-        `\n\n-# **Motivo:** ${pj?.status?.motivo || "No disponible"}` +
-        tagFoto +
-        resumenCorrecciones
+        `\n\n-# **Motivo:** ${pj?.status?.motivo || "No disponible"}`
     );
 
     const sexoPronombres = `${pj?.sexo || "** **"} ${pj?.pronombres ? `(${pj.pronombres})` : ""}`.trim() || "** **";
@@ -161,110 +159,147 @@ function construirDetalleFicha(pj, userId) {
 
     const avatarUrl = pj?.avatarURL || "https://i.pinimg.com/736x/98/73/cd/9873cda69599c3949f70a1e66977856c.jpg";
 
+    const componentesInternos = [
+        {
+            type: 9,
+            accessory: {
+                type: 11,
+                media: {
+                    url: avatarUrl,
+                },
+                description: null,
+                spoiler: false
+            },
+            components: [
+                {
+                    type: 10,
+                    content: "# Visualizando Ficha"
+                },
+                {
+                    type: 10,
+                    content: cabeceraTexto
+                }
+            ]
+        }
+    ];
+
+    if (correcciones.length > 0) {
+        componentesInternos.push(
+            {
+                type: 14,
+                divider: true,
+                spacing: 1
+            },
+            {
+                type: 9,
+                accessory: {
+                    type: 2,
+                    style: 2,
+                    label: "Eliminar correcciones",
+                    emoji: null,
+                    disabled: false,
+                    custom_id: crearCustomId({
+                        action: "verificar_ficha",
+                        userId: userId,
+                        characterId: pj?._id,
+                        extras: ["eliminar_correcciones", String(pj?._id)]
+                    })
+                },
+                components: [
+                    {
+                        type: 10,
+                        content: resumenCorrecciones
+                    }
+                ]
+            }
+        );
+    }
+
+    componentesInternos.push(
+        {
+            type: 14,
+            divider: true,
+            spacing: 1
+        },
+        {
+            type: 9,
+            accessory: {
+                type: 2,
+                style: 2,
+                label: "Corregir Info.",
+                emoji: null,
+                disabled: false,
+                custom_id: crearCustomId({
+                    action: "verificar_ficha",
+                    userId: userId,
+                    characterId: pj?._id,
+                    extras: ["corregir_info", String(pj?._id)]
+                })
+            },
+            components: [
+                {
+                    type: 10,
+                    content: infoTexto
+                }
+            ]
+        },
+        {
+            type: 14,
+            divider: true,
+            spacing: 1
+        },
+        {
+            type: 1,
+            components: [
+                {
+                    type: 2,
+                    style: 3,
+                    label: "Verificar",
+                    emoji: null,
+                    disabled: botonVerificarDisabled,
+                    custom_id: crearCustomId({
+                        action: "verificar_ficha",
+                        userId: userId,
+                        characterId: pj?._id,
+                        extras: ["verificar", String(pj?._id)]
+                    })
+                },
+                {
+                    type: 2,
+                    style: 4,
+                    label: "Rechazar/Eliminar",
+                    emoji: null,
+                    disabled: false,
+                    custom_id: crearCustomId({
+                        action: "verificar_ficha",
+                        userId: userId,
+                        characterId: pj?._id,
+                        extras: ["rechazar", String(pj?._id)]
+                    })
+                },
+                {
+                    type: 2,
+                    style: 2,
+                    label: "Regresar al menu",
+                    emoji: null,
+                    disabled: false,
+                    custom_id: crearCustomId({
+                        action: "verificar_ficha",
+                        userId: userId,
+                        characterId: pj?._id,
+                        extras: ["regresar_menu", "1"]
+                    })
+                }
+            ]
+        }
+    );
+
     return [
         {
             type: 17,
             accent_color: 13075967,
             spoiler: false,
-            components: [
-                {
-                    type: 9,
-                    accessory: {
-                        type: 11,
-                        media: {
-                            url: avatarUrl,
-                        },
-                        description: null,
-                        spoiler: false
-                    },
-                    components: [
-                        {
-                            type: 10,
-                            content: "# Visualizando Ficha"
-                        },
-                        {
-                            type: 10,
-                            content: cabeceraTexto
-                        }
-                    ]
-                },
-                {
-                    type: 14,
-                    divider: true,
-                    spacing: 1
-                },
-                {
-                    type: 9,
-                    accessory: {
-                        type: 2,
-                        style: 2,
-                        label: "Corregir Info.",
-                        emoji: null,
-                        disabled: false,
-                        custom_id: crearCustomId({
-                            action: "verificar_ficha",
-                            userId: userId,
-                            characterId: pj?._id,
-                            extras: ["corregir_info", String(pj?._id)]
-                        })
-                    },
-                    components: [
-                        {
-                            type: 10,
-                            content: infoTexto
-                        }
-                    ]
-                },
-                {
-                    type: 14,
-                    divider: true,
-                    spacing: 1
-                },
-                {
-                    type: 1,
-                    components: [
-                        {
-                            type: 2,
-                            style: 3,
-                            label: "Verificar",
-                            emoji: null,
-                            disabled: botonVerificarDisabled,
-                            custom_id: crearCustomId({
-                                action: "verificar_ficha",
-                                userId: userId,
-                                characterId: pj?._id,
-                                extras: ["verificar", String(pj?._id)]
-                            })
-                        },
-                        {
-                            type: 2,
-                            style: 4,
-                            label: "Rechazar/Eliminar",
-                            emoji: null,
-                            disabled: false,
-                            custom_id: crearCustomId({
-                                action: "verificar_ficha",
-                                userId: userId,
-                                characterId: pj?._id,
-                                extras: ["rechazar", String(pj?._id)]
-                            })
-                        },
-                        {
-                            type: 2,
-                            style: 2,
-                            label: "Regresar al menu",
-                            emoji: null,
-                            disabled: false,
-                            custom_id: crearCustomId({
-                                action: "verificar_ficha",
-                                userId: userId,
-                                characterId: pj?._id,
-                                extras: ["regresar_menu", "1"]
-                            })
-                        }
-                    ]
-                }
-            ]
+            components: componentesInternos
         }
     ];
 }
@@ -276,7 +311,7 @@ module.exports = crearStringSelectMenu({
     ejecutar: async ({ client, interaction }) => {
         const userIdSeleccionado = interaction.values?.[0];
         if (!userIdSeleccionado || userIdSeleccionado === "ninguna") {
-            return interaction.deferUpdate().catch(() => {});
+            return interaction.deferUpdate().catch(() => { });
         }
 
         const pj = await Cachedb.findOne({ _id: userIdSeleccionado });

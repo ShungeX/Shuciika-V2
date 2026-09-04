@@ -151,6 +151,20 @@ module.exports = crearBoton({
             return await interaction.showModal(modalEliminar.addComponents(motivoEliminarLabel));
         }
 
+        if (accion === "eliminar_correcciones") {
+            const targetId = cacheId;
+            await Cachedb.updateOne({ _id: targetId }, { $unset: { correcciones: "" } });
+            const pj = await Cachedb.findOne({ _id: targetId });
+            if (!pj) {
+                return await interaction.reply({
+                    content: "No se encontró la ficha en la base de datos.",
+                    flags: ["Ephemeral"]
+                });
+            }
+            const detalleActualizado = construirDetalleFicha(pj, interaction.user.id);
+            return await interaction.update({ components: detalleActualizado });
+        }
+
         // Botón verificar pendiente de lógica futura
         return interaction.deferUpdate().catch(() => { });
     }
