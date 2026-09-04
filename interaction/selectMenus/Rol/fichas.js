@@ -332,7 +332,6 @@ async function manejarSexo(interaction, msg, extra, extras) {
                 $set: {
                     sexo: sexoSeleccionado,
                     pronombres: pronombreAuto,
-                    pronombre: pronombreAuto
                 }
             }, { upsert: true });
 
@@ -374,7 +373,6 @@ async function manejarPronombres(interaction, msg, extra, extras) {
                 $setOnInsert: { created: Date.now() },
                 $set: {
                     pronombres: pronombreFormateado,
-                    pronombre: pronombreFormateado
                 }
             }, { upsert: true });
 

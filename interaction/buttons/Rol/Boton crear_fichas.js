@@ -1,4 +1,4 @@
-const { ChatInputCommandInteraction, ModalBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder, Client, TextInputBuilder, TextInputStyle } = require("discord.js")
+const { ChatInputCommandInteraction, ModalBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder, Client, TextInputBuilder, TextInputStyle, ThreadAutoArchiveDuration } = require("discord.js")
 const clientdb = require("../../../Server");
 const { updateMessage } = require("../../modals/Rol/Modal crearFicha");
 const { formatearTextoLim } = require("../../../utils/textStrings")
@@ -11,6 +11,25 @@ const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 const { crearBoton } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
+
+function construirTextoFicha(characterCache, user) {
+    const familia = characterCache?.familia ? characterCache.familia : "Desconocida";
+    let historia = characterCache?.historia;
+
+    if (historia) {
+        historia = formatearTextoLim(characterCache?.historia, 1000);
+    }
+
+    const fechaCumple = characterCache?.cumpleaños || (characterCache?.cumpleDia && characterCache?.cumpleMes ? `${String(characterCache.cumpleDia).padStart(2, '0')}/${String(characterCache.cumpleMes).padStart(2, '0')}` : "** **");
+
+    return (
+        "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + fechaCumple
+        + "\n**✧ Genero.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
+        + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + familia + "\n**✧ Aptitud.** "
+        + characterCache.especialidad + "\n**✧ Peso: **" + characterCache?.peso + "\n**✧ Estatura: **" + characterCache?.estatura +
+        `\n**✧ Historia:** ` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${user}`
+    );
+}
 
 module.exports = crearBoton({
     customId: "crear_ficha",
@@ -653,15 +672,11 @@ module.exports = crearBoton({
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
 
             if (!characterCache) return interaction.editReply({ content: "Mmm, es raro. no deberia aparecer este mensaje a menos que intentaras buguear el bot =.=\n-# Ficha ya enviada o inexistente" })
-            message.delete()
+            message?.delete?.()
 
-            const channelfichas = await client.channels.fetch("803723665107451904")
+            if(characterCache.waiting) return interaction.editReply({ content: "Tu ficha ya fue enviada y se encuentra en revisión. Por favor espera a que la administración la revise." })
+
             const canalOpinion = await client.channels.fetch("1009685257215287346")
-            let historia = characterCache?.historia
-
-            if (historia) {
-                historia = formatearTextoLim(characterCache?.historia, 1000)
-            }
 
             if (characterCache?.aspiracion) {
                 const aspiracion = [
@@ -707,23 +722,25 @@ module.exports = crearBoton({
                 canalOpinion.send({ components: aspiracion, flags: ["IsComponentsV2"] })
             }
 
-            const familia = characterCache?.familia ? characterCache.familia : "Desconocida"
+            const foroFichas = await client.channels.fetch("1545220238365433948")
+            const tagPendiente = foroFichas.availableTags.find(tag => tag.id === "1545227800754266294")
 
-
-            channelfichas.send({
-                content:
-                    "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + (characterCache.cumpleaños || (characterCache.cumpleDia && characterCache.cumpleMes ? `${String(characterCache.cumpleDia).padStart(2, '0')}/${String(characterCache.cumpleMes).padStart(2, '0')}` : "** **"))
-                    + "\n**✧ Genero.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
-                    + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + familia + "\n**✧ Aptitud.** "
-                    + characterCache.especialidad + "\n**✧ Peso: " + characterCache?.peso + "\n**✧ estatura: " + characterCache?.estatura +
-                    `\n**✧ Historia:** ` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${interaction.user}`,
-                files: [characterCache.avatarURL]
+            const hilo = await foroFichas.threads.create({
+                name: `✧ ${characterCache.nombre} ${characterCache?.apodo ? `- [${characterCache.apodo}]` : `${interaction.user.username}`} ✧`,
+                autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+                appliedTags: tagPendiente ? [tagPendiente.id] : [],
+                reason: "Ficha de personaje enviada por " + interaction.user.tag,
+                message: {
+                    content: construirTextoFicha(characterCache, interaction.user),
+                    files: characterCache.avatarURL ? [characterCache.avatarURL] : []
+                }
             })
+
             await Cachedb.updateOne({ _id: interaction.user.id },
-                { $set: { waiting: true } }
+                { $set: { waiting: true, hiloId: hilo.id, "status.estado": "Pendiente", "status.fecha": Date.now(), "status.fechaOriginal": Date.now(), "status.motivo": "No se ha revisado la ficha" } }
             )
 
-            return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial.**\n-# *No te preocupes, yo te avisare cuando esto suceda.~*" })
+            return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial. Mientras puedes revisar el [hilo de tu ficha haciendo click aqui](https://discord.com/channels/716342375303217285/" + hilo.id + ")**\n\n-# *No te preocupes, yo te avisare cuando la verifiquen.~*" })
         }
 
         if (selectOption === "foto") {
@@ -842,7 +859,7 @@ module.exports = crearBoton({
             if (!characterCache?.avatarURL) {
                 interaction.editReply({ content: "-# Parece que tu personaje aun no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", flags: ["Ephemeral"] })
                 await sleep(4000)
-            } 
+            }
             const jsonV2 = [
                 {
                     "type": 17,
