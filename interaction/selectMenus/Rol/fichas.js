@@ -8,6 +8,7 @@ const Cachedb = db2.collection("CachePJ");
 const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
 const { construirJsonV2Personalidad } = require("../../../utils/constructores/construirPersonalidad");
+const { marcarCorreccionUsada } = require("./verificar_ficha");
 
 // ==========================================
 // CONFIGURACIÓN DECLARATIVA DE MODALES
@@ -342,6 +343,8 @@ async function manejarSexo(interaction, msg, extra, extras) {
                 pronombres: pronombreAuto
             };
 
+            await marcarCorreccionUsada(interaction.user.id, "sexo");
+
             const jsonV2Actualizado = construirJsonV2Sex(interaction.user.id, sexoSeleccionado, pronombreAuto);
 
             if (!interaction.deferred && !interaction.replied) {
@@ -386,6 +389,8 @@ async function manejarPronombres(interaction, msg, extra, extras) {
                 pronombres: pronombreFormateado
             };
 
+            await marcarCorreccionUsada(interaction.user.id, "pronombres");
+
             const jsonV2Actualizado = construirJsonV2Sex(interaction.user.id, sexoActual, pronombreFormateado);
 
             if (!interaction.deferred && !interaction.replied) {
@@ -421,6 +426,8 @@ async function manejarPersonalidad(interaction, msg, extra) {
                 action: "personalidad",
                 option: extra
             };
+
+            await marcarCorreccionUsada(interaction.user.id, "personalidad");
 
             const personalidadV2 = construirJsonV2Personalidad(interaction.user.id, extra, "crear_ficha");
 

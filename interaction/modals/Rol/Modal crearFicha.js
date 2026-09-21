@@ -10,6 +10,7 @@ const { formatearTextoLim } = require("../../../utils/textStrings")
 const { crearModal } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
 const { construirJsonV2Personalidad } = require("../../../utils/constructores/construirPersonalidad");
+const { marcarCorreccionUsada, construirEditorFichaCorreccion } = require("../../selectMenus/Rol/verificar_ficha");
 
 module.exports = crearModal({
     customId: "actualizarPerfil",
@@ -405,7 +406,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "nombre")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "nombre")
 
                 } catch (error) {
                     console.log("Error al actualizar el nombre", error)
@@ -435,7 +437,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "apodo")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "apodo")
                 } catch (error) {
                     console.log("Error al actualizar el apodo", error)
                 }
@@ -464,7 +467,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "edad")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "edad")
                 } catch (error) {
                     console.error("Error al actualizar la edad", error)
                 }
@@ -528,7 +532,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate();
 
-                    await this.updateMessage(interaction, msg, cacheCharacter);
+                    await marcarCorreccionUsada(interaction.user.id, "cumpleaños");
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "cumpleaños");
                 } catch (error) {
                     console.error("Error al actualizar el cumpleaños", error);
                 }
@@ -556,7 +561,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "ciudadorg")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "ciudadorg")
 
                 } catch (error) {
                     console.log("Error al actualizar el ciudad origen", error)
@@ -582,7 +588,8 @@ module.exports = crearModal({
                                 await interaction.editReply({ components: personalidadV2 });
                             }
 
-                            await this.updateMessage(interaction, msg, cacheCharacter);
+                            await marcarCorreccionUsada(interaction.user.id, "personalidad");
+                            await this.updateMessage(interaction, msg, cacheCharacter, false, null, "personalidad");
                         } catch (error) {
                             console.log("Error al actualizar la personalidad", error);
                         }
@@ -612,7 +619,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "apellido")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "apellido")
 
                 } catch (error) {
                     console.log("Error al actualizar el apellido", error)
@@ -635,7 +643,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "especialidades")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "especialidades")
 
                 } catch (error) {
                     console.log("Error al actualizar las especialidades", error)
@@ -660,7 +669,8 @@ module.exports = crearModal({
 
                     await interaction.deferUpdate()
 
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "historia")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "historia")
 
                 } catch (error) {
                     console.log("Error al actualizar la historia", error)
@@ -682,7 +692,8 @@ module.exports = crearModal({
                     }, { upsert: true })
 
                     await interaction.deferUpdate()
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "aspiracion")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "aspiracion")
                 } catch (error) {
                     console.log("Error al actualizar aspiracion", error)
                 }
@@ -710,7 +721,8 @@ module.exports = crearModal({
                     }, { upsert: true })
 
                     await interaction.deferUpdate()
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "peso")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "peso")
                 } catch (error) {
                     console.log("Error al actualizar peso", error)
                 }
@@ -739,7 +751,8 @@ module.exports = crearModal({
                     }, { upsert: true })
 
                     await interaction.deferUpdate()
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "estatura")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "estatura")
                 } catch (error) {
                     console.log("Error al actualizar estatura", error)
                 }
@@ -759,7 +772,8 @@ module.exports = crearModal({
                     }, { upsert: true })
 
                     await interaction.deferUpdate()
-                    await this.updateMessage(interaction, msg, cacheCharacter)
+                    await marcarCorreccionUsada(interaction.user.id, "gustos")
+                    await this.updateMessage(interaction, msg, cacheCharacter, false, null, "gustos")
                 } catch (error) {
                     console.log("Error al actualizar gustos", error)
                 }
@@ -843,7 +857,7 @@ module.exports = crearModal({
 
     },
 
-    updateMessage: async function (interaction, message, data, externo, info,) {
+    updateMessage: async function (interaction, message, data, externo, info, campoModificado) {
         const { messageBuild } = require("../../../handlers/CMDHandler/Rol/Personajes/Configurar personaje");
         if (data === "character") {
             const userCache = await userdb.findOne({ _id: interaction.user.id })
@@ -857,6 +871,38 @@ module.exports = crearModal({
                 console.log("Ocurrio un error al intentar mostrar el mensaje", error)
             }
 
+            return;
+        }
+
+        // Si se actualizó un campo de una ficha, marcar el permiso de corrección correspondiente
+        const campoAfectado = campoModificado || (externo ? info?.action : null);
+        if (campoAfectado) {
+            await marcarCorreccionUsada(interaction.user.id, campoAfectado);
+        }
+
+        if (!message) {
+            try {
+                const userfind = await userdb.findOne({ _id: interaction.user.id });
+                if (userfind?.fichaStatus?.channelTemp && userfind?.fichaStatus?.messageTemp) {
+                    const ch = await interaction.client.channels.fetch(userfind.fichaStatus.channelTemp);
+                    message = await ch.messages.fetch(userfind.fichaStatus.messageTemp);
+                }
+            } catch (e) {
+                console.log("No se pudo obtener message en updateMessage:", e.message);
+            }
+        }
+
+        // Si la ficha está en estado "solicita_cambio", actualizar usando construirEditorFichaCorreccion
+        const dbpj = await Cachedb.findOne({ _id: interaction.user.id });
+        if (dbpj?.status?.estado === "solicita_cambio") {
+            const editorComponents = construirEditorFichaCorreccion(dbpj, interaction.user.id);
+            try {
+                if (message) {
+                    await message.edit({ components: editorComponents });
+                }
+            } catch (error) {
+                console.log("Ocurrio un error al intentar mostrar el mensaje de corrección", error);
+            }
             return;
         }
 
@@ -941,7 +987,11 @@ module.exports = crearModal({
                             "label": "Establecer foto",
                             "emoji": null,
                             "disabled": false,
-                            "custom_id": `crear_ficha-${interaction.user.id}-foto`
+                            "custom_id": crearCustomId({
+                                action: "crear_ficha",
+                                userId: interaction.user.id,
+                                extras: ["foto"]
+                            })
                         },
                         "components": [
                             {

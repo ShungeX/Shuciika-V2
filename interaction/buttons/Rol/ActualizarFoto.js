@@ -67,88 +67,158 @@ module.exports = {
 
     },
 
-    procesarFoto: async function(interaction, imgURL, ignore, user) {
-      if(!user) user = interaction?.user
+    resolverURLReal,
+    esHostDiscord,
+    procesarFoto: procesarFoto
 
-      var img = "";
+}
 
-      async function isValidImage() {
-          const xprsn = /^https?:\/\/.*\.(?:png|jpe?g|svg|webp|gif)(\?.*)?$/i;
+function resolverURLReal(imgURL) {
+    if (!imgURL) return imgURL;
+    const match = imgURL.match(/\/external\/[^\/]+\/(https?)\/(.+)$/i);
+    if (match) {
+        return `${match[1]}://${match[2]}`;
+    }
+    return imgURL;
+}
 
-          console.log(imgURL)
+function esHostDiscord(url) {
+    if (!url) return false;
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        return (
+            host === "cdn.discordapp.com" ||
+            host === "media.discordapp.net" ||
+            /^images-ext-\d+\.discordapp\.net$/i.test(host)
+        );
+    } catch {
+        return false;
+    }
+}
 
-          if(!xprsn.test(imgURL)) {
-            console.log("test:", xprsn.test(imgURL))
+async function procesarFoto(interaction, imgURL, ignore, user) {
+    if (!user) user = interaction?.user;
+    if (!imgURL) return null;
+
+    // 1. Desenvolver proxy externo si aplica
+    const urlDesenrollada = resolverURLReal(imgURL);
+
+    // 2. Determinar si proviene de la red de Discord
+    const esDiscord = esHostDiscord(urlDesenrollada);
+
+    var img = "";
+
+    async function isValidImage(urlAValidar) {
+        const xprsn = /^https?:\/\/.*\.(?:png|jpe?g|svg|webp|gif)(\?.*)?$/i;
+
+        if (!xprsn.test(urlAValidar)) {
+            console.log("isValidImage regex falló para:", urlAValidar);
             return false;
-          }
-
-          try {
-            const response = await fetch(imgURL, { method: 'HEAD'});
-
-            const contentType = response.headers.get('content-type')
-            return response.ok && contentType && contentType.startsWith('image/')
-            
-          } catch (e) {
-            console.log(e)
-            return false
         }
-      }
 
-      if(imgURL) {
-          if(await isValidImage() === false) {
-            if(!ignore) {
-              return interaction.editReply({ content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1330769969428041822>", flags: ["Ephemeral"]})
-            }else {
-              return;
+        try {
+            const response = await fetch(urlAValidar, { method: 'HEAD' });
+            const contentType = response.headers.get('content-type');
+            if (response.ok && contentType && contentType.startsWith('image/')) {
+                return true;
             }
-           
-          }else {
-           await uploadCloudinarys()
-          }
-      }
 
-      async function uploadCloudinarys() {
-        
-          try {
-
-              const getResponse = await fetch(imgURL)
-              if(!getResponse.ok) throw new Error("Error al descargar la imagen")
-
-              const buff = await getResponse.arrayBuffer()
-              const resource = Buffer.from(buff)
-
-             const uploadCloudinary = await new Promise((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream(
-                  {
-                    resource_type: "auto",
-                    folder: "Rol/Avatars",
-                    public_id: `${user.id}_AvatarRol`
-                  },
-                  (error, result) => {
-                    if(error) return reject(error)
-                      resolve(result)
-                  }
-                );
-                uploadStream.end(resource)
-              });
-
-                  console.log("Imagen subida correctamente!\n Link:", uploadCloudinary.secure_url)
-                  img = uploadCloudinary.secure_url
-              
-
-          } catch (e) {
-            console.log(e)
-          }
-      }
-
-
-        await dbconfig.updateOne({_id: user.id}, 
-            {$set: {"time.pjFoto": Date.now()}}
-          )
-       await character.updateOne({_id: user.id}, 
-          {$set: {avatarURL: img}}
-        )
-
+            // Fallback ligero con GET si HEAD es rechazado por el servidor remoto (ej. 403 o 405)
+            if (response.status === 403 || response.status === 405) {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 4000);
+                try {
+                    const getResp = await fetch(urlAValidar, {
+                        method: 'GET',
+                        headers: { Range: 'bytes=0-1024' },
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeout);
+                    const ct = getResp.headers.get('content-type');
+                    return getResp.ok && ct && ct.startsWith('image/');
+                } catch (e) {
+                    clearTimeout(timeout);
+                }
+            }
+            return false;
+        } catch (e) {
+            console.log("Error al validar imagen:", e);
+            return false;
+        }
     }
 
+    if (await isValidImage(urlDesenrollada) === false) {
+        if (!ignore) {
+            return interaction.editReply({
+                content: "Tu link parece no ser valido, verifica que contenga una imagen valida. Si tienes dudas revisa el foro <#1330769969428041822>",
+                flags: ["Ephemeral"]
+            });
+        } else {
+            return null;
+        }
+    }
+
+    const targetId = (typeof user === 'object' && user !== null) ? (user.id || user._id) : user;
+    const discordUserId = (typeof user === 'object' && user !== null && user.id) ? user.id : (interaction?.user?.id || null);
+
+    if (esDiscord) {
+        // Proviene de la red de Discord -> subir a Cloudinary
+        try {
+            const getResponse = await fetch(urlDesenrollada);
+            if (!getResponse.ok) throw new Error("Error al descargar la imagen para Cloudinary");
+
+            const buff = await getResponse.arrayBuffer();
+            const resource = Buffer.from(buff);
+
+            const uploadCloudinary = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        resource_type: "auto",
+                        folder: "Rol/Avatars",
+                        public_id: `${targetId}_AvatarRol`
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                uploadStream.end(resource);
+            });
+
+            console.log("Imagen subida correctamente a Cloudinary!\n Link:", uploadCloudinary.secure_url);
+            img = uploadCloudinary.secure_url;
+        } catch (e) {
+            console.error("Error al subir a Cloudinary:", e);
+            img = urlDesenrollada;
+        }
+    } else {
+        // Proviene de un servicio externo diferente a Discord (Pinterest, etc.) -> usar directamente
+        img = urlDesenrollada;
+    }
+
+    if (img) {
+        if (discordUserId) {
+            await dbconfig.updateOne(
+                { _id: discordUserId },
+                { $set: { "time.pjFoto": Date.now() } }
+            ).catch(() => {});
+        }
+
+        if (targetId) {
+            const updateRes = await character.updateOne(
+                { _id: targetId },
+                { $set: { "perfil.avatarURL": img, avatarURL: img } }
+            ).catch(() => {});
+
+            if (updateRes?.matchedCount === 0 && discordUserId) {
+                await character.updateOne(
+                    { ownerID: discordUserId },
+                    { $set: { "perfil.avatarURL": img, avatarURL: img } }
+                ).catch(() => {});
+            }
+        }
+    }
+
+    return img;
 }

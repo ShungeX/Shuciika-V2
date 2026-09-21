@@ -1,7 +1,7 @@
 const { crearBoton } = require("../../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../../utils/constructores/customId");
 const { construirListaPendientes } = require("../../../../handlers/CMDHandler/Rol/Utilidad/Verificar ficha");
-const { construirDetalleFicha, construirMensajeCorreccionesHilo } = require("../../../selectMenus/Rol/verificar_ficha");
+const { construirDetalleFicha, construirMensajeCorreccionesHilo, solicitarCorreccionesHilo, TAG_CAMBIOS_SOLICITADOS } = require("../../../selectMenus/Rol/verificar_ficha");
 const clientdb = require("../../../../Server");
 const db2 = clientdb.db("Rol_db");
 const Cachedb = db2.collection("CachePJ");
@@ -80,28 +80,15 @@ module.exports = crearBoton({
 
             const correcciones = Array.isArray(pj.correcciones) ? pj.correcciones : [];
 
-            // Si tiene correcciones pendientes, mandar mensaje al hilo
+            // Si tiene correcciones pendientes, mandar mensaje al hilo y cambiar etiqueta a cambios solicitados
             if (correcciones.length > 0) {
-                if (!pj.hiloId) {
+                const resultadoEnvio = await solicitarCorreccionesHilo({ client, pj, correcciones });
+                if (!resultadoEnvio.ok) {
                     return await interaction.reply({
-                        content: "Esta ficha no tiene un hilo de revisión registrado en el foro.",
+                        content: resultadoEnvio.error,
                         flags: ["Ephemeral"]
                     });
                 }
-
-                const hilo = await client.channels.fetch(pj.hiloId).catch(() => null);
-                if (!hilo) {
-                    return await interaction.reply({
-                        content: `No se pudo acceder al hilo <#${pj.hiloId}>. Verifica los permisos del bot.`,
-                        flags: ["Ephemeral"]
-                    });
-                }
-
-                const componenteHilo = construirMensajeCorreccionesHilo(pj, correcciones);
-                await hilo.send({
-                    components: componenteHilo,
-                    flags: ["IsComponentsV2"]
-                });
 
                 await Cachedb.updateOne({ _id: targetId }, {
                     $set: {
@@ -121,7 +108,7 @@ module.exports = crearBoton({
                 await interaction.update({ components: detalleActualizado });
 
                 return await interaction.followUp({
-                    content: `✅ Se enviaron las correcciones al hilo <#${pj.hiloId}> y el estado cambió a \`solicita_cambio\`.`,
+                    content: `✅ Se enviaron las correcciones al hilo <#${pj.hiloId}>, se aplicó la etiqueta de cambios solicitados y el estado cambió a \`solicita_cambio\`.`,
                     flags: ["Ephemeral"]
                 }).catch(() => {});
             }
@@ -165,7 +152,31 @@ module.exports = crearBoton({
             return await interaction.update({ components: detalleActualizado });
         }
 
-        // Botón verificar pendiente de lógica futura
+        if (accion === "verificar") {
+            const targetId = cacheId;
+            const modalVerificar = new ModalBuilder()
+                .setCustomId(crearCustomId({
+                    action: "verificar_ficha_modal",
+                    userId: interaction.user.id,
+                    characterId: targetId,
+                    extras: ["verificar", String(targetId)]
+                }))
+                .setTitle("Comentario sobre la ficha del autor");
+
+            const comentarioLabel = new LabelBuilder()
+                .setLabel("Comentario")
+                .setTextInputComponent(
+                    new TextInputBuilder()
+                        .setCustomId("motivo")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setMaxLength(200)
+                        .setPlaceholder("Escribe un comentario adicional (opcional)...")
+                        .setRequired(false)
+                );
+
+            return await interaction.showModal(modalVerificar.addComponents(comentarioLabel));
+        }
+
         return interaction.deferUpdate().catch(() => { });
     }
 });

@@ -8,21 +8,23 @@ const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const souls = db2.collection("Soul")
+const {crearStringSelectMenu} = require("../../../utils/constructores/crearComponente")
 
-module.exports = {
+
+module.exports = crearStringSelectMenu({
     customId: "configuracion",
-    selectAutor: true,
+    soloAutor: true,
+    requirements: {
+        character: {obtener: true},
+        soul: {obtener: true}, 
+        cachepj: {obtener: true}
+    },
+    optionNames: ["action", "key"],
+    
+    ejecutar: async({client, interaction, character, soul, cachepj, componentData: {extras}, options: {action, key}}) => {
+        console.log(action, key)
 
-    /**
-    * @param {Object} context
-    * @param {Client} context.client - El cliente de Discord.
-    * @param {ChatInputCommandInteraction} context.interaction - La interacción del comando.
-    */
-    ejecutar: async ({ client, interaction, character, componentData, options: { option1: accionPrivacidad } }) => {
-
-        const [action, key] = componentData.split("*")
-
-        if (accionPrivacidad === "configPriv") {
+        if (action === "configPriv") {
             characters.updateOne({ _id: character._id }, {
                 $set: {
                     [`privacidad.${action}`]: key
@@ -37,7 +39,7 @@ module.exports = {
             return;
         }
 
-        if (accionPrivacidad === "selectCharacter") {
+        if (action === "selectCharacter") {
             await userdbs.updateOne({ _id: interaction.user.id }, {
                 $set: {
                     "nix.personajeActivo": Number(action)
@@ -533,4 +535,4 @@ module.exports = {
             return message
         }
     }
-}
+})

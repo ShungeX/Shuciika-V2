@@ -11,6 +11,7 @@ const util = require(`util`);
 const sleep = util.promisify(setTimeout)
 const { crearBoton } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
+const { marcarCorreccionUsada, TAG_PENDIENTE } = require("../../selectMenus/Rol/verificar_ficha");
 
 function construirTextoFicha(characterCache, user) {
     const familia = characterCache?.familia ? characterCache.familia : "Desconocida";
@@ -24,7 +25,7 @@ function construirTextoFicha(characterCache, user) {
 
     return (
         "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + fechaCumple
-        + "\n**✧ Genero.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
+        + "\n**✧ Sexo Biologico.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
         + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + familia + "\n**✧ Aptitud.** "
         + characterCache.especialidad + "\n**✧ Peso: **" + characterCache?.peso + "\n**✧ Estatura: **" + characterCache?.estatura +
         `\n**✧ Historia:** ` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${user}`
@@ -60,6 +61,7 @@ module.exports = crearBoton({
         }
 
         console.log(selectOption)
+        console.log(extras)
         if (selectOption === "opinion") {
             const opinion = new TextInputBuilder()
                 .setCustomId("opinionpj")
@@ -467,7 +469,7 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "# Información: \n-# `🎎` **Sexo:** " + `${`${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
+                            "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + `${`${cachepj?.sexo ? cachepj.sexo : "** **"} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
                                 "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                                 + `${cachepj?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia || "** **"}` +
                                 "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad || "** **"}` +
@@ -668,6 +670,72 @@ module.exports = crearBoton({
 
         await interaction.deferReply({ flags: ["Ephemeral"] })
 
+        if (selectOption === "enviar_ficha_corregida") {
+            const characterCache = await Cachedb.findOne({ _id: interaction.user.id });
+            if (!characterCache) {
+                return await interaction.editReply({
+                    content: "No se encontró tu ficha en el registro.",
+                    flags: ["Ephemeral"]
+                });
+            }
+
+            const correcciones = Array.isArray(characterCache.correcciones) ? characterCache.correcciones : [];
+            const pendientes = correcciones.filter(c => !c.usado);
+
+            if (pendientes.length > 0) {
+                const listaFaltantes = pendientes.map(c => `-# • **${c.etiqueta || c.campo}**`).join("\n");
+                return await interaction.editReply({
+                    content: `⚠️ **Aún tienes correcciones pendientes:**\n${listaFaltantes}\n\nDebes completar la edición de todos los campos solicitados antes de enviar tu ficha.`,
+                    flags: ["Ephemeral"]
+                });
+            }
+
+            // Cambiar status a "Corregida" y waiting a true
+            await Cachedb.updateOne({ _id: interaction.user.id }, {
+                $set: {
+                    waiting: true,
+                    "status.estado": "Corregida",
+                    "status.fecha": Date.now(),
+                    "status.motivo": "Corrección aplicada"
+                }
+            });
+
+            // Cambiar etiqueta del hilo a "Pendiente" (1545227800754266294)
+            const tagPendienteId = TAG_PENDIENTE || "1545227800754266294";
+            if (characterCache.hiloId) {
+                try {
+                    const hilo = await client.channels.fetch(characterCache.hiloId);
+                    if (hilo) {
+                        await hilo.setAppliedTags([tagPendienteId]).catch(e => {
+                            console.error("Error al aplicar etiqueta de Pendiente al hilo:", e);
+                        });
+
+                        await hilo.send({
+                            content: `📝 **Ficha corregida:** <@!${interaction.user.id}> ha completado todas las correcciones solicitadas y reenvió su ficha para revisión.`
+                        }).catch(() => {});
+                    }
+                } catch (e) {
+                    console.error("No se pudo acceder al hilo para cambiar etiqueta:", e);
+                }
+            }
+
+            // Borrar el mensaje de configuración para evitar que el usuario vuelva a enviar la ficha
+            if (interaction.message) {
+                await interaction.message.delete().catch(() => {});
+            }
+
+            // Limpiar fichaStatus en usuarios_server
+            await userdb.updateOne(
+                { _id: interaction.user.id },
+                { $unset: { fichaStatus: "" } }
+            ).catch(() => {});
+
+            return await interaction.editReply({
+                content: "✨ ¡Tu ficha corregida ha sido enviada exitosamente a la administración!\nEl estado ha cambiado a `Corregida` y la etiqueta del hilo a `Pendiente`. Te notificaremos cuando sea revisada. (✿◡‿◡)",
+                flags: ["Ephemeral"]
+            });
+        }
+
         if (selectOption === "enviar_true") {
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
 
@@ -778,6 +846,8 @@ module.exports = crearBoton({
                     action: "avatarURL",
                     option: imageUrl
                 }
+
+                await marcarCorreccionUsada(interaction.user.id, "avatarURL");
 
                 await updateMessage(interaction, message, null, true, info);
 

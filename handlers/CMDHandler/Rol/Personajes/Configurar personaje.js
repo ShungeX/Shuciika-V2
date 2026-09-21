@@ -7,6 +7,8 @@ const dbconfig = db.collection("usuarios_server")
 const version = require("../../../../config")
 const { procesarFoto } = require("../../../../interaction/modals/Rol/Modal Foto");
 const { formatearTextoLim } = require("../../../../utils/textStrings");
+const { crearCustomId } = require("../../../../utils/constructores/customId");
+const { construirEditorFichaCorreccion } = require("../../../../interaction/selectMenus/Rol/verificar_ficha");
 
 
 module.exports = {
@@ -19,9 +21,9 @@ module.exports = {
                 .setDescription("[Solo si quieres cambiar la foto de perfil de tu personaje activo]")
         ),
     requirements: {
-        character: { obtener: true, required: true },
+        character: { obtener: true, required: false },
         soul: { obtener: false, required: false },
-        cachepj: { obtener: false, required: false },
+        cachepj: { obtener: true, required: false },
     },
     isDevOnly: false,
     enMantenimiento: false,
@@ -38,6 +40,38 @@ module.exports = {
         const userdb = await dbconfig.findOne({ _id: interaction.user.id })
         const imgs = await interaction.options.getAttachment("foto")
 
+     
+
+        // Flujo: Si es una ficha con cambios solicitados, enviar directamente al editor de correcciones
+        if (cachepj?.status?.estado === "solicita_cambio") {
+            const message = await interaction.deferReply({ withResponse: true,  })
+            const editorComponents = construirEditorFichaCorreccion(cachepj, interaction.user.id);
+            await interaction.editReply({ components: editorComponents, flags: ["IsComponentsV2"] });
+            const replyMsg = await interaction.fetchReply();
+
+            await dbconfig.updateOne(
+                { _id: interaction.user.id },
+                {
+                    $set: {
+                        fichaStatus: {
+                            messageTemp: replyMsg.id,
+                            channelTemp: interaction.channelId
+                        },
+                        created: Date.now()
+                    }
+                },
+                { upsert: true }
+            );
+            return;
+        }
+
+        // Si la ficha está enviada y en espera de revisión
+        if (cachepj?.waiting && cachepj?.status?.estado !== "solicita_cambio") {
+            return await interaction.reply({
+                content: "Tu ficha se encuentra actualmente en revisión por la administración. No puedes modificarla hasta que el staff termine de revisarla. (✿◡‿◡)",
+                flags: ["Ephemeral"]
+            });
+        }
         const message = await interaction.deferReply({ withResponse: true,  })
 
         if (imgs) {
@@ -71,11 +105,11 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": "# Configuración del rol"
+                                "content": "# Configuración del rol .ᐟ.ᐟ"
                             },
                             {
                                 "type": 10,
-                                "content": "\"El alma es un lienzo que se perfecciona con la voluntad. Modifica aquí el reflejo de tu ser en Nix.\"\n\n- -# Personaje: Modifica la información de tu personaje, como su foto de perfil, historia, descripción, apodo y más.\n- -# Privacidad: Controla quién puede interactuar contigo o ver tu alma de perfil. Esto afecta funciones como regalos, combate y crafteo.\n- -# Switch: Cambia entre tus perfiles disponibles. [Disponible para usuarios con más de un personaje.]\n\n-# Algunas funciones aún no están disponibles. Te pedimos paciencia mientras se revelan."
+                                "content": "\"El alma es un lienzo que se perfecciona con la voluntad. Modifica aquí el reflejo de tu ser en Nix.\"\n\n-# ✦ Identidad: Personaliza los rasgos visibles de tu personaje (apariencia, apodo, descripción, etc.)\n\n-# ✦ Privacidad: Define quién puede interactuar con tu esencia. Controla la visibilidad de tu perfil, solicitudes de combate, crafteo e intercambios.\n\n-# ✦ Otro Reflejo: Cambia entre tus almas activas registradas. \n-# Disponible si tienes más de un alma registrada.\n\n-# Algunas funciones aún se encuentran en desarrollo. Agradecemos tu paciencia mientras se revelan."
                             }
                         ]
                     },
@@ -89,10 +123,14 @@ module.exports = {
                         "components": [
                             {
                                 "type": 3,
-                                "custom_id": `configuracion-${interaction.user.id}-${character._id}`,
+                                "custom_id": crearCustomId({
+                                    action: "configuracion",
+                                    userId: interaction.user.id,
+                                    characterId: character?._id
+                                }),
                                 "options": [
                                     {
-                                        "label": "Personaje",
+                                        "label": "Identidad",
                                         "value": "personaje",
                                         "description": null,
                                         "emoji": null,
@@ -106,7 +144,7 @@ module.exports = {
                                         "default": false
                                     },
                                     {
-                                        "label": "Switch",
+                                        "label": "Otro Reflejo",
                                         "value": "switch",
                                         "description": null,
                                         "emoji": null,
