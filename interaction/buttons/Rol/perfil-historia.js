@@ -5,25 +5,23 @@ const character = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const version = require("../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
+const { crearBoton } = require("../../../utils/constructores/crearComponente")
+const { construirPerfilV2 } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
 
 
-
-module.exports = {
+module.exports = crearBoton({
     customId: "perfil_options",
-    buttonAuthor: true,
+    soloAutor: true,
+    requirements: {
+        character: { obtener: true, required: true }
+    },
 
-    /**
- * 
- * @param {Client} client 
- * @param {ChatInputCommandInteraction} interaction 
- */
+    ejecutar: async ({ client, interaction, character, componentData: { userId, extras } }) => {
+        const [action] = extras
+        const pincel = character.economia.Inventario.find(i => i.ID === 120 && i.Region === "TOB-01")
+        const user = interaction.guild.members.resolve(character.ownerID)
 
-    ejecutar: async (client, interaction, characterId, page) => {
-        const pjuser = await character.findOne({ _id: Number(characterId) })
-        const user = interaction.guild.members.resolve(pjuser.ownerID)
-        const pincel = pjuser.economia.Inventario.find(i => i.ID === 120 && i.Region === "TOB-01")
-
-        if (page === "addHistory") {
+        if (action === "addHistory") {
             if (!pincel) return interaction.reply({ content: "No se puede agregar un capitulo porque no tienes suficientes `Pincel Magico` ＞﹏＜", flags: ["Ephemeral"] })
 
             const modal = new ModalBuilder()
@@ -68,11 +66,11 @@ module.exports = {
             await interaction.showModal(modal)
         }
 
-        if (page === "editHistory") {
+        if (action === "editHistory") {
             return interaction.reply({ content: `**Función en desarollo 〒▽〒**\n-# Espera pacientemente a que se agregue esta función.`, flags: ["Ephemeral"] })
         }
 
-        if (page === "tutorial") {
+        if (action === "tutorial") {
             const tutorialV1 = [
                 {
                     "type": 17,
@@ -96,7 +94,7 @@ module.exports = {
                                 },
                                 {
                                     "type": 10,
-                                    "content": "*Para poder agregar capítulos necesitas tener en tu inventario el objeto **`Pincel Magico`***\n\n*Puedes comprarlo usando el comando **`/rol comprar 120`** (si tienes suficientes lumens)*"
+                                    "content": "*Para agregar capítulos adicionales en tu perfil, necesitas tener en tu inventario el objeto **`Pincel Magico`***\n\n*Puedes comprarlo visitando la tienda y usando el comando **`/rol comprar 120`** (si tienes suficientes lumens)*"
                                 }
                             ]
                         },
@@ -107,7 +105,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "**Puedes agregar el siguiente contenido en los capítulos:**\n- -# Icono (Link)\n- -# Titulo (60 caracteres)\n- -# Contenido / Historia (2000 caracteres)\n\n-# (¡Más funciones próximamente!)"
+                            "content": "**Puedes agregar el siguiente contenido en los capítulos:** \n- -# Icono (Link) \n- -# Titulo (60 caracteres) \n- -# Contenido / Historia (2000 caracteres) \n\n-# (¡Más funciones próximamente!)"
                         },
                         {
                             "type": 14,
@@ -155,11 +153,11 @@ module.exports = {
             await interaction.reply({ components: tutorialV1, flags: ["Ephemeral", "IsComponentsV2"] })
         }
 
-        if (page === "expand") {
-            const descripcion = pjuser.perfil.Descripcion ? pjuser.perfil.Descripcion : "*Sin descripcion*"
-            const reputacion = pjuser.estado?.Reputacion ? pjuser.estado.Reputacion : "0"
-            const grado = pjuser.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado"
-            const urlavatar = pjuser.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
+        if (action === "expand") {
+            const descripcion = character.perfil.Descripcion ? character.perfil.Descripcion : "*Sin descripcion*"
+            const reputacion = character.estado?.Reputacion ? character.estado.Reputacion : "0"
+            const grado = character.estado?.DesmpAcademico?.Grado ? character.estado.DesmpAcademico.Grado : "Aun no calculado"
+            const urlavatar = character.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
 
             const perfilV2 = [
                 {
@@ -180,11 +178,11 @@ module.exports = {
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": `# ${pjuser.perfil.Nombre}${pjuser.perfil?.Apodo ? ` | ${pjuser.perfil.Apodo}` : ""}`
+                                    "content": `# ${character.perfil.Nombre}${character.perfil?.Apodo ? ` | ${character.perfil.Apodo}` : ""}`
                                 },
                                 {
                                     "type": 10,
-                                    "content": descripcion + "\n\n-# *`Lumens:`* " + pjuser.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
+                                    "content": descripcion + "\n\n-# *`Lumens:`* " + character.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
                                 }
                             ]
                         },
@@ -201,20 +199,20 @@ module.exports = {
                                 "label": "Reducir",
                                 "emoji": null,
                                 "disabled": false,
-                                "custom_id": `perfil_options-${interaction.user.id}-${pjuser._id}-reduct`
+                                "custom_id": `perfil_options-${interaction.user.id}-${character._id}-reduct`
                             },
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + pjuser.perfil.Sexo +
-                                        "\n-# `🍭` *Edad:* " + pjuser.perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + pjuser.perfil.Cumpleaños +
-                                        "\n-# `🎭` *Personalidad:* " + pjuser.perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + pjuser.perfil.CiudadOrg +
-                                        "\n-# `👑` *Linaje familiar:* " + (pjuser.perfil.Familia ? pjuser.perfil.Familia : "No especificado") +
-                                        "\n-# `🏈` *Especialidad:* " + pjuser.perfil.Especialidad +
-                                        "\n-# `🪨` *Peso:* " + pjuser.perfil.Peso +
-                                        "\n-# `📏` *Estatura:* " + pjuser.perfil.Estatura +
-                                        "\n\n-# `🔮` *Rol:* " + pjuser.estado.Rol + "\n-# `💳` *ID:* " + pjuser._id +
-                                        "\n-# `🎉` *Fecha de creacion:* " + `<t:${pjuser.metadata.fechaCreacion}:R>`
+                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${character.perfil.Sexo || 'No especificado'} ${character.perfil.Pronombres ? `(${character.perfil.Pronombres})` : ''}` || "** **"}` +
+                                        "\n-# `🍭` *Edad:* " + character.perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + (character.perfil.Cumpleaños || (character.perfil.cumpleDia && character.perfil.cumpleMes ? `${String(character.perfil.cumpleDia).padStart(2, '0')}/${String(character.perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
+                                        "\n-# `🎭` *Personalidad:* " + character.perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + character.perfil.CiudadOrg +
+                                        "\n-# `👑` *Linaje familiar:* " + (character.perfil.Familia ? character.perfil.Familia : "No especificado") +
+                                        "\n-# `🏈` *Especialidad:* " + character.perfil.Especialidad +
+                                        "\n-# `🪨` *Peso:* " + character.perfil.Peso +
+                                        "\n-# `📏` *Estatura:* " + character.perfil.Estatura +
+                                        "\n\n-# `🔮` *Rol:* " + character.estado.Rol + "\n-# `💳` *ID:* " + character._id +
+                                        "\n-# `🎉` *Fecha de creacion:* " + `<t:${character.metadata.fechaCreacion}:R>`
                                 }
                             ]
                         },
@@ -225,7 +223,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "**Medallas:**\n-# " + `${pjuser.social.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
+                            "content": "**Medallas:**\n-# " + `${character.social.Medallas?.length > 0 ? character.social.Medallas.join("\n") : "Sin medallas"}`
                         },
                         {
                             "type": 14,
@@ -237,7 +235,7 @@ module.exports = {
                             "components": [
                                 {
                                     "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
+                                    "custom_id": `selectPerfil-${interaction.user.id}-${character._id}`,
                                     "options": [
                                         {
                                             "label": "Perfil principal",
@@ -293,7 +291,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>\n` + `-# Sistema de personaje | v1.5`
+                            "content": "-# Personaje de: " + `<@!${character.ownerID}>\n` + `-# Sistema de personaje | v1.5`
                         }
                     ]
                 }
@@ -303,153 +301,12 @@ module.exports = {
             await interaction.update({ components: perfilV2 })
         }
 
-        if (page === "reduct") {
-            const descripcion = pjuser.perfil.Descripcion ? pjuser.perfil.Descripcion : "*Sin descripcion*"
-            const reputacion = pjuser.estado?.Reputacion ? pjuser.estado.Reputacion : "0"
-            const grado = pjuser.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado"
-            const urlavatar = pjuser.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
-
-            const perfilV2 = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": urlavatar
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": `# ${pjuser.perfil.Nombre}${pjuser.perfil?.Apodo ? ` | ${pjuser.perfil.Apodo}` : ""}`
-                                },
-                                {
-                                    "type": 10,
-                                    "content": descripcion + "\n\n-# *`Lumens:`* " + pjuser.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 2,
-                                "style": 2,
-                                "label": "Expandir",
-                                "emoji": null,
-                                "disabled": false,
-                                "custom_id": `perfil_options-${interaction.user.id}-${pjuser._id}-expand`
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + pjuser.perfil.Sexo +
-                                        "\n-# `🍭` *Edad:* " + pjuser.perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + pjuser.perfil.Cumpleaños +
-                                        "\n-# `🎭` *Personalidad:* " + pjuser.perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + pjuser.perfil.CiudadOrg
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "**Medallas:**\n-# " + `${pjuser.social.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
-                                    "options": [
-                                        {
-                                            "label": "Perfil principal",
-                                            "value": "perfil",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "d9056043c1e148e38efd10e4515e33d2",
-                                                id: "1356111301859868823"
-                                            },
-                                            "default": true,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Historia [Lore]",
-                                            "value": "historia",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "BunnyBook",
-                                                id: "1356111194997395496"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Alma [Núcleo]",
-                                            "value": "alma",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "KrisJojos",
-                                                id: "1350664814414004395"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Mascotas [Nuevo]",
-                                            "value": "mascota",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "pets",
-                                                id: "1356111134758932510"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        }
-                                    ],
-                                    "placeholder": "Selecciona una opción",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>\n` + `-# Sistema de personaje | v1.5`
-                        }
-                    ]
-                }
-            ]
+        if (action === "reduct") {
+            const perfilV2 = construirPerfilV2(character, interaction.user.id)
             return interaction.update({ components: perfilV2 })
         }
-
     }
-
-
-
-}
-
-
+})
 
 
 

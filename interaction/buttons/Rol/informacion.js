@@ -12,14 +12,16 @@ const transaccionCache = require("../../../utils/cache")
 const { v4: uuidv4 } = require('uuid');
 const { procesarFoto } = require("./ActualizarFoto");
 const { errorMessage } = require("../../../functions/verifMD.js");
+const { crearBoton } = require("../../../utils/constructores/crearComponente.js")
 
-
-module.exports = {
+module.exports = crearBoton({
     customId: "informacionRol",
-    buttonAuthor: false,
+    soloAutor: true,
+    optionNames: [""],
 
-    ejecutar: async (client, interaction, option) => {
-        console.log(option)
+    ejecutar: async ({ client, interaction, componentData: { userId, extras } }) => {
+        const [data, option] = extras;
+        console.log(data, option)
 
         switch (option) {
             case "chprincipales":
@@ -68,19 +70,19 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "**Lobby:**\n- -# [Novedades del rol](https://discord.com/channels/716342375303217285/812205418910449665)\n- -# [Buscar roleo](https://discord.com/channels/716342375303217285/1396662352434167948)\n- -# [Chat rol](https://discord.com/channels/716342375303217285/1396661228960481411)"
+                            "content": "**Lobby:** \n- -# [Novedades del rol](https://discord.com/channels/716342375303217285/812205418910449665)\n- -# [Buscar roleo](https://discord.com/channels/716342375303217285/1396662352434167948)\n- -# [Chat rol](https://discord.com/channels/716342375303217285/1396661228960481411)"
                         },
                         {
                             "type": 10,
-                            "content": "**Lore (foros):**\n- -# [Lore principal/canonico](https://discord.com/channels/716342375303217285/1335001008920723598)\n- -# [Sistemas](https://discord.com/channels/716342375303217285/1365827270622580758)\n- -# [Eventos](https://discord.com/channels/716342375303217285/1368707896287957012)"
+                            "content": "**Lore (foros):** \n- -# [Lore principal/canonico](https://discord.com/channels/716342375303217285/1335001008920723598)\n- -# [Sistemas](https://discord.com/channels/716342375303217285/1365827270622580758)\n- -# [Eventos](https://discord.com/channels/716342375303217285/1368707896287957012)"
                         },
                         {
                             "type": 10,
-                            "content": "**Canales del instituto (Disponibles 24/7):**\n- -# [Status Tobeya](https://discord.com/channels/716342375303217285/1368013029165240390)\n- -# [Entrada](https://discord.com/channels/716342375303217285/1396665944725651456)\n- -# [Santuario](https://discord.com/channels/716342375303217285/1396666041974652928)"
+                            "content": "**Canales del instituto (Disponibles 24/7):** \n- -# [Status Tobeya](https://discord.com/channels/716342375303217285/1368013029165240390)\n- -# [Entrada](https://discord.com/channels/716342375303217285/1396665944725651456)\n- -# [Santuario](https://discord.com/channels/716342375303217285/1396666041974652928)"
                         },
                         {
                             "type": 10,
-                            "content": "**Ciudad de Tobeya (Disponibles 24/7):**\n- -# [Hospital](https://discord.com/channels/716342375303217285/1091945533242867732)\n- -# [Estación policia](https://discord.com/channels/716342375303217285/1197249862127865907)\n- -# [Centro de la ciudad](https://discord.com/channels/716342375303217285/1197249723820671027)"
+                            "content": "**Ciudad de Tobeya (Disponibles 24/7):** \n- -# [Hospital](https://discord.com/channels/716342375303217285/1091945533242867732)\n- -# [Estación policia](https://discord.com/channels/716342375303217285/1197249862127865907)\n- -# [Centro de la ciudad](https://discord.com/channels/716342375303217285/1197249723820671027)"
                         }
                     ]
                 }
@@ -124,13 +126,13 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "1. **Presentate**\n-# Pasa por el canal [Chat rol](https://canary.discord.com/channels/716342375303217285/1396661228960481411) para saludar a tus nuevos compañeros.\n\n2. **Consulta tu perfil**\n-# Ve al canal [Comandos](https://canary.discord.com/channels/716342375303217285/1197245719451533414) y usa el comando `/rol perfil` para visualizar tu ficha. Si quieres personalizarla usa `/rol configurar_personaje`\n\n3. **¡A rolear!**\n-# Una vez listo puedes comenzar hablando por [Entrada al instituto](https://canary.discord.com/channels/716342375303217285/1396665944725651456) ¡Mucha suerte, aprendiz!"
+                            "content": "1. **Presentate**\n-# Pasa por el canal [Chat rol (OOC)](https://canary.discord.com/channels/716342375303217285/1396661228960481411) para saludar a tus nuevos compañeros.\n\n2. **Consulta tu perfil**\n-# Ve al canal [Comandos](https://canary.discord.com/channels/716342375303217285/1197245719451533414) y usa el comando `/rol perfil` para visualizar tu ficha. Si quieres personalizarla usa `/rol configurar_personaje`\n\n2.5 **Aprende el formato** \n-# Antes de tu primera escena, échale un ojo a [Guías del servidor](https://discord.com/channels/716342375303217285/1326558005168181331)\n\n3. **¡A rolear!**\n-# Una vez listo puedes comenzar hablando por [Entrada al instituto](https://canary.discord.com/channels/716342375303217285/1396665944725651456) ¡Mucha suerte, aprendiz!"
                         }
                     ]
                 }
             ]
 
-            interaction.reply({components: primerospasos, flags: ["IsComponentsV2", "Ephemeral"]})
+            interaction.reply({ components: primerospasos, flags: ["IsComponentsV2", "Ephemeral"] })
         }
     }
-}
+})

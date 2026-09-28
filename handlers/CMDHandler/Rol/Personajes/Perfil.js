@@ -6,6 +6,7 @@ const userdbs = db.collection("usuarios_server")
 const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
+const { crearCustomId } = require("../../../../utils/constructores/customId")
 
 
 module.exports = {
@@ -105,161 +106,177 @@ module.exports = {
         }
 
         async function perfil(pjuser) {
-            const perfil = pjuser.perfil
-
-            const descripcion = perfil.Descripcion ? perfil.Descripcion : "*Sin descripcion*"
-            const reputacion = pjuser?.estado?.Reputacion ? pjuser.estado.Reputacion : "0"
-            const grado = pjuser?.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado"
-            const urlavatar = perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
-
-            const perfilV2 = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": urlavatar
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": `# ${perfil.Nombre}${perfil?.Apodo ? ` | ${perfil.Apodo}` : ""}`
-                                },
-                                {
-                                    "type": 10,
-                                    "content": descripcion + "\n\n-# *`Lumens:`* " + pjuser.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 2,
-                                "style": 2,
-                                "label": "Expandir",
-                                "emoji": null,
-                                "disabled": false,
-                                "custom_id": `perfil_options-${interaction.user.id}-${pjuser._id}-expand`
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${perfil.Sexo} ${perfil.Pronombres ? `(${perfil.Pronombres})` : ''}` || "** **"}` +
-                                        "\n-# `🍭` *Edad:* " + perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + (perfil.Cumpleaños || (perfil.cumpleDia && perfil.cumpleMes ? `${String(perfil.cumpleDia).padStart(2, '0')}/${String(perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
-                                        "\n-# `🎭` *Personalidad:* " + perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + perfil.CiudadOrg
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "**Medallas:**\n-# " + `${pjuser.social?.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
-                                    "options": [
-                                        {
-                                            "label": "Perfil principal",
-                                            "value": "perfil",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "d9056043c1e148e38efd10e4515e33d2",
-                                                id: "1356111301859868823"
-                                            },
-                                            "default": true,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Apariencia [Galeria]",
-                                            "value": "galeria",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "EmuNui",
-                                                id: "1370631281028890727"
-                                            },
-                                            "defualt": false,
-                                            "disabled": true
-                                        },
-                                        {
-                                            "label": "Historia [Lore]",
-                                            "value": "historia",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "BunnyBook",
-                                                id: "1356111194997395496"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Alma [Núcleo]",
-                                            "value": "alma",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "KrisJojos",
-                                                id: "1350664814414004395"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Mascotas [Nuevo]",
-                                            "value": "mascota",
-                                            "description": null,
-                                            "emoji": {
-                                                name: "pets",
-                                                id: "1356111134758932510"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        }
-                                    ],
-                                    "placeholder": "Selecciona una opción",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>\n` + `-# Sistema de personaje | v1.5`
-                        }
-                    ]
-                }
-            ]
-
-            await interaction.reply({ components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications"], withResponse: true })
-
+            const perfilV2 = construirPerfilV2(pjuser, interaction.user.id);
+            await interaction.reply({ components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications"], withResponse: true });
             return;
-
         }
 
-    }
+    },
+    construirPerfilV2
+}
+
+function construirPerfilV2(pjuser, viewerUserId) {
+    if (!pjuser) return [];
+    const perfil = pjuser.perfil || {};
+    const userId = viewerUserId || pjuser.ownerID;
+
+    const descripcion = perfil.Descripcion ? perfil.Descripcion : "*Sin descripcion*";
+    const reputacion = pjuser?.estado?.Reputacion ? pjuser.estado.Reputacion : "0";
+    const grado = pjuser?.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado";
+    const rawAvatar = perfil.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/q_auto,f_auto,w_480,h_480,c_fill/v1753322359/Rol/Avatars/665421882694041630_AvatarRol.jpg";
+    const urlavatar = rawAvatar.includes('/upload/')
+        ? rawAvatar.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
+        : rawAvatar;
+
+    return [
+        {
+            "type": 17,
+            "accent_color": null,
+            "spoiler": false,
+            "components": [
+                {
+                    "type": 9,
+                    "accessory": {
+                        "type": 11,
+                        "media": {
+                            "url": urlavatar
+                        },
+                        "description": null,
+                        "spoiler": false
+                    },
+                    "components": [
+                        {
+                            "type": 10,
+                            "content": `# ${perfil.Nombre || 'Personaje'}${perfil?.Apodo ? ` | ${perfil.Apodo}` : ""}`
+                        },
+                        {
+                            "type": 10,
+                            "content": descripcion + "\n\n-# *`Lumens:`* " + (pjuser?.economia?.Lumens ?? 0) + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
+                        }
+                    ]
+                },
+                {
+                    "type": 14,
+                    "divider": true,
+                    "spacing": 1
+                },
+                {
+                    "type": 9,
+                    "accessory": {
+                        "type": 2,
+                        "style": 2,
+                        "label": "Expandir",
+                        "emoji": null,
+                        "disabled": false,
+                        "custom_id": crearCustomId({
+                            action: "perfil_options",
+                            userId: userId,
+                            characterId: pjuser._id,
+                            extras: ["expand"]
+                        })
+                    },
+                    "components": [
+                        {
+                            "type": 10,
+                            "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${perfil.Sexo || 'No especificado'} ${perfil.Pronombres ? `(${perfil.Pronombres})` : ''}` || "** **"}` +
+                                "\n-# `🍭` *Edad:* " + (perfil.Edad || 'No especificada') + "\n-# `🎂` *Cumpleaños:* " + (perfil.Cumpleaños || (perfil.cumpleDia && perfil.cumpleMes ? `${String(perfil.cumpleDia).padStart(2, '0')}/${String(perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
+                                "\n-# `🎭` *Personalidad:* " + (perfil.Personalidad || 'Sin personalidad definida') + "\n-# `🛫` *Ciudad de origen:* " + (perfil.CiudadOrg || 'Desconocida')
+                        }
+                    ]
+                },
+                {
+                    "type": 14,
+                    "divider": true,
+                    "spacing": 1
+                },
+                {
+                    "type": 10,
+                    "content": "**Medallas:**\n-# " + `${pjuser.social?.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
+                },
+                {
+                    "type": 14,
+                    "divider": true,
+                    "spacing": 1
+                },
+                {
+                    "type": 1,
+                    "components": [
+                        {
+                            "type": 3,
+                            "custom_id": crearCustomId({
+                                action: "selectPerfil",
+                                userId: userId,
+                                characterId: pjuser._id
+                            }),
+                            "options": [
+                                {
+                                    "label": "Perfil principal",
+                                    "value": "perfil",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "d9056043c1e148e38efd10e4515e33d2",
+                                        id: "1356111301859868823"
+                                    },
+                                    "default": true,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "EmuNui",
+                                        id: "1370631281028890727"
+                                    },
+                                    "default": false,
+                                    "disabled": true
+                                },
+                                {
+                                    "label": "Historia [Lore]",
+                                    "value": "historia",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "BunnyBook",
+                                        id: "1356111194997395496"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Alma [Núcleo]",
+                                    "value": "alma",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "KrisJojos",
+                                        id: "1350664814414004395"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Mascotas [Nuevo]",
+                                    "value": "mascota",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "pets",
+                                        id: "1356111134758932510"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                }
+                            ],
+                            "placeholder": "Selecciona una opción",
+                            "min_values": 1,
+                            "max_values": 1,
+                            "disabled": false
+                        }
+                    ]
+                },
+                {
+                    "type": 10,
+                    "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>\n` + `-# Sistema de personaje | v1.5`
+                }
+            ]
+        }
+    ];
 }

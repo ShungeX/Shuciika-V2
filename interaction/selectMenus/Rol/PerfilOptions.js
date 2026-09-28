@@ -2,52 +2,46 @@ const { ChatInputCommandInteraction, ModalBuilder, ButtonBuilder, ActionRowBuild
 const clientdb = require("../../../Server");
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
-const souls = db2.collection("Soul")
-const character = db2.collection("Personajes")
 const version = require("../../../config");
 const petConfig = require("../../../config/configPets");
-
 const dbobjetos = db2.collection("Objetos_globales")
 const pets = db2.collection("Mascotas")
 
-module.exports = {
+const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente")
+
+module.exports = crearStringSelectMenu({
     customId: "selectPerfil",
-    selectAutor: true,
+    soloAutor: true,
+    requirements: {
+        character: {obtener: true, required: false},
+        soul: {obtener: true, required: false}
+    },
+    optionNames: ["action"],
 
-
-
-    /**
-     * 
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction 
-     */
-
-    ejecutar: async ({ client, interaction, char, componentData, options: { option1: characterId } }) => {
-        const [action, key] = componentData.split("*")
-        const personaje = await character.findOne({ _id: Number(characterId) })
-        const user = interaction.guild.members.resolve(personaje.ownerID)
-        const soul = await souls.findOne({ _id: Number(characterId) })
-
-        console.log(soul)
+    ejecutar: async({client, interaction, character, soul, componentData: {userId, extras}, options: {action}}) => {
+        console.log("extras", extras)
+        console.log("options", action)
+        const [deff, key] = extras
+        const user = interaction.guild.members.resolve(character.ownerID)
 
         switch (action) {
             case "perfil":
-                perfil(personaje)
+                perfil(character)
                 break;
             case "galeria":
                 interaction.reply({ content: "**Función en desarollo 〒▽〒**\n-# Espera pacientemente a que se agregue esta función.", flags: ["Ephemeral"] })
                 break;
             case "historia":
-                historia(personaje)
+                historia(character)
                 break;
             case "alma":
-                await alma(personaje)
+                await alma(character)
                 break;
             case "mascota":
-                mascotas(personaje)
+                mascotas(character)
                 break;
             case "stats":
-                stats(personaje)
+                stats(character)
                 break;
             default:
                 break;
@@ -205,7 +199,7 @@ module.exports = {
 
 
             if (key) {
-                const historiaData = personaje.perfil.Capitulos.find(c => c.ID === key)
+                const historiaData = character.perfil.Capitulos.find(c => c.ID === key)
                 if (!historiaData) return interaction.reply({ content: "Hubo un error al intentar mostrar este capitulo. Intentalo de nuevo ＞﹏＜", flags: ["Ephemeral"] })
 
                 title = `# ${historiaData.Titulo}`
@@ -256,7 +250,7 @@ module.exports = {
             ]
 
 
-            const pincel = personaje.economia.Inventario.find(i => i.ID === 120 && i.Region === "TOB-01")
+            const pincel = character.economia.Inventario.find(i => i.ID === 120 && i.Region === "TOB-01")
 
             if (pjuser.ownerID === interaction.user.id) {
                 const buttons = [
@@ -652,7 +646,7 @@ module.exports = {
                             "components": [
                                 {
                                     "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${personaje._id}-extra`,
+                                    "custom_id": `selectPerfil-${interaction.user.id}-${character._id}-extra`,
                                     "options": [
                                         {
                                             "label": "Ver stats",
@@ -843,7 +837,7 @@ module.exports = {
 
             const selectMenu = [{
                 "type": 3,
-                "custom_id": `selectPerfil-${interaction.user.id}-${personaje._id}-extras`,
+                "custom_id": `selectPerfil-${interaction.user.id}-${character._id}-extras`,
                 "options": optionsSelects,
                 "placeholder": "Selecciona un stat para mejorar",
                 "min_values": 1,
@@ -864,6 +858,5 @@ module.exports = {
             ];
             return romanos[num - 1] || num.toString();
         }
-
     }
-}
+})

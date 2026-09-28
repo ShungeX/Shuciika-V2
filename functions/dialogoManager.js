@@ -32,6 +32,10 @@ class DialogueSystem {
         this.registerCommandHandler('close_inventory', this.handleCloseInventory.bind(this));
         this.registerCommandHandler('resume_exploracion', this.handleResumeExploracion.bind(this));
         this.registerCommandHandler('dar_item', this.handleDarItem.bind(this));
+        this.registerCommandHandler('show_perfil', this.handleShowPerfil.bind(this));
+        this.registerCommandHandler('show_guía_principiante', this.handleShowGuiaPrincipiante.bind(this));
+        this.registerCommandHandler('show_guia_principiante', this.handleShowGuiaPrincipiante.bind(this));
+        this.registerCommandHandler('boton', async () => '');
         this.registerCommandHandler('ephemeral', async () => '');
     }
 
@@ -205,6 +209,157 @@ class DialogueSystem {
             }
         } catch (err) {
             console.error('[dialogoManager] Error en handler close_inventory:', err);
+        }
+        return '';
+    }
+
+    async handleShowPerfil(param, { user, userData, messageOptions }) {
+        try {
+            const { construirPerfilV2 } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
+            let charDoc = userData?.charDoc;
+            if (!charDoc && user) {
+                const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId;
+                charDoc = await this.obtenerPersonajeActivo(user.id, targetCharId);
+                if (charDoc && userData) userData.charDoc = charDoc;
+            }
+
+            if (charDoc) {
+                const perfilV2 = construirPerfilV2(charDoc, user.id);
+                if (messageOptions) {
+                    messageOptions.components = perfilV2;
+                    messageOptions.flags = ["IsComponentsV2", "SuppressNotifications"];
+                }
+            } else {
+                console.warn(`[dialogoManager] {show_perfil}: No se encontró personaje para usuario ${user?.id}`);
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler show_perfil:', err);
+        }
+        return '';
+    }
+
+    async handleShowGuiaPrincipiante(param, options = {}) {
+        const { interaction, user, userData, messageOptions } = options;
+        try {
+            const { crearCustomId } = require('../utils/constructores/customId');
+
+            let charDoc = userData?.charDoc;
+            if (!charDoc && (user || interaction)) {
+                const uId = user?.id || interaction?.user?.id;
+                const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId || (param && param.trim() ? param.trim() : null);
+                charDoc = await this.obtenerPersonajeActivo(uId, targetCharId);
+                if (charDoc && userData) userData.charDoc = charDoc;
+            }
+
+            const id = charDoc?._id || userData?.context?.characterId || userData?.charId || userData?.soulId || (param && param.trim() ? param.trim() : '');
+            const targetUserId = user?.id || interaction?.user?.id || userData?.context?.userId || (charDoc?.ownerID ? String(charDoc.ownerID) : '');
+            const perfil = charDoc?.perfil || {};
+            if (!perfil.Nombre) {
+                perfil.Nombre = charDoc?.Nombre || userData?.context?.nombre || user?.displayName || user?.username || 'Estudiante';
+            }
+
+            const guiaOficial = [
+                        {
+                            "type": 17,
+                            "accent_color": null,
+                            "spoiler": false,
+                            "components": [
+                                {
+                                    "type": 9,
+                                    "accessory": {
+                                        "type": 11,
+                                        "media": {
+                                            "url": "https://i.pinimg.com/736x/9e/e7/d3/9ee7d3a8aba958ea3cee267f469bc9df.jpg"
+                                        },
+                                        "description": null,
+                                        "spoiler": false
+                                    },
+                                    "components": [
+                                        {
+                                            "type": 10,
+                                            "content": "# Ficha académica verificada"
+                                        },
+                                        {
+                                            "type": 10,
+                                            "content": `*Estimado/a ${perfil.Nombre}*\n\nTras una cuidadosa revisión de tu solicitud de admisión, nos complace informarte que tu registro ha sido **validado y aceptado** por el instituto.\n\nUn gran viaje de conocimiento y poder te espera entre nuestros muros. A partir de este momento, eres oficialmente aprendiz de las artes arcanas. Que tus estudios sean fructíferos y tu lealtad a los principios que nos rigen sea tan brillante como tu propia magia. \n\n**¡Bienvenido/a a tu nuevo hogar!**`
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": 14,
+                                    "divider": true,
+                                    "spacing": 2
+                                },
+                                {
+                                    "type": 10,
+                                    "content": "**✧ Tus Herramientas Mágicas ** \n- -# Tu conexión con el instituto ha sido activada. Ahora puedes usar los comandos de rol `(/rol + comando)` para interactuar con el mundo. Comienza por consultar tu perfil con `/rol perfil` en el canal de comandos."
+                                },
+                                {
+                                    "type": 10,
+                                    "content": "**✧ Tu Identidad Institucional ** \n- -# Se te han asignado roles que reflejan tu información. Estas credenciales te otorgan acceso formal a las dependencias, aulas y zonas comunes del instituto."
+                                },
+                                {
+                                    "type": 10,
+                                    "content": "**✧ Siguientes Pasos ** \n- -# Para asegurar una transición fluida y honorable a tu nueva vida en el instituto, te instamos a familiarizarte con los siguientes recursos:"
+                                },
+                                {
+                                    "type": 1,
+                                    "components": [
+                                        {
+                                            "type": 2,
+                                            "style": 5,
+                                            "label": "Normas del rol",
+                                            "emoji": null,
+                                            "disabled": false,
+                                            "url": "https://discord.com/channels/716342375303217285/716865470648680448"
+                                        },
+                                        {
+                                            "type": 2,
+                                            "style": 2,
+                                            "label": "Canales principales",
+                                            "emoji": null,
+                                            "disabled": false,
+                                            "custom_id": crearCustomId({
+                                                action: "informacionRol",
+                                                characterId: id,
+                                                userId: targetUserId,
+                                                extras: ["null", "chprincipales"]
+                                            })
+                                        },
+                                        {
+                                            "type": 2,
+                                            "style": 2,
+                                            "label": "Primeros pasos",
+                                            "emoji": null,
+                                            "disabled": false,
+                                            "custom_id": crearCustomId({
+                                                action: "informacionRol",
+                                                characterId: id,
+                                                userId: targetUserId,
+                                                extras: ["null", "inicioRol"]
+                                            })
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": 14,
+                                    "divider": true,
+                                    "spacing": 1
+                                },
+                                {
+                                    "type": 10,
+                                    "content": `-# Ficha revisada y verificada por la Administración del Instituto | Instituto mágico Shuciika`
+                                }
+                            ]
+                        }
+                    ];
+
+            if (messageOptions) {
+                messageOptions.components = guiaOficial;
+                messageOptions.flags = ["IsComponentsV2", "SuppressNotifications"];
+            }
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler show_guía_principiante:', err);
         }
         return '';
     }
@@ -495,7 +650,23 @@ class DialogueSystem {
 
     async startDialogue(type, dialogueId, interaction, member, options = {}) {
         const user = interaction?.user || member;
-        const dialogue = this.obtenerDialogoPorId(type, dialogueId);
+        let dialogue = this.obtenerDialogoPorId(type, dialogueId);
+
+        if (!dialogue) {
+            try {
+                const clientdb = require('../Server');
+                const dbRol = clientdb.db("Rol_db");
+                const doc = await dbRol.collection("Dialogos").findOne({
+                    $or: [{ _id: dialogueId }, { id: dialogueId }, { _id: String(dialogueId) }]
+                });
+                if (doc) {
+                    this.dbDialogues.set(String(doc._id || doc.id), doc);
+                    dialogue = doc;
+                }
+            } catch (err) {
+                console.error('[dialogoManager] Fallback consulta DB diálogo error:', err);
+            }
+        }
 
         if (!dialogue) {
             console.error(`Diálogo no encontrado: ${dialogueId} en ${type}`);
@@ -556,19 +727,26 @@ class DialogueSystem {
 
         // Si el objetivo es MD y viene de una interacción en un canal
         if (targetObj === "MD" && interaction) {
-            const customMsg = dialogue.mensajeMDPersonalizado;
-            let replyContent = "";
-            if (customMsg) {
-                const contextData = { interaction, user, userData: this.activeDialogues.get(user.id), context: options.context || {} };
-                replyContent = await this.parseTextAsync(customMsg, contextData);
-            } else {
-                replyContent = "Revisa tus mensajes directos. Alguien tiene algo que decirte. Haz click aquí para ir al mensaje";
-            }
+            const isAlreadyInDM = !interaction.guildId || Boolean(interaction.channel?.isDMBased?.());
+            if (!isAlreadyInDM) {
+                const customMsg = dialogue.mensajeMDPersonalizado;
+                let replyContent = "";
+                if (customMsg) {
+                    const contextData = { interaction, user, userData: this.activeDialogues.get(user.id), context: options.context || {} };
+                    replyContent = await this.parseTextAsync(customMsg, contextData);
+                } else {
+                    replyContent = "Revisa tus mensajes directos. Alguien tiene algo que decirte. Haz click aquí para ir al mensaje";
+                }
 
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: replyContent, flags: ["Ephemeral"] });
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: replyContent, flags: ["Ephemeral"] });
+                } else {
+                    await interaction.followUp({ content: replyContent, flags: ["Ephemeral"] });
+                }
             } else {
-                await interaction.followUp({ content: replyContent, flags: ["Ephemeral"] });
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.deferUpdate().catch(() => {});
+                }
             }
 
             const waitSeconds = Number(dialogue.cooldownEspera) > 0 ? Number(dialogue.cooldownEspera) : 5;
@@ -666,30 +844,68 @@ class DialogueSystem {
             await this.sendEditMessage(currentDialogue, interaction, userData, 0, user);
         }
 
-        // 2. Esperar el delay especificado en el paso ACTUAL (Step N) DESPUÉS de enviarlo y ANTES de pasar al siguiente paso
+        const hasComponents = (Array.isArray(currentDialogue.components) && currentDialogue.components.length > 0) || (Array.isArray(currentDialogue.buttons) && currentDialogue.buttons.length > 0);
+
+        // Si el paso tiene componentes (botones)
+        if (hasComponents) {
+            const stepToken = Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+            userData.stepLockToken = stepToken;
+            userData.stepResolved = false;
+
+            // Si esperarRespuesta es true: ignora pause/delay y espera indefinidamente al usuario
+            if (currentDialogue.esperarRespuesta === true) {
+                this.activeDialogues.set(user.id, userData);
+                return true;
+            }
+
+            // Si esperarRespuesta es false: toma el pause/delay de respuesta como timeout
+            const timeoutMs = Number(currentDialogue.delay) || Number(currentDialogue.skip) || 10000;
+            const timeoutId = setTimeout(async () => {
+                const active = this.activeDialogues.get(user.id);
+                if (!active || active.stepLockToken !== stepToken || active.stepResolved) {
+                    return;
+                }
+                active.stepResolved = true;
+                delete active.skipTimeout;
+                this.activeDialogues.set(user.id, active);
+
+                console.log(`[dialogoManager] Timeout expirado de forma atómica para paso ${active.currentStep} en '${active.dialogueId}'`);
+
+                const tAction = currentDialogue.timeoutAction || 'next';
+                if (tAction === 'jump' && currentDialogue.timeoutTarget !== undefined) {
+                    await this.jumpToStep(user.id, Number(currentDialogue.timeoutTarget), interaction);
+                } else if (tAction === 'next') {
+                    if (currentDialogue.nextStep !== undefined && currentDialogue.nextStep !== null && currentDialogue.nextStep !== '') {
+                        active.currentStep = Number(currentDialogue.nextStep);
+                    } else {
+                        active.currentStep++;
+                    }
+                    this.activeDialogues.set(user.id, active);
+                    await this.processNextStep(interaction, user);
+                } else {
+                    // 'none': se queda sin avanzar
+                }
+            }, timeoutMs);
+
+            userData.skipTimeout = timeoutId;
+            this.activeDialogues.set(user.id, userData);
+            return true;
+        }
+
+        // Si el paso NO tiene componentes: flujo normal con delay
         const currentDelay = Number(currentDialogue.delay) || 0;
         if (currentDelay > 0) {
             await new Promise(resolve => setTimeout(resolve, currentDelay));
         }
 
-        if (!currentDialogue.components || currentDialogue.components.length === 0) {
+        if (currentDialogue.nextStep !== undefined && currentDialogue.nextStep !== null && currentDialogue.nextStep !== '') {
+            userData.currentStep = Number(currentDialogue.nextStep);
+        } else {
             userData.currentStep++;
-            this.activeDialogues.set(user.id, userData);
-
-            if (currentDialogue.nextStep !== undefined) userData.currentStep = currentDialogue.nextStep;
-            await this.processNextStep(interaction, user);
-        } else if (currentDialogue.components && currentDialogue.skip) {
-            const timeoutId = setTimeout(async () => {
-                userData.currentStep++;
-                this.activeDialogues.set(user.id, userData);
-
-                if (currentDialogue.nextStep !== undefined) userData.currentStep = currentDialogue.nextStep;
-                await this.processNextStep(interaction, user);
-            }, currentDialogue.skip);
-
-            userData.skipTimeout = timeoutId;
-            this.activeDialogues.set(user.id, userData);
         }
+        this.activeDialogues.set(user.id, userData);
+
+        await this.processNextStep(interaction, user);
 
         return true;
     }
@@ -756,6 +972,31 @@ class DialogueSystem {
                 case "edit":
                     try {
                         message = await targetChannel.messages.fetch(messageId);
+
+                        // Si el paso de edición no tiene embeds, enviar array vacío [] para que Discord los elimine del mensaje
+                        if (!messageOptions.embeds || messageOptions.embeds.length === 0) {
+                            messageOptions.embeds = [];
+                        }
+
+                        // Si el paso de edición no tiene componentes (y no es IsComponentsV2), enviar array vacío [] para que Discord elimine los botones existentes
+                        if (!messageOptions.flags?.includes("IsComponentsV2") && (!messageOptions.components || messageOptions.components.length === 0)) {
+                            messageOptions.components = [];
+                        }
+
+                        // Verificar que no se intente editar un mensaje dejándolo completamente vacío (DiscordAPIError 50006)
+                        const hasContent = typeof messageOptions.content === 'string' && messageOptions.content.trim().length > 0;
+                        const hasEmbeds = Array.isArray(messageOptions.embeds) && messageOptions.embeds.length > 0;
+                        const hasComponents = Array.isArray(messageOptions.components) && messageOptions.components.length > 0;
+                        const hasFiles = Array.isArray(messageOptions.files) && messageOptions.files.length > 0;
+
+                        if (!hasContent && !hasEmbeds && !hasComponents && !hasFiles) {
+                            if (message.content && message.content.trim().length > 0) {
+                                messageOptions.content = message.content;
+                            } else {
+                                messageOptions.content = "\u200B";
+                            }
+                        }
+
                         await message.edit(messageOptions);
                     } catch (error) {
                         console.error(`Error al editar mensaje: ${error}`);
@@ -815,13 +1056,13 @@ class DialogueSystem {
 
     async buildMessageOptions(dialogueData, userData, interaction, user) {
         const messageOptions = {};
-        const contextData = { interaction, user, userData, context: userData?.context || {} };
+        const contextData = { interaction, user, userData, context: userData?.context || {}, messageOptions };
 
         if (dialogueData.content) {
             messageOptions.content = await this.parseTextAsync(dialogueData.content, contextData);
         }
 
-        if (dialogueData.embeds) {
+        if (dialogueData.embeds && Array.isArray(dialogueData.embeds) && dialogueData.embeds.length > 0) {
             messageOptions.embeds = await Promise.all(dialogueData.embeds.map(async embed => {
                 const embedBuilder = new EmbedBuilder();
 
@@ -898,14 +1139,28 @@ class DialogueSystem {
 
                 return embedBuilder;
             }));
+        } else if (dialogueData.action?.type === 'edit' || dialogueData.type === 'edit') {
+            messageOptions.embeds = [];
         }
 
-        if (dialogueData.components) {
-            messageOptions.components = await this.buildComponentsAsync(dialogueData.components, contextData);
+        const comps = (Array.isArray(dialogueData.components) && dialogueData.components.length > 0)
+            ? dialogueData.components
+            : ((Array.isArray(dialogueData.buttons) && dialogueData.buttons.length > 0) ? dialogueData.buttons : null);
+
+        if (comps && comps.length > 0) {
+            messageOptions.components = await this.buildComponentsAsync(comps, contextData);
+        } else if (dialogueData.action?.type === 'edit' || dialogueData.type === 'edit') {
+            if (!messageOptions.flags?.includes("IsComponentsV2") && !messageOptions.components) {
+                messageOptions.components = [];
+            }
         }
 
         if (dialogueData.files) {
             messageOptions.files = dialogueData.files;
+        }
+
+        if (messageOptions.content === "" && messageOptions.components?.length > 0) {
+            delete messageOptions.content;
         }
 
         return messageOptions;
@@ -923,11 +1178,29 @@ class DialogueSystem {
                 currentComponents = 0;
             }
 
-            if (component.type === 'BUTTON') {
+            const isButton = component.type === 'BUTTON' || component.type === 'button' || !component.type || component.type === 2;
+            if (isButton) {
+                const rawCustomId = component.customId || component.custom_id || '';
+                const rawLabel = component.label || component.text || 'Botón';
+
                 const button = new ButtonBuilder()
-                    .setCustomId(await this.parseTextAsync(component.customId, contextData))
-                    .setLabel(await this.parseTextAsync(component.label, contextData))
-                    .setStyle(ButtonStyle[component.style] || ButtonStyle.Secondary);
+                    .setCustomId(await this.parseTextAsync(rawCustomId, contextData))
+                    .setLabel(await this.parseTextAsync(rawLabel, contextData));
+
+                let btnStyle = ButtonStyle.Secondary;
+                const rawStyle = component.style;
+                if (rawStyle === 1 || rawStyle === '1' || rawStyle === 'primary' || rawStyle === 'Primary') {
+                    btnStyle = ButtonStyle.Primary;
+                } else if (rawStyle === 2 || rawStyle === '2' || rawStyle === 'secondary' || rawStyle === 'Secondary') {
+                    btnStyle = ButtonStyle.Secondary;
+                } else if (rawStyle === 3 || rawStyle === '3' || rawStyle === 'success' || rawStyle === 'Success') {
+                    btnStyle = ButtonStyle.Success;
+                } else if (rawStyle === 4 || rawStyle === '4' || rawStyle === 'danger' || rawStyle === 'Danger') {
+                    btnStyle = ButtonStyle.Danger;
+                } else if (rawStyle === 5 || rawStyle === '5' || rawStyle === 'link' || rawStyle === 'Link') {
+                    btnStyle = ButtonStyle.Link;
+                }
+                button.setStyle(btnStyle);
 
                 if (component.emoji) button.setEmoji(component.emoji);
                 if (component.disabled) button.setDisabled(true);
@@ -938,7 +1211,7 @@ class DialogueSystem {
 
                 currentRow.addComponents(button);
                 currentComponents++;
-            } else if (component.type === 'SELECT_MENU') {
+            } else if (component.type === 'SELECT_MENU' || component.type === 'selectMenu') {
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId(await this.parseTextAsync(component.customId, contextData))
                     .setPlaceholder(await this.parseTextAsync(component.placeholder, contextData))
@@ -992,7 +1265,7 @@ class DialogueSystem {
 
             if (this.commandHandlers.has(cmdName)) {
                 const handler = this.commandHandlers.get(cmdName);
-                const replacement = await handler(cmdParam, { interaction, user, userData, context });
+                const replacement = await handler(cmdParam, { interaction, user, userData, context, messageOptions: contextData.messageOptions });
                 resultText = resultText.replace(item.fullTag, replacement !== undefined ? replacement : '');
             } else if (context[cmdName] !== undefined) {
                 resultText = resultText.replace(item.fullTag, context[cmdName]);
@@ -1002,6 +1275,18 @@ class DialogueSystem {
                 resultText = resultText.replace(item.fullTag, `<@${user?.id}>`);
             } else if (cmdName === 'user_id') {
                 resultText = resultText.replace(item.fullTag, user?.id || '');
+            } else if (cmdName === 'character_id' || cmdName === 'char_id') {
+                try {
+                    let charDoc = userData?.charDoc;
+                    if (!charDoc && user) {
+                        const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId;
+                        charDoc = await this.obtenerPersonajeActivo(user.id, targetCharId);
+                        if (userData && charDoc) userData.charDoc = charDoc;
+                    }
+                    resultText = resultText.replace(item.fullTag, charDoc ? String(charDoc._id) : (userData?.charId || userData?.soulId || ''));
+                } catch (e) {
+                    resultText = resultText.replace(item.fullTag, '');
+                }
             } else if (cmdName === 'user_avatar') {
                 const avatar = user?.displayAvatarURL?.() || '';
                 resultText = resultText.replace(item.fullTag, avatar);
@@ -1023,18 +1308,30 @@ class DialogueSystem {
                 try {
                     let charDoc = userData?.charDoc;
                     if (!charDoc && user) {
-                        charDoc = await this.obtenerPersonajeActivo(user.id, userData?.charId || userData?.soulId);
+                        const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId;
+                        charDoc = await this.obtenerPersonajeActivo(user.id, targetCharId);
                         if (userData && charDoc) userData.charDoc = charDoc;
                     }
                     if (charDoc) {
                         let val = undefined;
-                        if (charDoc.perfil && charDoc.perfil[pathKey] !== undefined) {
-                            val = charDoc.perfil[pathKey];
-                        } else if (pathKey.includes('.')) {
-                            const pParts = pathKey.split('.');
-                            val = pParts.reduce((o, i) => (o ? o[i] : undefined), charDoc);
+                        const perfil = charDoc.perfil || {};
+
+                        if (pathKey.toLowerCase() === 'avatar' || pathKey.toLowerCase() === 'foto') {
+                            val = perfil.avatarURL || charDoc.avatarURL;
+                        } else if (pathKey.toLowerCase() === 'nombre') {
+                            val = perfil.Nombre || charDoc.Nombre;
+                        } else if (perfil[pathKey] !== undefined) {
+                            val = perfil[pathKey];
                         } else {
-                            val = charDoc[pathKey];
+                            const matchedKey = Object.keys(perfil).find(k => k.toLowerCase() === pathKey.toLowerCase());
+                            if (matchedKey) {
+                                val = perfil[matchedKey];
+                            } else if (pathKey.includes('.')) {
+                                const pParts = pathKey.split('.');
+                                val = pParts.reduce((o, i) => (o ? o[i] : undefined), charDoc);
+                            } else {
+                                val = charDoc[pathKey];
+                            }
                         }
 
                         if (val !== undefined && val !== null) {
