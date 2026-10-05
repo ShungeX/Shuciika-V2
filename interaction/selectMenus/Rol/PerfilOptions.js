@@ -8,6 +8,7 @@ const dbobjetos = db2.collection("Objetos_globales")
 const pets = db2.collection("Mascotas")
 
 const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente")
+const { construirPerfilV2 } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
 
 module.exports = crearStringSelectMenu({
     customId: "selectPerfil",
@@ -29,7 +30,7 @@ module.exports = crearStringSelectMenu({
                 perfil(character)
                 break;
             case "galeria":
-                interaction.reply({ content: "**Función en desarollo 〒▽〒**\n-# Espera pacientemente a que se agregue esta función.", flags: ["Ephemeral"] })
+                galeria(character)
                 break;
             case "historia":
                 historia(character)
@@ -49,39 +50,42 @@ module.exports = crearStringSelectMenu({
 
 
         function perfil(pjuser) {
-            const perfil = pjuser.perfil
+            const perfilV2 = construirPerfilV2(pjuser, userId || interaction.user.id);
+            return interaction.update({ components: perfilV2 });
+        }
 
-            const descripcion = perfil.Descripcion ? perfil.Descripcion : "*Sin descripcion*"
-            const reputacion = pjuser?.estado?.Reputacion ? pjuser.estado.Reputacion : "0"
-            const grado = pjuser?.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado"
-            const urlavatar = perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
+        function galeria(pjuser) {
+            const galeriaItems = pjuser?.social?.galeria;
+            if (!galeriaItems || !Array.isArray(galeriaItems) || galeriaItems.length === 0) {
+                return interaction.reply({
+                    content: "Aún no presumes a tu personaje. Puedes editar este apartado desde el dashboard",
+                    flags: ["Ephemeral"]
+                });
+            }
 
-            const perfilV2 = [
+            const imagenes = galeriaItems.slice(0, 9);
+            const items = imagenes.map(img => ({
+                "media": {
+                    "url": img.url,
+                    "proxy_url": img.proxy_url || img.url
+                },
+                "description": img.descripcion || null,
+                "spoiler": Boolean(img.spoiler)
+            }));
+
+            const galeriaV2 = [
                 {
                     "type": 17,
                     "accent_color": null,
                     "spoiler": false,
                     "components": [
                         {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": urlavatar
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": `# ${perfil.Nombre}${perfil?.Apodo ? ` | ${perfil.Apodo}` : ""}`
-                                },
-                                {
-                                    "type": 10,
-                                    "content": descripcion + "\n\n-# *`Lumens:`* " + pjuser.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
-                                }
-                            ]
+                            "type": 10,
+                            "content": `### Galería de ${pjuser?.perfil?.Nombre || "Personaje"}`
+                        },
+                        {
+                            "type": 10,
+                            "content": "-# ¿Quieres editar esto? Hazlo desde tu dashboard."
                         },
                         {
                             "type": 14,
@@ -89,23 +93,8 @@ module.exports = crearStringSelectMenu({
                             "spacing": 1
                         },
                         {
-                            "type": 9,
-                            "accessory": {
-                                "type": 2,
-                                "style": 2,
-                                "label": "Expandir",
-                                "emoji": null,
-                                "disabled": false,
-                                "custom_id": `perfil_options-${interaction.user.id}-${pjuser._id}-expand`
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + perfil.Sexo +
-                                        "\n-# `🍭` *Edad:* " + perfil.Edad + "\n-# `🎂` *Cumpleaños:* " + perfil.Cumpleaños +
-                                        "\n-# `🎭` *Personalidad:* " + perfil.Personalidad + "\n-# `🛫` *Ciudad de origen:* " + perfil.CiudadOrg
-                                }
-                            ]
+                            "type": 12,
+                            "items": items
                         },
                         {
                             "type": 14,
@@ -114,81 +103,83 @@ module.exports = crearStringSelectMenu({
                         },
                         {
                             "type": 10,
-                            "content": "**Medallas:**\n-# " + `${pjuser.social.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
-                        },
+                            "content": `-# Mostrando ${imagenes.length} imagenes (pagina: 1/1)`
+                        }
+                    ]
+                },
+                {
+                    "type": 1,
+                    "components": [
                         {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 1,
-                            "components": [
+                            "type": 3,
+                            "custom_id": `selectPerfil-${userId || interaction.user.id}-${pjuser._id}`,
+                            "options": [
                                 {
-                                    "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
-                                    "options": [
-                                        {
-                                            "label": "Perfil principal",
-                                            "value": "perfil",
-                                            "description": null,
-                                            "emoji": {
-                                                "name": "d9056043c1e148e38efd10e4515e33d2",
-                                                "id": "1356111301859868823"
-                                            },
-                                            "default": true,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Historia [Lore]",
-                                            "value": "historia",
-                                            "description": null,
-                                            "emoji": {
-                                                "name": "BunnyBook",
-                                                "id": "1356111194997395496"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Alma [Núcleo]",
-                                            "value": "alma",
-                                            "description": null,
-                                            "emoji": {
-                                                "name": "KrisJojos",
-                                                "id": "1350664814414004395"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        },
-                                        {
-                                            "label": "Mascotas [Nuevo]",
-                                            "value": "mascota",
-                                            "description": null,
-                                            "emoji": {
-                                                "name": "pets",
-                                                "id": "1356111134758932510"
-                                            },
-                                            "default": false,
-                                            "disabled": false
-                                        }
-                                    ],
-                                    "placeholder": "Selecciona una opción",
-                                    "min_values": 1,
-                                    "max_values": 1,
+                                    "label": "Perfil principal",
+                                    "value": "perfil",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "d9056043c1e148e38efd10e4515e33d2",
+                                        "id": "1356111301859868823"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "EmuNui",
+                                        "id": "1370631281028890727"
+                                    },
+                                    "default": true,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Historia [Lore]",
+                                    "value": "historia",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "BunnyBook",
+                                        "id": "1356111194997395496"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Alma [Núcleo]",
+                                    "value": "alma",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "KrisJojos",
+                                        "id": "1350664814414004395"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Mascotas [Nuevo]",
+                                    "value": "mascota",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "pets",
+                                        "id": "1356111134758932510"
+                                    },
+                                    "default": false,
                                     "disabled": false
                                 }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>
-` + "-# Sistema de personaje | v1.5"
+                            ],
+                            "placeholder": "Selecciona una opción",
+                            "min_values": 1,
+                            "max_values": 1,
+                            "disabled": false
                         }
                     ]
                 }
-            ]
-            return interaction.update({ components: perfilV2 })
+            ];
+
+            return interaction.update({ components: galeriaV2 });
         }
 
         function historia(pjuser) {
@@ -377,6 +368,17 @@ module.exports = crearStringSelectMenu({
                                     "disabled": false
                                 },
                                 {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "EmuNui",
+                                        "id": "1370631281028890727"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
                                     "label": "Historia [Lore]",
                                     "value": "historia",
                                     "description": null,
@@ -484,7 +486,7 @@ module.exports = crearStringSelectMenu({
                                 {
                                     "type": 10,
                                     "content": "<a:PurpleCrystalHeart:1356497588131729458> `Fragmentos estelares:` " + soul.sendero.StelarFragments +
-                                        "\n-# Los fragmentos estelares se obtienen subiendo de nivel\n\n-# **¡Una vez asignes los fragmentos no los podras cambiar a menos que compres un item que aun esta en desarrollo!**\n\n-# No todos los stats se pueden mejorar mediante fragmentos estelares. \n-# Algunos aun no estan disponibles para mejorar"
+                                        "\n-# Los fragmentos estelares se obtienen subiendo de nivel\n\n-# **¡Una vez asignes los fragmentos no los podras cambiar a menos que compres un item que aún está en desarrollo!**\n\n-# No todos los stats se pueden mejorar mediante fragmentos estelares. \n-# Algunos aún no están disponibles para mejorar"
                                 }
                             ]
                         },
@@ -531,6 +533,17 @@ module.exports = crearStringSelectMenu({
                                     "emoji": {
                                         "name": "d9056043c1e148e38efd10e4515e33d2",
                                         "id": "1356111301859868823"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "EmuNui",
+                                        "id": "1370631281028890727"
                                     },
                                     "default": false,
                                     "disabled": false
@@ -594,7 +607,7 @@ module.exports = crearStringSelectMenu({
             }
 
             if (!soul) {
-                return interaction.reply({ content: "Este personaje aun no despierta su poder (´･ω･`)?", flags: ["Ephemeral"] })
+                return interaction.reply({ content: "Este personaje aún no despierta su poder (´･ω･`)?", flags: ["Ephemeral"] })
             }
             const soulV2 = [
                 {
@@ -683,6 +696,17 @@ module.exports = crearStringSelectMenu({
                                     "emoji": {
                                         "name": "d9056043c1e148e38efd10e4515e33d2",
                                         "id": "1356111301859868823"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        "name": "EmuNui",
+                                        "id": "1370631281028890727"
                                     },
                                     "default": false,
                                     "disabled": false

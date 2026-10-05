@@ -1360,7 +1360,7 @@ class CombatUI {
                                 },
                                 {
                                     "type": 10,
-                                    "content": "-# Aqui deberia ir un mensaje curioso, sin embargo... Aun no hay nada "
+                                    "content": "-# Aquí debería ir un mensaje curioso, sin embargo... Aún no hay nada "
                                 }
                             ]
                         },
@@ -1430,7 +1430,7 @@ class CombatUI {
             }).join('\n');
             contrincantesContent = `**Contrincantes:**\n${list}`;
         } else {
-            contrincantesContent = `**Contrincantes:**\n- -# Aun sin contrincantes...`;
+            contrincantesContent = `**Contrincantes:**\n- -# Aún sin contrincantes...`;
         }
 
         // Construir componentes para salaMessage

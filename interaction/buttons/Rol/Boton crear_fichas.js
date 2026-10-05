@@ -927,7 +927,7 @@ module.exports = crearBoton({
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
 
             if (!characterCache?.avatarURL) {
-                interaction.editReply({ content: "-# Parece que tu personaje aun no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", flags: ["Ephemeral"] })
+                interaction.editReply({ content: "-# Parece que tu personaje aún no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", flags: ["Ephemeral"] })
                 await sleep(4000)
             }
             const jsonV2 = [

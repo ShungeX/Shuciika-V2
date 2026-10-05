@@ -195,7 +195,7 @@ module.exports = {
 
 
             if (!mas) {
-                return ({ content: mascotasU.length > 0 ? "No tienes una mascota activa 〒▽〒\n-# Usa `/rol mascota [activa]` para asignar a una mascota en tus aventuras" : "No tienes ninguna mascota aun... 〒▽〒", flags: ["Ephemeral"] })
+                return ({ content: mascotasU.length > 0 ? "No tienes una mascota activa 〒▽〒\n-# Usa `/rol mascota [activa]` para asignar a una mascota en tus aventuras" : "No tienes ninguna mascota aún... 〒▽〒", flags: ["Ephemeral"] })
             }
 
             const mascotaActiva = await this.actualizarStats(mas, petDesgaste)
@@ -389,6 +389,17 @@ module.exports = {
                                     "emoji": {
                                         name: "d9056043c1e148e38efd10e4515e33d2",
                                         id: "1356111301859868823"
+                                    },
+                                    "default": false,
+                                    "disabled": false
+                                },
+                                {
+                                    "label": "Apariencia [Galeria]",
+                                    "value": "galeria",
+                                    "description": null,
+                                    "emoji": {
+                                        name: "EmuNui",
+                                        id: "1370631281028890727"
                                     },
                                     "default": false,
                                     "disabled": false

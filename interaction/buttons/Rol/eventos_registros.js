@@ -57,7 +57,7 @@ module.exports = {
         if (idEvent === "despertar_TOB01") {
             const userData = await userdb.findOne({ _id: interaction.user.id })
             if (!userData || !userData?.nix?.personajeActivo) return interaction.reply({
-                content: "No puedes registrarte porque tu personaje no es valido o no existe aun\n-# ¿Porque no intentas registrar un personaje?",
+                content: "No puedes registrarte porque tu personaje no es valido o no existe aún\n-# ¿Por qué no intentas registrar un personaje?",
                 flags: ["Ephemeral"]
             })
 

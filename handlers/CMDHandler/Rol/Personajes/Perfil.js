@@ -74,10 +74,10 @@ module.exports = {
         } else if (cachepj) {
             if (cachepj?.waiting) {
                 estado = "En espera"
-                statusMsg = "Esto significa que aun no ha sido verificada. espera pacientemente (∪｡∪)｡｡｡zzZ"
+                statusMsg = "Esto significa que aún no ha sido verificada. espera pacientemente (∪｡∪)｡｡｡zzZ"
             } else {
                 estado = "No enviada"
-                statusMsg = "Parece que aun estas definiendo tu ficha. para enviar tu ficha y continuar el proceso, usa el comando `/rol crear_ficha` (∪｡∪)｡｡｡zzZ"
+                statusMsg = "Parece que aún estás definiendo tu ficha. para enviar tu ficha y continuar el proceso, usa el comando `/rol crear_ficha` (∪｡∪)｡｡｡zzZ"
             }
 
             const noverif = new EmbedBuilder()
@@ -122,7 +122,7 @@ function construirPerfilV2(pjuser, viewerUserId) {
 
     const descripcion = perfil.Descripcion ? perfil.Descripcion : "*Sin descripcion*";
     const reputacion = pjuser?.estado?.Reputacion ? pjuser.estado.Reputacion : "0";
-    const grado = pjuser?.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aun no calculado";
+    const grado = pjuser?.estado?.DesmpAcademico?.Grado ? pjuser.estado.DesmpAcademico.Grado : "Aún no calculado";
     const rawAvatar = perfil.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/q_auto,f_auto,w_480,h_480,c_fill/v1753322359/Rol/Avatars/665421882694041630_AvatarRol.jpg";
     const urlavatar = rawAvatar.includes('/upload/')
         ? rawAvatar.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
@@ -229,7 +229,7 @@ function construirPerfilV2(pjuser, viewerUserId) {
                                         id: "1370631281028890727"
                                     },
                                     "default": false,
-                                    "disabled": true
+                                    "disabled": false
                                 },
                                 {
                                     "label": "Historia [Lore]",

@@ -156,7 +156,7 @@ module.exports = crearBoton({
         if (action === "expand") {
             const descripcion = character.perfil.Descripcion ? character.perfil.Descripcion : "*Sin descripcion*"
             const reputacion = character.estado?.Reputacion ? character.estado.Reputacion : "0"
-            const grado = character.estado?.DesmpAcademico?.Grado ? character.estado.DesmpAcademico.Grado : "Aun no calculado"
+            const grado = character.estado?.DesmpAcademico?.Grado ? character.estado.DesmpAcademico.Grado : "Aún no calculado"
             const urlavatar = character.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
 
             const perfilV2 = [
@@ -246,6 +246,17 @@ module.exports = crearBoton({
                                                 id: "1356111301859868823"
                                             },
                                             "default": true,
+                                            "disabled": false
+                                        },
+                                        {
+                                            "label": "Apariencia [Galeria]",
+                                            "value": "galeria",
+                                            "description": null,
+                                            "emoji": {
+                                                name: "EmuNui",
+                                                id: "1370631281028890727"
+                                            },
+                                            "default": false,
                                             "disabled": false
                                         },
                                         {

@@ -64,7 +64,7 @@ module.exports = {
             }).toArray()
 
             if (!relaciones.length) {
-                return interaction.editReply({ content: "Tu personaje aun no ha formado ninguna relación...\n-# ¿Porque no intentas formar una?" })
+                return interaction.editReply({ content: "Tu personaje aún no ha formado ninguna relación...\n-# ¿Por qué no intentas formar una?" })
             }
 
             const relacionesId = relaciones.map((rel) => rel.ID1 === character.ID ? rel.ID2 : rel.ID1)

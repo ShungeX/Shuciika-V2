@@ -60,7 +60,7 @@ module.exports = {
             const msg = await interaction.reply({ content: "**Vista previa de tu personaje**", embeds: [embed], fetchReply: true })
 
             if (unknownImg.includes(img)) {
-                interaction.followUp({ content: "-# Parece que tu personaje aun no tiene una **Foto de perfil**\n-# puedes asignar una usando el comando **`/rol configuracion_personaje`**", flags: ["Ephemeral"] })
+                interaction.followUp({ content: "-# Parece que tu personaje aún no tiene una **Foto de perfil**\n-# puedes asignar una usando el comando **`/rol configuracion_personaje`**", flags: ["Ephemeral"] })
             }
 
             await sleep(3000)

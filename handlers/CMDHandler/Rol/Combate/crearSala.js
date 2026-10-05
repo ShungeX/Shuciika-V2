@@ -183,7 +183,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "**Contrincantes:**\n- -# Aun sin contricantes..."
+                            "content": "**Contrincantes:**\n- -# Aún sin contrincantes..."
                         },
                         {
                             "type": 14,
@@ -285,7 +285,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": "**Contrincantes:**\n- -# Aun sin contricantes..."
+                            "content": "**Contrincantes:**\n- -# Aún sin contrincantes..."
                         },
                         {
                             "type": 14,
@@ -360,7 +360,7 @@ module.exports = {
             }
             const soulRival = await souls.findOne({ _id: rivalID })
 
-            if (!soulRival) return interaction.reply({ content: `**${rival.Nombre}** aun no puede combatir... ＞﹏＜`, flags: ["Ephemeral"] });
+            if (!soulRival) return interaction.reply({ content: `**${rival.Nombre}** aún no puede combatir... ＞﹏＜`, flags: ["Ephemeral"] });
 
 
             if (soulRival.nucleo.HP === 0) {

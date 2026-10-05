@@ -87,6 +87,15 @@ module.exports = {
 
         if (!pjFriend) return interaction.reply({ content: "No se pudo encontrar el personaje con la siguiente ID: `" + pjID + "`", flags: ["Ephemeral"] })
 
+        const { evaluarPermisoPrivacidad } = require("../../../../functions/privacidad.js");
+        const puedeRecibirRegalo = await evaluarPermisoPrivacidad(pjFriend, character, 'regalos', db2);
+        if (!puedeRecibirRegalo) {
+            return interaction.reply({
+                content: "La configuración de privacidad de este personaje no le permite recibir regalos de tu parte. 〒▽〒",
+                flags: ["Ephemeral"]
+            });
+        }
+
         console.log(cantidadInventario)
         if (cantidadInventario?.Cantidad < cantidad || !cantidadInventario) return interaction.reply({
             content: "No tienes la cantidad suficiente para dar este objeto 〒▽〒\n-# Tienes: **`" +
@@ -95,7 +104,7 @@ module.exports = {
 
         const soulFriend = await souls.findOne({ ID: pjFriend.ID })
 
-        if (!soulFriend) return interaction.reply({ content: "Este personaje aun no puede recibir objetos... 〒▽〒", flags: ["Ephemeral"] })
+        if (!soulFriend) return interaction.reply({ content: "Este personaje aún no puede recibir objetos... 〒▽〒", flags: ["Ephemeral"] })
 
 
         const objeto = await duelSystem.getObjetInfo(region, cantidadInventario.ID)

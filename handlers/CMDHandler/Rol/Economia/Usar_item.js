@@ -215,7 +215,7 @@ module.exports = {
                     console.log(error)
                 }
             } else {
-                return interaction.reply({ content: "El objeto aun no tiene una funcion definida (╥﹏╥)", flags: ["Ephemeral"] })
+                return interaction.reply({ content: "El objeto aún no tiene una función definida (╥﹏╥)", flags: ["Ephemeral"] })
             }
         }
 

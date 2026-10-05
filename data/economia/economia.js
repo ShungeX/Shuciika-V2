@@ -27,7 +27,7 @@ const trabajos = {
     mensajero: {
         nombre: "Mensajero Mágico",
         img: "https://i.pinimg.com/736x/26/a4/63/26a4638dcc4d54e3d565c9a4094c6875.jpg",
-        descripcion: "Eres la versión barata de los repartidores profesionales RiRi y Dapi. Por eso malbaratan este trabajo, pero gracias a esto aun son populares. (De momento)",
+        descripcion: "Eres la versión barata de los repartidores profesionales RiRi y Dapi. Por eso malbaratan este trabajo, pero gracias a esto aún son populares. (De momento)",
         salario: [30, 70],
         energia: 9,
         limite: Infinity,
@@ -49,7 +49,7 @@ const trabajos_escenarios = {
     },
     asisespiritual_escenario2: {
         titulo: "El alma panadero confundido",
-        text: "*Una vieja alma se te aparece entre neblina de harina*\n-# Parece preocupado, sin embargo recuerdas que aquella alma murió horneando y aún cree que debe entregar sus panes.\n-# Alma aun viviente, ayudame a entregar los panes que tengo pendientes",
+        text: "*Una vieja alma se te aparece entre neblina de harina*\n-# Parece preocupado, sin embargo recuerdas que aquella alma murió horneando y aún cree que debe entregar sus panes.\n-# Alma aún viviente, ayudame a entregar los panes que tengo pendientes",
         options: [
             { label: "Tranquilo, ya no hay pedidos que entregar, puede descansar", "id": "A", "resultado": { ganancia: 1.3, items: null, message: "El alma parece dejar de estar confundida.\n-# Y sin decir ni una sola palabra, se desvanece lentamente..." } },
             { label: "Señor, este pan ya esta duro, no lo podemos vender", "id": "B", "resultado": { ganancia: 1, items: null, message: "Su mirada expresa tristeza, sin embargo... \n-# El alma comprende el tiempo que se demoró\n-# *Sigilosamente se desvanece*" } },

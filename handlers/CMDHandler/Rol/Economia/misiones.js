@@ -62,7 +62,7 @@ module.exports = {
                             },
                             {
                                 "type": 10,
-                                "content": "-# Es posible que algunas misiones aun no estén disponibles o contengan ciertos errores"
+                                "content": "-# Es posible que algunas misiones aún no estén disponibles o contengan ciertos errores"
                             }
                         ]
                     },

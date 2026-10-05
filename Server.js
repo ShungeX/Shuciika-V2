@@ -11,6 +11,99 @@ const session = require('express-session');
 const connectMongo = require('connect-mongo');
 const MongoStore = connectMongo.default || connectMongo;
 const cors = require('cors');
+const cloudinary = require("cloudinary").v2;
+const { evaluarPermisoPrivacidad } = require('./functions/privacidad.js');
+
+cloudinary.config({
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.API_KEY,
+    api_secret: process.env.API_SECRET
+});
+
+function extraerPublicIdCloudinary(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string' || !urlStr.includes('cloudinary.com')) return null;
+    try {
+        const parts = urlStr.split('/upload/');
+        if (parts.length < 2) return null;
+        let pathPart = parts[1];
+
+        // Identificar rutas específicas del proyecto en Rol/ o Resources/
+        const matchRol = pathPart.match(/(Rol\/[^.?#]+)/i);
+        if (matchRol) {
+            return matchRol[1];
+        }
+
+        const vIndex = pathPart.search(/v\d+\//);
+        if (vIndex !== -1) {
+            pathPart = pathPart.substring(vIndex).replace(/^v\d+\//, '');
+        } else {
+            const slashIndex = pathPart.indexOf('/');
+            if (slashIndex !== -1 && !pathPart.startsWith('Rol/') && !pathPart.startsWith('Resources/')) {
+                pathPart = pathPart.substring(slashIndex + 1);
+            }
+        }
+        const dotIndex = pathPart.lastIndexOf('.');
+        if (dotIndex !== -1) {
+            pathPart = pathPart.substring(0, dotIndex);
+        }
+        return decodeURIComponent(pathPart);
+    } catch {
+        return null;
+    }
+}
+
+async function procesarBanner(targetId, bannerInput, prevBannerUrl = null) {
+    if (!targetId || !bannerInput) return null;
+
+    const bannerPublicId = `${targetId}_BannerRol`;
+    const fullPublicId = `Rol/Banners/${bannerPublicId}`;
+
+    // 1. Identificar y eliminar la foto anterior en Cloudinary para evitar acumular fotos huérfanas
+    if (prevBannerUrl && typeof prevBannerUrl === 'string' && prevBannerUrl.includes('cloudinary.com')) {
+        const prevPublicId = extraerPublicIdCloudinary(prevBannerUrl);
+        if (prevPublicId) {
+            await cloudinary.uploader.destroy(prevPublicId, { invalidate: true }).catch(err => {
+                console.warn("Aviso al eliminar banner previo de Cloudinary:", err?.message || err);
+            });
+        }
+    }
+    // También destruir el public_id específico para asegurar que se limpie cualquier caché o variante anterior
+    await cloudinary.uploader.destroy(fullPublicId, { invalidate: true }).catch(() => {});
+
+    // 2. Preparar el buffer de subida (idéntico al esquema de procesarFoto)
+    let resourceBuffer = null;
+    if (bannerInput.startsWith('http://') || bannerInput.startsWith('https://')) {
+        const getResponse = await fetch(bannerInput);
+        if (!getResponse.ok) throw new Error("Error al descargar la imagen para Cloudinary");
+        const buff = await getResponse.arrayBuffer();
+        resourceBuffer = Buffer.from(buff);
+    } else if (bannerInput.startsWith('data:')) {
+        const base64Data = bannerInput.replace(/^data:image\/\w+;base64,/, '');
+        resourceBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+        resourceBuffer = Buffer.from(bannerInput, 'base64');
+    }
+
+    // 3. Subir a Cloudinary vía upload_stream en la carpeta Rol/Banners con el nombre `${targetId}_BannerRol`
+    const uploadCloudinary = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                resource_type: "image",
+                folder: "Rol/Banners",
+                public_id: bannerPublicId,
+                overwrite: true,
+                invalidate: true
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        uploadStream.end(resourceBuffer);
+    });
+
+    return uploadCloudinary?.secure_url || null;
+}
 
 const GUILD_ID = "716342375303217285"; // ID del servidor de Discord
 const uri = process.env.MONGODB_URI
@@ -19,19 +112,72 @@ const dbserverName = "Server_db"
 const dbname = "Rol_db"
 const dbcache = "CachePJ"
 
+/**
+ * Obtiene el personaje activo de un usuario según usuario.nix.personajeActivo / nix.personajeActivo en usuarios_server
+ * @param {string} discordID - ID de Discord del usuario
+ * @returns {Promise<{ charDoc: object|null, usuarioServer: object|null, activePjId: any, misPersonajes: Array }>}
+ */
+async function obtenerPersonajeActivoUsuario(discordID) {
+    if (!discordID) return { charDoc: null, usuarioServer: null, activePjId: null, misPersonajes: [] };
+    const dbServer = clientdb.db(dbserverName || "Server_db");
+    const dbRol = clientdb.db(dbname || "Rol_db");
+
+    // 1. Buscar en usuarios_server por _id de Discord
+    let usuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: String(discordID) });
+    if (!usuarioServer) {
+        usuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: discordID });
+    }
+
+    // Extraer personajeActivo verificando nix.personajeActivo y usuario.nix.personajeActivo
+    let activePjId = usuarioServer?.nix?.personajeActivo ?? usuarioServer?.usuario?.nix?.personajeActivo;
+
+    // Lista de personajes en nix.personajes
+    const misPersonajes = usuarioServer?.nix?.personajes ?? usuarioServer?.usuario?.nix?.personajes ?? [];
+
+    // Si aún no se encontró activePjId pero hay personajes en la lista, tomar el primero
+    if ((activePjId === undefined || activePjId === null) && Array.isArray(misPersonajes) && misPersonajes.length > 0) {
+        activePjId = misPersonajes[0].id ?? misPersonajes[0]._id;
+    }
+
+    let charDoc = null;
+    if (activePjId !== undefined && activePjId !== null) {
+        const asNum = Number(activePjId);
+        const query = !isNaN(asNum)
+            ? { $or: [{ _id: asNum }, { _id: String(activePjId) }] }
+            : { _id: String(activePjId) };
+        charDoc = await dbRol.collection("Personajes").findOne(query);
+    }
+
+    // 2. Si no se encontró por activePjId, buscar como respaldo por ownerID
+    if (!charDoc) {
+        charDoc = await dbRol.collection("Personajes").findOne({ ownerID: String(discordID) });
+    }
+
+    return { charDoc, usuarioServer, activePjId, misPersonajes };
+}
+
 const port = process.env.PORT || 3000;
 const app = express();
 
 let client = null;
 let sessionMiddleware = null;
 
-// CORS para permitir peticiones del frontend
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// CORS para permitir peticiones del frontend (Vite 5173 y Live Server 5500)
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:5500', 'http://127.0.0.1:5173', 'http://127.0.0.1:5500', FRONTEND_URL];
 app.use(cors({
-    origin: 'http://localhost:5500',
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
     credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
 // Wrapper de sesión diferido para inicializar MongoStore después de que clientdb se conecte
 app.use((req, res, next) => {
@@ -46,10 +192,10 @@ app.get('/api/auth/discord', (req, res) => {
     if (req.session && req.session.user) {
         if (req.session.personaje) {
             console.log(`[Auth] Sesión activa encontrada para ${req.session.user.username}. Redirigiendo directo a dashboard.`);
-            return res.redirect('http://localhost:5500/dashboard.html');
+            return res.redirect(`${FRONTEND_URL}/dashboard.html`);
         } else {
             console.log(`[Auth] Sesión activa sin personaje para ${req.session.user.username}. Redirigiendo a sin_personaje.`);
-            return res.redirect('http://localhost:5500/index.html?estado=sin_personaje');
+            return res.redirect(`${FRONTEND_URL}/index.html?estado=sin_personaje`);
         }
     }
 
@@ -69,7 +215,7 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
 
     if (error) {
         console.warn(`[Discord Auth] Autorización cancelada o denegada por usuario: ${error}`);
-        return res.redirect('http://localhost:5500/index.html?estado=acceso_denegado');
+        return res.redirect(`${FRONTEND_URL}/index.html?estado=acceso_denegado`);
     }
 
     if (!code) {
@@ -106,8 +252,8 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
             console.log("Tokens de Discord:", output.data);
             const db = clientdb.db(dbname);
 
-            // 2. Buscamos al usuario por su ID de Discord en tu colección (ej. "Personajes" o "Usuarios")
-            const perfilExistente = await db.collection("Personajes").findOne({ ownerID: userInfo.data.id });
+            // 2. Buscamos el personaje activo del usuario según usuario.nix.personajeActivo
+            const { charDoc: perfilExistente } = await obtenerPersonajeActivoUsuario(userInfo.data.id);
 
             if (perfilExistente) {
                 console.log(`¡Bienvenido de nuevo, ${userInfo.data.username}! Tu personaje es ${perfilExistente.perfil.Nombre}`);
@@ -143,7 +289,7 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
                     recompensaReclamada: ahora < proximaDisponible ?? false
                 };
                 // Redirigimos al dashboard del frontend
-                res.redirect('http://localhost:5500/dashboard.html');
+                res.redirect(`${FRONTEND_URL}/dashboard.html`);
             } else {
                 console.log(`Nuevo usuario detectado: ${userInfo.data.username}`);
                 // Aquí le dices que primero debe crear su ficha en el servidor de Discord
@@ -151,7 +297,7 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
                 req.session.sinPersonaje = {
                     username: userInfo.data.username
                 };
-                res.redirect('http://localhost:5500/index.html?estado=sin_personaje');
+                res.redirect(`${FRONTEND_URL}/index.html?estado=sin_personaje`);
             }
         }
     } catch (error) {
@@ -1454,7 +1600,7 @@ app.get('/api/me', async (req, res) => {
     }
     try {
         const db = clientdb.db(dbname);
-        const perfilExistente = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: perfilExistente } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (perfilExistente) {
             const ahora = Math.floor(Date.now() / 1000);
             const proximaDisponible = perfilExistente?.cooldowns?.recompensa_diaria?.nuevaReclamacion || 0;
@@ -1518,43 +1664,743 @@ app.get('/api/personaje/activo', async (req, res) => {
     }
     try {
         const discordID = String(req.session.user.id);
-        const dbServer = clientdb.db(dbserverName || "Server_db");
         const dbRol = clientdb.db("Rol_db");
 
-        // 1. Buscar en usuarios_server para obtener personajeActivo
-        const usuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: discordID });
-        let personajeId = usuarioServer?.usuario?.nix?.personajeActivo;
-
-        let charDoc = null;
-        if (personajeId !== undefined && personajeId !== null) {
-            charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(personajeId) });
-            if (!charDoc) {
-                charDoc = await dbRol.collection("Personajes").findOne({ _id: String(personajeId) });
-            }
-        }
-
-        // 2. Si no se encuentra por personajeActivo, buscar primer personaje por ownerID
-        if (!charDoc) {
-            charDoc = await dbRol.collection("Personajes").findOne({ ownerID: discordID });
-        }
+        // 1. Resolver el personaje activo verificando siempre usuario.nix.personajeActivo
+        const { charDoc, usuarioServer, activePjId, misPersonajes } = await obtenerPersonajeActivoUsuario(discordID);
 
         if (!charDoc) {
             return res.status(404).json({ error: 'No se encontró personaje activo' });
         }
 
-        // Cargar Soul correspondiente
-        const soulDoc = await dbRol.collection("Soul").findOne({ _id: charDoc._id });
-        if (soulDoc) {
-            charDoc.soul = soulDoc;
+        // Cargar Soul correspondiente (estrictamente por _id del personaje, sin fallback a discordID)
+        const soulDoc = await dbRol.collection("Soul").findOne({
+            $or: [{ _id: charDoc._id }, { _id: Number(charDoc._id) }, { _id: String(charDoc._id) }]
+        });
+        charDoc.soul = soulDoc || null;
+
+        // Cargar Mascota si existe
+        const mascotaDoc = await dbRol.collection("Mascotas").findOne({
+            $or: [
+                { characterID: charDoc._id },
+                { characterID: Number(charDoc._id) },
+                { characterID: String(charDoc._id) }
+            ]
+        });
+        if (mascotaDoc) {
+            charDoc.mascota = mascotaDoc;
         }
+
+        const isWhitelisted = discordID === '665421882694041630';
+        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
 
         res.json({
             success: true,
-            personaje: charDoc
+            personaje: charDoc,
+            isOwner: true,
+            canEditBanner: isBooster,
+            ownerIsBooster: isBooster,
+            personajeActivo: activePjId,
+            misPersonajes
         });
     } catch (err) {
         console.error("Error en /api/personaje/activo:", err);
         res.status(500).json({ error: "Error interno al obtener personaje activo" });
+    }
+});
+
+// GET /api/personaje/privacidad - Obtiene la configuración de privacidad del personaje activo
+app.get('/api/personaje/privacidad', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const compId = charDoc.social?.compañero ?? charDoc.social?.companero;
+        const hasCompanero = Boolean(compId);
+
+        const defaultPrivacidad = {
+            regalos: 'todos',
+            invitaciones: 'todos',
+            tablero: 'todos',
+            pvp: 'todos',
+            verAlma: 'todos',
+            amistades: 'todos',
+            estadisticas: 'todos',
+            permitidos: [],
+            bloqueados: []
+        };
+
+        const privacidad = Object.assign({}, defaultPrivacidad, charDoc.social?.privacidad || {});
+
+        res.json({
+            success: true,
+            privacidad,
+            hasCompanero,
+            personajeId: charDoc._id,
+            personajeNombre: charDoc.Nombre
+        });
+    } catch (err) {
+        console.error("Error en GET /api/personaje/privacidad:", err);
+        res.status(500).json({ error: 'Error al obtener privacidad' });
+    }
+});
+
+// POST /api/personaje/privacidad - Guarda la configuración de privacidad del personaje activo
+app.post('/api/personaje/privacidad', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const privBody = req.body || {};
+        const nivelesValidos = ['todos', 'amigos', 'mejores_amigos', 'companero', 'nadie'];
+        const compId = charDoc.social?.compañero ?? charDoc.social?.companero;
+        const hasCompanero = Boolean(compId);
+
+        const sanitizeLevel = (val) => {
+            if (!nivelesValidos.includes(val)) return 'todos';
+            if (val === 'companero' && !hasCompanero) return 'nadie';
+            return val;
+        };
+
+        const sanitizarLista = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                    return {
+                        id: String(item.id || item._id || '').trim(),
+                        nombre: String(item.nombre || item.Nombre || 'Personaje').slice(0, 50).trim(),
+                        avatarURL: String(item.avatarURL || item.avatar || '').slice(0, 300).trim()
+                    };
+                }
+                const s = String(item).trim();
+                return { id: s, nombre: `ID: ${s}`, avatarURL: '' };
+            }).filter(item => item.id.length > 0).slice(0, 100);
+        };
+
+        const nuevaPrivacidad = {
+            regalos: sanitizeLevel(privBody.regalos),
+            invitaciones: sanitizeLevel(privBody.invitaciones),
+            tablero: sanitizeLevel(privBody.tablero),
+            pvp: sanitizeLevel(privBody.pvp),
+            verAlma: sanitizeLevel(privBody.verAlma),
+            amistades: sanitizeLevel(privBody.amistades),
+            estadisticas: sanitizeLevel(privBody.estadisticas),
+            permitidos: sanitizarLista(privBody.permitidos),
+            bloqueados: sanitizarLista(privBody.bloqueados)
+        };
+
+        const dbRol = clientdb.db("Rol_db");
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "social.privacidad": nuevaPrivacidad } }
+        );
+
+        res.json({ success: true, privacidad: nuevaPrivacidad });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/privacidad:", err);
+        res.status(500).json({ error: 'Error al actualizar privacidad: ' + (err.message || err) });
+    }
+});
+
+// GET /api/personaje/buscar-mini - Busca personajes para añadir a listas de permitidos o bloqueados
+app.get('/api/personaje/buscar-mini', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) return res.json({ resultados: [] });
+
+        const dbRol = clientdb.db("Rol_db");
+        const asNum = Number(q);
+        const query = !isNaN(asNum)
+            ? { $or: [{ _id: asNum }, { _id: String(q) }, { ID: asNum }] }
+            : { Nombre: { $regex: q, $options: 'i' } };
+
+        const pjs = await dbRol.collection("Personajes").find(query).limit(6).toArray();
+        const resultados = pjs.map(p => ({
+            id: String(p._id ?? p.ID),
+            nombre: p.Nombre || p.perfil?.Nombre || 'Desconocido',
+            avatarURL: p.avatarURL || p.perfil?.avatarURL || ''
+        }));
+        res.json({ resultados });
+    } catch (err) {
+        res.status(500).json({ error: 'Error en búsqueda: ' + (err.message || err) });
+    }
+});
+
+// GET /api/personaje/:id - Obtiene un personaje por ID (para visitas de perfil externo o propio)
+app.get('/api/personaje/:id', async (req, res) => {
+    try {
+        const idParam = req.params.id;
+        const dbRol = clientdb.db("Rol_db");
+        const dbServer = clientdb.db(dbserverName || "Server_db");
+
+        let charDoc = null;
+        let ownerUsuarioServer = null;
+
+        if (idParam === 'activo' || idParam === 'me') {
+            if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+            const resolved = await obtenerPersonajeActivoUsuario(req.session.user.id);
+            charDoc = resolved.charDoc;
+            ownerUsuarioServer = resolved.usuarioServer;
+        } else {
+            // 1. Intentar buscar por _id de personaje
+            const asNum = Number(idParam);
+            const query = !isNaN(asNum)
+                ? { $or: [{ _id: asNum }, { _id: String(idParam) }] }
+                : { _id: String(idParam) };
+            charDoc = await dbRol.collection("Personajes").findOne(query);
+
+            // 2. Si no se encontró por _id de personaje, idParam puede ser el Discord ID del usuario
+            if (!charDoc) {
+                const resolved = await obtenerPersonajeActivoUsuario(idParam);
+                if (resolved.charDoc) {
+                    charDoc = resolved.charDoc;
+                    ownerUsuarioServer = resolved.usuarioServer;
+                }
+            }
+        }
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        // Cargar Soul correspondiente (estrictamente por _id del personaje, sin fallback a discordID)
+        const soulDoc = await dbRol.collection("Soul").findOne({
+            $or: [{ _id: charDoc._id }, { _id: Number(charDoc._id) }, { _id: String(charDoc._id) }]
+        });
+        charDoc.soul = soulDoc || null;
+
+        // Cargar Mascota si existe
+        const mascotaDoc = await dbRol.collection("Mascotas").findOne({
+            $or: [
+                { characterID: charDoc._id },
+                { characterID: Number(charDoc._id) },
+                { characterID: String(charDoc._id) }
+            ]
+        });
+        if (mascotaDoc) {
+            charDoc.mascota = mascotaDoc;
+        }
+
+        const discordID = req.session?.user ? String(req.session.user.id) : null;
+        const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
+        const isWhitelisted = discordID === '665421882694041630';
+        const usuarioServer = discordID ? await dbServer.collection("usuarios_server").findOne({ _id: discordID }) : null;
+        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+
+        // Verificar si el dueño del personaje es booster (para la cartelera / funciones premium)
+        const ownerDiscordID = String(charDoc.ownerID || '');
+        const isOwnerWhitelisted = ownerDiscordID === '665421882694041630';
+        if (!ownerUsuarioServer && ownerDiscordID) {
+            ownerUsuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: ownerDiscordID });
+        }
+        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerUsuarioServer?.roles?.includes('booster') || ownerUsuarioServer?.isBooster);
+
+        let permisosVisitante = {
+            verAlma: true,
+            amistades: true,
+            estadisticas: true,
+            tablero: true,
+            pvp: true,
+            regalos: true,
+            invitaciones: true
+        };
+
+        if (!isOwner) {
+            let visitorChar = null;
+            if (discordID) {
+                const resolvedVisitor = await obtenerPersonajeActivoUsuario(discordID);
+                visitorChar = resolvedVisitor.charDoc;
+            }
+
+            const canVerAlma = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'verAlma', dbRol);
+            const canVerAmistades = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'amistades', dbRol);
+            const canVerEstadisticas = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'estadisticas', dbRol);
+            const canTablero = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'tablero', dbRol);
+            const canPvp = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'pvp', dbRol);
+            const canRegalos = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'regalos', dbRol);
+            const canInvitaciones = await evaluarPermisoPrivacidad(charDoc, visitorChar || { _id: 0, ownerID: discordID }, 'invitaciones', dbRol);
+
+            permisosVisitante = {
+                verAlma: canVerAlma,
+                amistades: canVerAmistades,
+                estadisticas: canVerEstadisticas,
+                tablero: canTablero,
+                pvp: canPvp,
+                regalos: canRegalos,
+                invitaciones: canInvitaciones
+            };
+
+            if (!canVerAlma) {
+                delete charDoc.soul;
+                charDoc.privacidadAlmaOculta = true;
+            } else if (charDoc.soul) {
+                // No mostrar Vitalidad ni Mana si quien visualiza no es su autor (visitante)
+                if (charDoc.soul.nucleo) {
+                    delete charDoc.soul.nucleo.HP;
+                    delete charDoc.soul.nucleo.Mana;
+                    if (charDoc.soul.nucleo.stats) {
+                        delete charDoc.soul.nucleo.stats.hpMax;
+                        delete charDoc.soul.nucleo.stats.manaMax;
+                    }
+                }
+                if (charDoc.soul.stats) {
+                    delete charDoc.soul.stats.hp;
+                    delete charDoc.soul.stats.hpMax;
+                    delete charDoc.soul.stats.mana;
+                    delete charDoc.soul.stats.manaMax;
+                }
+            }
+
+            if (!canVerAmistades) {
+                charDoc.amistades = [];
+                if (charDoc.social) charDoc.social.amistades = [];
+                charDoc.privacidadAmistadesOculta = true;
+            }
+
+            if (!canVerEstadisticas) {
+                delete charDoc.stats;
+                charDoc.privacidadStatsOculta = true;
+            }
+
+            delete charDoc.HP;
+            delete charDoc.Mana;
+            delete charDoc.hp;
+            delete charDoc.mana;
+        }
+
+        const misPersonajes = isOwner ? (usuarioServer?.nix?.personajes ?? usuarioServer?.usuario?.nix?.personajes ?? []) : [];
+
+        res.json({
+            success: true,
+            personaje: charDoc,
+            isOwner,
+            canEditBanner: Boolean(isOwner && isBooster),
+            ownerIsBooster,
+            misPersonajes,
+            permisosVisitante
+        });
+    } catch (err) {
+        console.error("Error en /api/personaje/:id:", err);
+        res.status(500).json({ error: "Error interno al obtener personaje" });
+    }
+});
+
+// POST /api/personaje/cambiar-activo - Cambia el personaje activo del usuario en usuarios_server
+app.post('/api/personaje/cambiar-activo', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const { personajeId } = req.body;
+        if (!personajeId) {
+            return res.status(400).json({ error: 'ID de personaje requerida' });
+        }
+
+        const dbServer = clientdb.db(dbserverName || "Server_db");
+        const dbRol = clientdb.db("Rol_db");
+
+        const asNum = Number(personajeId);
+        const query = !isNaN(asNum)
+            ? { $or: [{ _id: asNum }, { _id: String(personajeId) }] }
+            : { _id: String(personajeId) };
+
+        // Verificar que el personaje existe y pertenece al usuario
+        const charDoc = await dbRol.collection("Personajes").findOne({
+            ...query,
+            ownerID: discordID
+        });
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado o no te pertenece' });
+        }
+
+        const nuevoActivoId = !isNaN(asNum) ? asNum : personajeId;
+
+        // Actualizar nix.personajeActivo y usuario.nix.personajeActivo
+        await dbServer.collection("usuarios_server").updateOne(
+            { _id: discordID },
+            {
+                $set: {
+                    "nix.personajeActivo": nuevoActivoId,
+                    "usuario.nix.personajeActivo": nuevoActivoId
+                }
+            }
+        );
+
+        if (req.session.personaje) {
+            req.session.personaje.nombre = charDoc.perfil?.Nombre || '';
+            req.session.personaje.avatarURL = charDoc.perfil?.avatarURL || '';
+        }
+
+        res.json({
+            success: true,
+            personajeActivo: nuevoActivoId,
+            nombre: charDoc.perfil?.Nombre
+        });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/cambiar-activo:", err);
+        res.status(500).json({ error: "Error interno al cambiar personaje activo" });
+    }
+});
+
+// POST /api/personaje/descripcion - Actualiza la descripción del personaje activo (máx 250 caracteres)
+app.post('/api/personaje/descripcion', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const dbRol = clientdb.db("Rol_db");
+
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const nuevaDesc = String(req.body.descripcion || '').trim().slice(0, 250);
+
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "perfil.Descripcion": nuevaDesc } }
+        );
+
+        res.json({ success: true, descripcion: nuevaDesc });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/descripcion:", err);
+        res.status(500).json({ error: "Error interno al actualizar descripción" });
+    }
+});
+
+// POST /api/personaje/banner - Actualiza el banner del personaje activo en Cloudinary
+app.post('/api/personaje/banner', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const isWhitelisted = discordID === '665421882694041630';
+        const dbRol = clientdb.db("Rol_db");
+
+        const { charDoc, usuarioServer } = await obtenerPersonajeActivoUsuario(discordID);
+
+        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        if (!isBooster && !isWhitelisted) {
+            return res.status(403).json({ error: 'Función exclusiva para Server Boosters.' });
+        }
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const bannerInput = String(req.body.bannerURL || req.body.bannerData || '').trim();
+        if (!bannerInput) {
+            return res.status(400).json({ error: 'No se proporcionó imagen de banner' });
+        }
+
+        const targetId = charDoc._id;
+        const prevBannerUrl = charDoc.perfil?.bannerURL || charDoc.bannerURL;
+
+        // Subir mediante procesarBanner (elimina foto anterior, usa upload_stream con identificador único)
+        const finalCloudinaryUrl = await procesarBanner(targetId, bannerInput, prevBannerUrl);
+
+        if (!finalCloudinaryUrl) {
+            throw new Error("No se pudo obtener la URL de Cloudinary para el banner");
+        }
+
+        // NUNCA guardar base64 ni objetos pesados en el documento o JSON del personaje.
+        // Guardar estrictamente la URL HTTPS devuelta por Cloudinary.
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "perfil.bannerURL": finalCloudinaryUrl } }
+        );
+
+        res.json({ success: true, bannerURL: finalCloudinaryUrl });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/banner:", err);
+        res.status(500).json({ error: "Error interno al actualizar banner: " + (err.message || err) });
+    }
+});
+
+// POST /api/personaje/:id/cartelera - Agregar un mensaje a la cartelera del personaje
+app.post('/api/personaje/:id/cartelera', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'Debes iniciar sesión para escribir en la cartelera.' });
+    }
+    try {
+        const idParam = req.params.id;
+        const dbRol = clientdb.db("Rol_db");
+        const dbServer = clientdb.db(dbserverName || "Server_db");
+
+        let charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(idParam) });
+        if (!charDoc) {
+            charDoc = await dbRol.collection("Personajes").findOne({ _id: String(idParam) });
+        }
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        // El AUTOR del personaje debe tener boost activo, o ser la ID 665421882694041630 o admin
+        const ownerDiscordID = String(charDoc.ownerID || '');
+        const isOwnerWhitelisted = ownerDiscordID === '665421882694041630';
+        const ownerUserDoc = ownerDiscordID ? await dbServer.collection("usuarios_server").findOne({ _id: ownerDiscordID }) : null;
+        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerUserDoc?.roles?.includes('booster') || ownerUserDoc?.isBooster);
+
+        if (!ownerIsBooster && !isOwnerWhitelisted) {
+            return res.status(403).json({ error: 'Esta función premium requiere que el autor del personaje sea Server Booster.' });
+        }
+
+        const texto = String(req.body.texto || '').trim().slice(0, 140);
+        if (!texto) {
+            return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+        }
+
+        const autorID = String(req.session.user.id);
+        const autorNombre = req.session.user.username || 'Estudiante';
+        const autorAvatar = req.session.user.avatar ? `https://cdn.discordapp.com/avatars/${autorID}/${req.session.user.avatar}.png` : null;
+
+        // Evaluar privacidad del tablero si quien escribe no es el autor
+        const isOwner = autorID === ownerDiscordID;
+        if (!isOwner) {
+            const { charDoc: autorChar } = await obtenerPersonajeActivoUsuario(autorID);
+            const puedeEscribir = await evaluarPermisoPrivacidad(charDoc, autorChar || { _id: 0, ownerID: autorID }, 'tablero', dbRol);
+            if (!puedeEscribir) {
+                return res.status(403).json({ error: 'La configuración de privacidad de este personaje no permite que le escribas en su tablero mágico.' });
+            }
+        }
+
+        const nuevoMensaje = {
+            id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+            autorID,
+            autorNombre,
+            autorAvatar,
+            texto,
+            fecha: Date.now(),
+            anclado: false
+        };
+
+        let cartelera = Array.isArray(charDoc.social?.cartelera) ? [...charDoc.social.cartelera] : [];
+        cartelera.push(nuevoMensaje);
+
+        // Si se superan los 500 mensajes, se borran los más antiguos que no estén anclados
+        if (cartelera.length > 500) {
+            const anclados = cartelera.filter(m => m.anclado);
+            const noAnclados = cartelera.filter(m => !m.anclado);
+            const maxNoAnclados = Math.max(0, 500 - anclados.length);
+            const noAncladosRecortados = noAnclados.slice(-maxNoAnclados);
+            cartelera = [...anclados, ...noAncladosRecortados];
+        }
+
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "social.cartelera": cartelera } }
+        );
+
+        res.json({ success: true, mensaje: nuevoMensaje, cartelera });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/:id/cartelera:", err);
+        res.status(500).json({ error: 'Error al agregar mensaje a la cartelera' });
+    }
+});
+
+// POST /api/personaje/:id/cartelera/anclar - Anclar o desanclar un mensaje (Solo el autor del personaje)
+app.post('/api/personaje/:id/cartelera/anclar', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const idParam = req.params.id;
+        const discordID = String(req.session.user.id);
+        const dbRol = clientdb.db("Rol_db");
+
+        let charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(idParam) });
+        if (!charDoc) {
+            charDoc = await dbRol.collection("Personajes").findOne({ _id: String(idParam) });
+        }
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
+        if (!isOwner) {
+            return res.status(403).json({ error: 'Solo el autor del personaje puede anclar mensajes' });
+        }
+
+        const { mensajeId, anclar } = req.body;
+        if (!mensajeId) {
+            return res.status(400).json({ error: 'Falta mensajeId' });
+        }
+
+        let cartelera = Array.isArray(charDoc.social?.cartelera) ? [...charDoc.social.cartelera] : [];
+        const msgIndex = cartelera.findIndex(m => m.id === mensajeId);
+        if (msgIndex === -1) {
+            return res.status(404).json({ error: 'Mensaje no encontrado' });
+        }
+
+        const totalAnclados = cartelera.filter(m => m.anclado).length;
+        if (anclar && totalAnclados >= 20 && !cartelera[msgIndex].anclado) {
+            return res.status(400).json({ error: 'Has alcanzado el límite máximo de 20 mensajes anclados' });
+        }
+
+        cartelera[msgIndex].anclado = Boolean(anclar);
+
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "social.cartelera": cartelera } }
+        );
+
+        res.json({ success: true, mensaje: cartelera[msgIndex], cartelera });
+    } catch (err) {
+        console.error("Error en anclar mensaje:", err);
+        res.status(500).json({ error: 'Error al anclar mensaje' });
+    }
+});
+
+// POST /api/personaje/:id/galeria - Actualizar galería (subir imagen a Cloudinary o reordenar)
+app.post('/api/personaje/:id/galeria', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const idParam = req.params.id;
+        const discordID = String(req.session.user.id);
+        const dbRol = clientdb.db("Rol_db");
+
+        let charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(idParam) });
+        if (!charDoc) {
+            charDoc = await dbRol.collection("Personajes").findOne({ _id: String(idParam) });
+        }
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
+        if (!isOwner) {
+            return res.status(403).json({ error: 'Solo el propietario puede editar la galería' });
+        }
+
+        // 1. Eliminar imagen de galería y de Cloudinary
+        if (req.body.accion === 'eliminar' && req.body.imgId) {
+            let galeria = Array.isArray(charDoc.social?.galeria) ? [...charDoc.social.galeria] : [];
+            const itemToDelete = galeria.find(item => item && (item.id === req.body.imgId || item._id === req.body.imgId));
+            if (itemToDelete) {
+                const pubId = extraerPublicIdCloudinary(itemToDelete.url);
+                if (pubId) {
+                    await cloudinary.uploader.destroy(pubId, { invalidate: true }).catch(err => {
+                        console.warn("Aviso al eliminar foto de galería en Cloudinary:", err?.message || err);
+                    });
+                }
+                galeria = galeria.filter(item => item && item.id !== req.body.imgId && item._id !== req.body.imgId);
+                await dbRol.collection("Personajes").updateOne(
+                    { _id: charDoc._id },
+                    { $set: { "social.galeria": galeria } }
+                );
+            }
+            return res.json({ success: true, galeria });
+        }
+
+        // 2. Editar metadatos de una imagen (descripción, spoiler)
+        if (req.body.accion === 'editar' && req.body.imgId) {
+            let galeria = Array.isArray(charDoc.social?.galeria) ? [...charDoc.social.galeria] : [];
+            const idx = galeria.findIndex(item => item && (item.id === req.body.imgId || item._id === req.body.imgId));
+            if (idx !== -1) {
+                if (req.body.descripcion !== undefined) {
+                    galeria[idx].descripcion = String(req.body.descripcion).trim().slice(0, 100);
+                }
+                if (req.body.spoiler !== undefined) {
+                    galeria[idx].spoiler = Boolean(req.body.spoiler);
+                }
+                await dbRol.collection("Personajes").updateOne(
+                    { _id: charDoc._id },
+                    { $set: { "social.galeria": galeria } }
+                );
+            }
+            return res.json({ success: true, galeria });
+        }
+
+        // 3. Reordenar array completo (máximo 9 en DB)
+        if (Array.isArray(req.body.galeria)) {
+            const nuevaGaleria = req.body.galeria.slice(0, 9);
+            // Destruir en Cloudinary fotos eliminadas del array si las hubiera
+            const prevGaleria = Array.isArray(charDoc.social?.galeria) ? charDoc.social.galeria : [];
+            const newUrls = new Set(nuevaGaleria.map(i => i.url));
+            for (const prevItem of prevGaleria) {
+                if (prevItem && prevItem.url && !newUrls.has(prevItem.url)) {
+                    const pubId = extraerPublicIdCloudinary(prevItem.url);
+                    if (pubId) {
+                        cloudinary.uploader.destroy(pubId, { invalidate: true }).catch(err => {
+                            console.warn("Aviso al eliminar foto removida en Cloudinary:", err?.message || err);
+                        });
+                    }
+                }
+            }
+
+            await dbRol.collection("Personajes").updateOne(
+                { _id: charDoc._id },
+                { $set: { "social.galeria": nuevaGaleria } }
+            );
+            return res.json({ success: true, galeria: nuevaGaleria });
+        }
+
+        // 4. Subir nueva foto a Cloudinary
+        const imgData = req.body.imagenData || req.body.fotoData;
+        if (imgData) {
+            let galeriaActual = Array.isArray(charDoc.social?.galeria) ? [...charDoc.social.galeria] : [];
+            if (galeriaActual.filter(item => item.tipo === 'imagen').length >= 9) {
+                return res.status(400).json({ error: 'Has alcanzado el límite máximo de 9 imágenes' });
+            }
+
+            const imgId = 'img_' + Math.random().toString(36).substring(2, 7);
+            const uploadRes = await cloudinary.uploader.upload(imgData, {
+                folder: "Rol/Galeria",
+                public_id: `${charDoc._id}_${imgId}`,
+                overwrite: true,
+                invalidate: true,
+                resource_type: "image"
+            });
+
+            if (!uploadRes?.secure_url) {
+                throw new Error("Error al subir imagen a Cloudinary");
+            }
+
+            const nuevoItem = {
+                id: imgId,
+                tipo: "imagen",
+                url: uploadRes.secure_url,
+                descripcion: String(req.body.descripcion || '').trim().slice(0, 100),
+                spoiler: Boolean(req.body.spoiler)
+            };
+
+            galeriaActual.push(nuevoItem);
+
+            await dbRol.collection("Personajes").updateOne(
+                { _id: charDoc._id },
+                { $set: { "social.galeria": galeriaActual } }
+            );
+
+            return res.json({ success: true, galeria: galeriaActual, item: nuevoItem });
+        }
+
+        res.status(400).json({ error: 'Datos no válidos' });
+    } catch (err) {
+        console.error("Error en galería:", err);
+        res.status(500).json({ error: 'Error al actualizar galería: ' + (err.message || err) });
     }
 });
 
@@ -1567,11 +2413,11 @@ const handleLogout = (req, res) => {
                 return res.status(500).send('No se pudo cerrar sesión.');
             }
             res.clearCookie('connect.sid');
-            res.redirect('http://localhost:5500/index.html');
+            res.redirect(`${FRONTEND_URL}/index.html`);
         });
     } else {
         res.clearCookie('connect.sid');
-        res.redirect('http://localhost:5500/index.html');
+        res.redirect(`${FRONTEND_URL}/index.html`);
     }
 };
 
@@ -2969,8 +3815,7 @@ async function verificarYConsumirTokenAdmin(userId, dbServer, tokenType = 'econo
 app.get('/api/combat/notifications', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
     try {
-        const db = clientdb.db(dbname);
-        const character = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: character } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (!character) return res.json([]);
 
         let notifications = character.notificaciones || [];
@@ -2988,7 +3833,7 @@ app.post('/api/combat/notifications/read-all', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
     try {
         const db = clientdb.db(dbname);
-        const character = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: character } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (!character) return res.status(404).json({ error: 'Personaje no encontrado' });
 
         let notifications = character.notificaciones || [];
@@ -3011,7 +3856,7 @@ app.post('/api/combat/notifications/read/:id', async (req, res) => {
     const notifId = req.params.id;
     try {
         const db = clientdb.db(dbname);
-        const character = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: character } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (!character) return res.status(404).json({ error: 'Personaje no encontrado' });
 
         let notifications = character.notificaciones || [];
@@ -3039,7 +3884,7 @@ app.post('/api/combat/notifications/delete/:id', async (req, res) => {
     const notifId = req.params.id;
     try {
         const db = clientdb.db(dbname);
-        const character = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: character } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (!character) return res.status(404).json({ error: 'Personaje no encontrado' });
 
         let notifications = character.notificaciones || [];
@@ -3061,7 +3906,7 @@ app.post('/api/combat/notifications/delete-read', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
     try {
         const db = clientdb.db(dbname);
-        const character = await db.collection("Personajes").findOne({ ownerID: req.session.user.id });
+        const { charDoc: character } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (!character) return res.status(404).json({ error: 'Personaje no encontrado' });
 
         let notifications = character.notificaciones || [];
@@ -3178,8 +4023,7 @@ app.get('/api/admin/discord-user/:id', async (req, res) => {
             }
         }
 
-        const dbRol = clientdb.db("Rol_db");
-        const charDoc = await dbRol.collection("Personajes").findOne({ ownerID: String(userId) });
+        const { charDoc } = await obtenerPersonajeActivoUsuario(userId);
         if (charDoc && charDoc.perfil) {
             return res.json({
                 success: true,

@@ -150,7 +150,7 @@ module.exports = {
 
             const embedIntermed = new EmbedBuilder()
                 .setAuthor({ name: "Astralea | Guardiana de las estrellas ", iconURL: "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto,w_300,h_300,c_fill/light_xxwmdp" })
-                .setDescription("Esa luz que aun no brilla con suficiente intensidad en tu interior, es tu alma")
+                .setDescription("Esa luz que aún no brilla con suficiente intensidad en tu interior, es tu alma")
                 .setImage("https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/soul_kajwym")
                 .setColor("DarkPurple")
             message.edit({ embeds: [embedIntermed], content: "" })
