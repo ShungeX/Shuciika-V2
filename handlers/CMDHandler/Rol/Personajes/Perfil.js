@@ -85,7 +85,7 @@ module.exports = {
                 .setTitle(`${cachepj?.nombre} ${cachepj?.apodo ? `[${cachepj?.apodo}]` : ''}`)
                 .setDescription(cachepj.historia ? cachepj.historia : "Sin Historia (¿In rol?)")
                 .addFields(
-                    { name: "Informacion", value: "`📑` **Apodo: ** " + cachepj?.apodo + "\n`🎎` **Sexo biológico: **" + `${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` + "\n`🍭` **Edad: **" + cachepj?.edad + "\n`🛫` **C/Org: **" + cachepj?.ciudadOrg, inline: true },
+                    { name: "Informacion", value: "`📑` **Apodo: ** " + (cachepj?.apodo || "Sin apodo") + "\n`🎎` **Sexo biológico: **" + (cachepj?.sexo ? `${cachepj.sexo}${cachepj?.pronombres ? ` (${cachepj.pronombres})` : ''}` : "No especificado") + "\n`🍭` **Edad: **" + (cachepj?.edad || "No especificada") + "\n`🛫` **C/Org: **" + (cachepj?.ciudadOrg || "Desconocida"), inline: true },
                     { name: "Extra", value: "`🎂` **Cumpleaños **" + (cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")) + "\n`👑` **Linaje Familiar **" + cachepj?.familia + "\n`❔`** Estado:** " + estado, inline: true },
                     { name: "🎭 Personalidad", value: cachepj?.personalidad, inline: false },
                     { name: "🎮 Especialidad", value: (cachepj?.especialidad || "No definido"), inline: false }

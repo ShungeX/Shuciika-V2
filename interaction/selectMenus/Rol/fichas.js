@@ -104,7 +104,7 @@ const CONFIG_CAMPOS_MODAL = {
     },
 };
 
-function mostrarModalCampo(interaction, campoKey, config) {
+function mostrarModalCampo(interaction, campoKey, config, esProfesor = false) {
     const modal = new ModalBuilder()
         .setTitle("Creacion de ficha")
         .setCustomId(crearCustomId({
@@ -113,13 +113,25 @@ function mostrarModalCampo(interaction, campoKey, config) {
             extras: [campoKey]
         }));
 
+    let label = config.label;
+    if (campoKey === "aspiracion" && esProfesor) {
+        label = "Argumentación";
+    }
+
     const input = new TextInputBuilder()
         .setCustomId(config.customId)
-        .setLabel(config.label)
+        .setLabel(label)
         .setStyle(config.style)
         .setRequired(Boolean(config.required));
 
-    if (config.placeholder) input.setPlaceholder(config.placeholder);
+    let placeholder = config.placeholder;
+    if (campoKey === "edad" && esProfesor) {
+        placeholder = "Responde con un numero (Edad Min: 22, Edad max: 50)";
+    } else if (campoKey === "aspiracion" && esProfesor) {
+        placeholder = "Explica detalladamente por qué tu personaje desea ser docente en el Instituto.";
+    }
+
+    if (placeholder) input.setPlaceholder(placeholder);
     if (config.minLength) input.setMinLength(config.minLength);
     if (config.maxLength) input.setMaxLength(config.maxLength);
 
@@ -459,8 +471,12 @@ module.exports = crearStringSelectMenu({
     customId: "crear_ficha",
     soloAutor: true,
     optionNames: ["action"],
+    requirements: {
+        cachepj: { obtener: true, required: false },
+        character: { obtener: true, required: false },
+    },
 
-    ejecutar: async ({ client, interaction, componentData: { extras }, options: { action } }) => {
+    ejecutar: async ({ client, interaction, cachepj, character, componentData: { extras }, options: { action } }) => {
         let extra;
         if (action?.includes("*")) {
             const [actionPrincipal, ext] = action.split("*");
@@ -477,7 +493,19 @@ module.exports = crearStringSelectMenu({
 
         const configModal = CONFIG_CAMPOS_MODAL[selectedAction];
         if (configModal) {
-            return await mostrarModalCampo(interaction, selectedAction, configModal);
+            let esProfesor = cachepj?.rol === "Docente" || cachepj?.rol === "Profesor" || character?.estado?.Rol === "Docente" || character?.estado?.Rol === "Profesor";
+            if (!esProfesor && (selectedAction === "edad" || selectedAction === "aspiracion")) {
+                const userDoc = await userdb.findOne({ _id: interaction.user.id });
+                if (userDoc?.fichaStatus?.rol === "Docente" || userDoc?.fichaStatus?.rol === "Profesor") {
+                    esProfesor = true;
+                } else {
+                    const pjDoc = await Cachedb.findOne({ _id: interaction.user.id });
+                    if (pjDoc?.rol === "Docente" || pjDoc?.rol === "Profesor") {
+                        esProfesor = true;
+                    }
+                }
+            }
+            return await mostrarModalCampo(interaction, selectedAction, configModal, esProfesor);
         }
 
         // 2. Acciones interactivas que requieren el mensaje de previsualización temporal

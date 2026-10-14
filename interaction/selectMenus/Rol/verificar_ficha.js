@@ -33,7 +33,9 @@ const MAPA_CAMPOS = {
     "cumple": { id: "cumpleaños", label: "Cumpleaños" },
     "familia": { id: "familia", label: "Linaje Familiar" },
     "personalidad": { id: "personalidad", label: "Personalidad" },
-    "historia": { id: "historia", label: "Historia" }
+    "historia": { id: "historia", label: "Historia" },
+    "13": { id: "aspiracion", label: "Aspiración / Argumentación" },
+    "aspiracion": { id: "aspiracion", label: "Aspiración / Argumentación" }
 };
 
 const TAG_RECHAZO = "1545228004425338920";
@@ -231,15 +233,17 @@ function construirDetalleFicha(pj, userId) {
             correcciones.map(c => `-# • **${c.etiqueta || c.campo}:** ${c.motivo}`).join("\n");
     }
 
+    const rolPostulado = pj?.rol || "Estudiante";
     const cabeceraTexto = (
         `-# **Ficha Seleccionada:** ${nombreApodo}\n` +
         `-# **Usuario:** <@!${pj?._id}>\n` +
+        `-# **Rol postulado:** \`${rolPostulado}\`\n` +
         `-# **Estado:** \`${estadoRaw}\`\n` +
         `-# **Hilo de revisión:** ${hilo}` +
         `\n\n-# **Motivo:** ${pj?.status?.motivo || "No disponible"}`
     );
 
-    const sexoPronombres = `${pj?.sexo || "** **"} ${pj?.pronombres ? `(${pj.pronombres})` : ""}`.trim() || "** **";
+    const sexoPronombres = pj?.sexo ? `${pj.sexo}${pj?.pronombres ? ` (${pj.pronombres})` : ''}` : "** **";
     const cumple = pj?.cumpleaños || (pj?.cumpleDia && pj?.cumpleMes ? `${String(pj.cumpleDia).padStart(2, '0')}/${String(pj.cumpleMes).padStart(2, '0')}` : "** **");
     const estatura = pj?.estatura ? `${pj.estatura}cm` : "** **";
     const peso = pj?.peso ? `${pj.peso}kg` : "** **";
@@ -534,7 +538,7 @@ function construirEditorFichaCorreccion(cachepj, userId) {
     const tagApodo = tagCorregir("apodo");
     const nombreCompleto = `${Nombre}${tagNombre}${cachepj?.apodo ? ` [${Apodo}]` : ""}${tagApodo}`;
 
-    const sexoPronombres = `${cachepj?.sexo || "** **"} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ""}`.trim() || "** **";
+    const sexoPronombres = cachepj?.sexo ? `${cachepj.sexo}${cachepj?.pronombres ? ` (${cachepj.pronombres})` : ''}` : "** **";
     const cumple = cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **");
     const estatura = cachepj?.estatura ? `${cachepj.estatura}cm` : "** **";
     const peso = cachepj?.peso ? `${cachepj.peso}kg` : "** **";
@@ -580,7 +584,7 @@ function construirEditorFichaCorreccion(cachepj, userId) {
         { campo: "peso", label: "» Peso (opcional).ᐟ.ᐟ", value: "peso", description: "El peso de tu personaje (kg)" },
         { campo: "estatura", label: "» Estatura (opcional).ᐟ.ᐟ", value: "estatura", description: "Que tan alto o bajo es tu personaje" },
         { campo: "historia", label: "» Establecer historia (opcional)", value: "historia", description: "El trasfondo del personaje" },
-        { campo: "aspiracion", label: "» Aspiración (opcional)", value: "aspiracion", description: "¿Cuál es tu propósito?" }
+        { campo: "aspiracion", label: (cachepj?.rol === "Docente" || cachepj?.rol === "Profesor") ? "» Argumentación .ᐟ.ᐟ" : "» Aspiración (opcional)", value: "aspiracion", description: (cachepj?.rol === "Docente" || cachepj?.rol === "Profesor") ? "Explica por qué deseas ser docente" : "¿Cuál es tu propósito?" }
     ];
 
     // Opciones señaladas para la edición que tengan !c.usado

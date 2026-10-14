@@ -1,3 +1,7 @@
+  // Archivo inutilizable, versión antigua de la verificación de fichas, se mantiene para extraer funcione de utilidad 
+  
+  return;
+  
   const informacion = transaccionCache.get(cache)
 
 

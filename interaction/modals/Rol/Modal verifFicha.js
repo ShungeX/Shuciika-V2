@@ -520,7 +520,7 @@ module.exports = crearModal({
                         }
 
                         await hilo.send({
-                            content: `✨ **Ficha verificada:** <@!${targetUserId}> ha sido aceptado/a en el instituto con el personaje **${perfil.Nombre}** (ID: \`${id}\`).`
+                            content: `✨ **Ficha verificada:** <@!${targetUserId}> ha sido aceptado/a en el instituto con el personaje **${perfil.Nombre}** (ID: \`${id}\`) [Rol: \`${cachepj?.rol || "Estudiante"}\`].`
                         }).catch(() => { });
 
                         await hilo.setArchived(true, `Ficha aceptada y verificada por ${interaction.user.tag}`).catch(() => { });
@@ -535,7 +535,7 @@ module.exports = crearModal({
                 }
 
                 return await interaction.followUp({
-                    content: `✅ La ficha de <@!${targetUserId}> (**${perfil.Nombre}**) ha sido verificada exitosamente con ID \`${id}\`.`,
+                    content: `✅ La ficha de <@!${targetUserId}> (**${perfil.Nombre}** - \`${cachepj?.rol || "Estudiante"}\`) ha sido verificada exitosamente con ID \`${id}\`.`,
                     flags: ["Ephemeral"]
                 }).catch(() => { });
 

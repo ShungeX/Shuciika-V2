@@ -197,7 +197,11 @@ module.exports = {
                 const Nombre = cachepj?.nombre || "**Tu nombre estara aqui**"
                 const Apodo = cachepj?.apodo || "Sin apodo"
                 const foto = cachepj?.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/v1/Resources/unknowncharacter"
+                const esProfesor = cachepj?.rol === "Profesor";
                 const camposRequeridos = ["nombre", "edad", "sexo", "cumpleaños", "ciudadOrg", "personalidad"];
+                if (esProfesor) {
+                    camposRequeridos.push("aspiracion");
+                }
                 const validSend = camposRequeridos.every(campo => cachepj?.[campo])
 
                 const previewCharacter = [
@@ -227,7 +231,7 @@ module.exports = {
                                     },
                                     {
                                         "type": 10,
-                                        "content": cachepj?.historia ? "-# `Historia:`\n\n" + `${formatearTextoLim(cachepj?.historia, 270)}` :
+                                        "content": cachepj?.historia ? "-# `Historia:`\n" + `${formatearTextoLim(cachepj?.historia, 270)}` :
                                             "-# `Historia:`\n-# *in rol / no establecida*"
                                     }
                                 ]
@@ -261,7 +265,7 @@ module.exports = {
                             },
                             {
                                 "type": 10,
-                                "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + `${`${cachepj?.sexo} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
+                                "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + (cachepj?.sexo ? `${cachepj.sexo}${cachepj?.pronombres ? ` (${cachepj.pronombres})` : ''}` : "** **") +
                                     "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                                     + `${cachepj?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia || "** **"}` +
                                     "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad || "** **"}` +
@@ -372,9 +376,9 @@ module.exports = {
                                                 "default": false
                                             },
                                             {
-                                                "label": "» Aspiración (opcional)",
+                                                "label": esProfesor ? "» Argumentación .ᐟ.ᐟ" : "» Aspiración (opcional)",
                                                 "value": `aspiracion`,
-                                                "description": "¿Cual es tu proposito?",
+                                                "description": esProfesor ? "Explica por qué deseas ser profesor" : "¿Cual es tu proposito?",
                                                 "emoji": null,
                                                 "default": false
                                             }

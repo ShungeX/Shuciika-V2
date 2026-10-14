@@ -23,12 +23,15 @@ function construirTextoFicha(characterCache, user) {
 
     const fechaCumple = characterCache?.cumpleaños || (characterCache?.cumpleDia && characterCache?.cumpleMes ? `${String(characterCache.cumpleDia).padStart(2, '0')}/${String(characterCache.cumpleMes).padStart(2, '0')}` : "** **");
 
+    const sexoTexto = characterCache?.sexo ? `${characterCache.sexo}${characterCache?.pronombres ? ` (${characterCache.pronombres})` : ''}` : "** **";
+
     return (
-        "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + fechaCumple
-        + "\n**✧ Sexo Biologico.** " + `${`${characterCache?.sexo} ${characterCache?.pronombres ? `(${characterCache.pronombres})` : ''}` || "** **"}` + "\n**✧ Personalidad.** "
+        "**✧ Nombre.** " + characterCache.nombre + "\n**✧ Rol.** " + (characterCache?.rol || "Estudiante") + "\n**✧ Edad.** " + characterCache.edad + "\n**✧ Fecha de cumpleaños.** " + fechaCumple
+        + "\n**✧ Sexo Biologico.** " + sexoTexto + "\n**✧ Personalidad.** "
         + characterCache.personalidad + "\n**✧ Ciudad de origen.** " + characterCache.ciudadOrg + "\n**✧ Familia.** " + familia + "\n**✧ Aptitud.** "
-        + characterCache.especialidad + "\n**✧ Peso: **" + characterCache?.peso + "\n**✧ Estatura: **" + characterCache?.estatura +
-        `\n**✧ Historia:** ` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${user}`
+        + characterCache.especialidad + "\n**✧ Peso: **" + characterCache?.peso + "\n**✧ Estatura: **" + characterCache?.estatura
+        + (characterCache?.aspiracion ? `\n**✧ ${characterCache?.rol === "Profesor" ? "Argumentación" : "Aspiración"}.** ` + characterCache.aspiracion : "")
+        + `\n**✧ Historia:** \n` + `${historia || "In rol"}` + "\n**`Ficha y personaje de:`** " + `${user}`
     );
 }
 
@@ -193,11 +196,11 @@ module.exports = crearBoton({
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": "# Postulación a profesor..."
+                                    "content": "# Postulación a docente..."
                                 },
                                 {
                                     "type": 10,
-                                    "content": "-# Quienes imparten conocimiento en el Instituto no sólo dominan su arte: son guías, faros y guardianes del legado que el Eón Creador dejó al mundo.\n\n-# Ser profesor no es un título, es una responsabilidad divina: formar mentes, proteger la pureza del maná y evitar que la disonancia se siembre sobre los corazonés.\n-# Cada profesor tiene un pasado, un motivo para seguir enseñando, y una cicatriz que carga con orgullo o pesar.\n-# No todos los estudiantes escuchan, pero incluso los sordos al consejo sienten el peso de su presencia."
+                                    "content": "-# Quienes imparten conocimiento en el Instituto no solo dominan su arte: son guías, faros y guardianes del legado que el Eón Creador dejó al mundo.\n\n-# Ser docente no es un título, es una responsabilidad divina: formar mentes, proteger la pureza del maná y evitar que la disonancia se siembre sobre los corazones. Cada docente tiene un pasado, un motivo para seguir enseñando y una cicatriz que carga con orgullo o pesar. No todos los estudiantes escuchan, pero incluso los sordos al consejo sienten el peso de su presencia."
                                 }
                             ]
                         },
@@ -208,11 +211,11 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "# Ventajas:\n- -# Menor complejidad: No requieres de mucho esfuerzo para mejorarlo\n- -# Poder inicial: Has recorrido un gran camino y dominas los hechizos\n- -# Mejor económica: El instituto te paga por enseñar, tu economía es estable.\n- -# Mayor autoridad: Ser un profesor requiere de mayor autoridad"
+                            "content": "# Ventajas:\n- -# Camino claro: el Instituto te instruye de antemano en lo que los estudiantes descubren por su cuenta.\n- -# Poder inicial: Has recorrido un gran camino y dominas los hechizos\n- -# Mejor economía: El Instituto te paga por cada clase que impartes.\n- -# Mayor autoridad: tu palabra pesa entre los estudiantes."
                         },
                         {
                             "type": 10,
-                            "content": "# Desventajas:\n- -# Rigidez del Alma: Estas atado a seguir los principios. Ahora eres el ejemplo a seguir.\n- -# Crecimiento Lento: Tu camino ya se ha forjado, solo sabes contar el pasado\n- -# Sistema Beta: Los profesores están en versión de experimentación, es posible que el contenido sea menor"
+                            "content": "# Desventajas:\n- -# Rigidez del Alma: Estás atado a seguir los principios. Ahora eres el ejemplo a seguir.\n- -# Crecimiento Lento: Tu camino ya se ha forjado, solo sabes contar el pasado\n- -# Alma ya forjada: no puedes elegir un alma desafinada al ingresar; solo la conservas si ya la tenías como estudiante. \n- -# Cuerpo docente en formación: es posible que haya menos contenido para docentes por ahora."
                         },
                         {
                             "type": 14,
@@ -221,7 +224,7 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "# Consideraciones:\n- -# Antes de elegir este rol deberás completar un formulario adicional.\n- -# Postularse no garantiza la aceptación. Podrías ser rechazado, pero podrás volver a intentarlo más adelante o elegir el rol de estudiante.\n- -# Este rol requiere mayor dedicación: deberás conocer bien los principios del Instituto y estar dispuesto a impartir clases periódicas.\n- -# A cambio, tendrás más libertad para organizar eventos, dinámicas y aportar activamente al desarrollo del mundo de Nix."
+                            "content": "# Consideraciones:\n- -# Tu ficha de docente es similar a la de los estudiantes y pasa por la misma revisión.\n- -# Postularse no garantiza la aceptación. Podrías ser rechazado, pero podrás volver a intentarlo más adelante o elegir el rol de estudiante.\n- -# Este rol requiere mayor dedicación: deberás conocer bien los principios del Instituto. Impartes clases cuando tú lo decidas, sin horario obligatorio."
                         },
                         {
                             "type": 14,
@@ -355,7 +358,7 @@ module.exports = crearBoton({
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": "# Postulación a profesor."
+                                    "content": "# Postulación a docente."
                                 },
                                 {
                                     "type": 10,
@@ -389,10 +392,7 @@ module.exports = crearBoton({
             ]
 
             return interaction.update({ components: infoRoles })
-        } else if (selectOption === "solicitud") {
-
-            return
-        } else if (selectOption === "rolStudent") {
+        } else if (selectOption === "rolStudent" || selectOption === "solicitud") {
             if (message) {
                 await interaction.update({}).then(m => setTimeout(() => m.delete(), 500));
 
@@ -402,10 +402,29 @@ module.exports = crearBoton({
 
             }
 
+            const rolElegido = selectOption === "solicitud" ? "Docente" : "Estudiante";
+
+            await Cachedb.updateOne({ _id: interaction.user.id }, {
+                $setOnInsert: {
+                    created: Date.now(),
+                },
+                $set: {
+                    rol: rolElegido,
+                }
+            }, { upsert: true });
+
+            if (cachepj) {
+                cachepj.rol = rolElegido;
+            }
+
             const Nombre = cachepj?.nombre || "**Tu nombre estara aqui**"
             const Apodo = cachepj?.apodo || "Sin apodo"
             const foto = cachepj?.avatarURL || "https://res.cloudinary.com/dn1cubayf/image/upload/f_auto,q_auto/v1/Resources/unknowncharacter"
+            const esProfesor = rolElegido === "Docente" || rolElegido === "Profesor" || cachepj?.rol === "Docente" || cachepj?.rol === "Profesor";
             const camposRequeridos = ["nombre", "edad", "sexo", "cumpleaños", "ciudadOrg", "personalidad"];
+            if (esProfesor) {
+                camposRequeridos.push("aspiracion");
+            }
             const validSend = camposRequeridos.every(campo => cachepj?.[campo])
 
             const previewCharacter = [
@@ -435,7 +454,7 @@ module.exports = crearBoton({
                                 },
                                 {
                                     "type": 10,
-                                    "content": cachepj?.historia ? "-# `Historia:`\n\n" + `${formatearTextoLim(cachepj?.historia, 270)}` :
+                                    "content": cachepj?.historia ? "-# `Historia:`\n" + `${formatearTextoLim(cachepj?.historia, 270)}` :
                                         "-# `Historia:`\n-# *in rol / no establecida*"
                                 }
                             ]
@@ -469,7 +488,7 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + `${`${cachepj?.sexo ? cachepj.sexo : "** **"} ${cachepj?.pronombres ? `(${cachepj.pronombres})` : ''}` || "** **"}` +
+                            "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + (cachepj?.sexo ? `${cachepj.sexo}${cachepj?.pronombres ? ` (${cachepj.pronombres})` : ''}` : "** **") +
                                 "\n-# `🍭` **Edad:** " + `${cachepj?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${cachepj?.cumpleaños || (cachepj?.cumpleDia && cachepj?.cumpleMes ? `${String(cachepj.cumpleDia).padStart(2, '0')}/${String(cachepj.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                                 + `${cachepj?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${cachepj?.familia || "** **"}` +
                                 "\n-# `🎭` **Personalidad:** " + `${cachepj?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${cachepj?.especialidad || "** **"}` +
@@ -581,9 +600,9 @@ module.exports = crearBoton({
                                             "default": false
                                         },
                                         {
-                                            "label": "» Aspiración (opcional)",
+                                            "label": esProfesor ? "» Argumentación .ᐟ.ᐟ" : "» Aspiración (opcional)",
                                             "value": `aspiracion`,
-                                            "description": "¿Cual es tu proposito?",
+                                            "description": esProfesor ? "Explica por qué deseas ser docente" : "¿Cual es tu proposito?",
                                             "emoji": null,
                                             "default": false
                                         }
@@ -656,7 +675,8 @@ module.exports = crearBoton({
                     $set: {
                         fichaStatus: {
                             messageTemp: msg.resource.message.id,
-                            channelTemp: interaction.channelId
+                            channelTemp: interaction.channelId,
+                            rol: rolElegido
                         },
                         created: Date.now(),
 
@@ -712,7 +732,7 @@ module.exports = crearBoton({
 
                         await hilo.send({
                             content: `📝 **Ficha corregida:** <@!${interaction.user.id}> ha completado todas las correcciones solicitadas y reenvió su ficha para revisión.`
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                 } catch (e) {
                     console.error("No se pudo acceder al hilo para cambiar etiqueta:", e);
@@ -721,14 +741,14 @@ module.exports = crearBoton({
 
             // Borrar el mensaje de configuración para evitar que el usuario vuelva a enviar la ficha
             if (interaction.message) {
-                await interaction.message.delete().catch(() => {});
+                await interaction.message.delete().catch(() => { });
             }
 
             // Limpiar fichaStatus en usuarios_server
             await userdb.updateOne(
                 { _id: interaction.user.id },
                 { $unset: { fichaStatus: "" } }
-            ).catch(() => {});
+            ).catch(() => { });
 
             return await interaction.editReply({
                 content: "✨ ¡Tu ficha corregida ha sido enviada exitosamente a la administración!\nEl estado ha cambiado a `Corregida` y la etiqueta del hilo a `Pendiente`. Te notificaremos cuando sea revisada. (✿◡‿◡)",
@@ -742,7 +762,12 @@ module.exports = crearBoton({
             if (!characterCache) return interaction.editReply({ content: "Mmm, es raro. no deberia aparecer este mensaje a menos que intentaras buguear el bot =.=\n-# Ficha ya enviada o inexistente" })
             message?.delete?.()
 
-            if(characterCache.waiting) return interaction.editReply({ content: "Tu ficha ya fue enviada y se encuentra en revisión. Por favor espera a que la administración la revise." })
+            if (characterCache.waiting) return interaction.editReply({ content: "Tu ficha ya fue enviada y se encuentra en revisión. Por favor espera a que la administración la revise." })
+
+            const esDocenteCache = characterCache?.rol === "Docente" || characterCache?.rol === "Profesor";
+            if (esDocenteCache && !characterCache?.aspiracion) {
+                return interaction.editReply({ content: "Para postularte como **Docente**, es obligatorio incluir tu **Argumentación** explicando detalladamente por qué deseas ser docente." })
+            }
 
             const canalOpinion = await client.channels.fetch("1009685257215287346")
 
@@ -766,7 +791,7 @@ module.exports = crearBoton({
                                 "components": [
                                     {
                                         "type": 10,
-                                        "content": "# Aspiración del personaje..."
+                                        "content": esDocenteCache ? "# Argumentación del docente..." : "# Aspiración del personaje..."
                                     },
                                     {
                                         "type": 10,
@@ -793,8 +818,9 @@ module.exports = crearBoton({
             const foroFichas = await client.channels.fetch("1545220238365433948")
             const tagPendiente = foroFichas.availableTags.find(tag => tag.id === "1545227800754266294")
 
+            const rolPrefijo = esDocenteCache ? "[Docente] " : "";
             const hilo = await foroFichas.threads.create({
-                name: `✧ ${characterCache.nombre} ${characterCache?.apodo ? `- [${characterCache.apodo}]` : `${interaction.user.username}`} ✧`,
+                name: `✧ ${rolPrefijo}${characterCache.nombre} ${characterCache?.apodo ? `- [${characterCache.apodo}]` : `${interaction.user.username}`} ✧`,
                 autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
                 appliedTags: tagPendiente ? [tagPendiente.id] : [],
                 reason: "Ficha de personaje enviada por " + interaction.user.tag,
@@ -925,6 +951,11 @@ module.exports = crearBoton({
             interaction.editReply({ components: tutorialV2, flags: ["IsComponentsV2"] })
         } else if (selectOption === "enviar_Ficha") {
             const characterCache = await Cachedb.findOne({ _id: interaction.user.id })
+
+            const esDocenteEnvio = characterCache?.rol === "Docente" || characterCache?.rol === "Profesor";
+            if (esDocenteEnvio && !characterCache?.aspiracion) {
+                return interaction.editReply({ content: "Para postularte como **Docente**, es obligatorio incluir tu **Argumentación** explicando detalladamente por qué deseas ser docente." })
+            }
 
             if (!characterCache?.avatarURL) {
                 interaction.editReply({ content: "-# Parece que tu personaje aún no tiene una **Foto de perfil**, es opcional... Pero te recomendamos agregar una ＞﹏＜\n-# Puedes asignar una presionando el boton `Establecer foto`**", flags: ["Ephemeral"] })

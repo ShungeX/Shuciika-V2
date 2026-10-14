@@ -72,10 +72,11 @@ async function construirListaPendientes(userId, pagina = 1) {
         const lineas = fichasPagina.map((doc, idx) => {
             const num = inicio + idx + 1;
             const apodo = doc.apodo ? ` - [${doc.apodo}]` : "";
+            const rolBadge = doc.rol === "Profesor" ? " `[Profesor]`" : "";
             const estado = doc.status?.estado ? `\`${doc.status.estado}\`` : "`Pendiente`";
             const fecha = obtenerFecha(doc);
             const fechaStr = fecha > 0 ? `<t:${Math.floor(fecha / 1000)}:d> (<t:${Math.floor(fecha / 1000)}:R>)` : "Sin fecha";
-            return `-# ${num}. **${doc.nombre}**${apodo} • ${estado}: ${fechaStr}`;
+            return `-# ${num}. **${doc.nombre}**${apodo}${rolBadge} • ${estado}: ${fechaStr}`;
         });
         contenidoLista = "**Lista de personajes pendientes:**\n\n" + lineas.join("\n");
     }
@@ -96,7 +97,8 @@ async function construirListaPendientes(userId, pagina = 1) {
         const label = `${doc.nombre}${apodoLabel}`.slice(0, 100);
         const estado = doc.status?.estado || "Pendiente";
         const fechaMod = formatearFechaCorta(obtenerFecha(doc));
-        const description = `[${estado}] - ${fechaMod}`.slice(0, 100);
+        const rolPrefijo = doc.rol === "Profesor" ? "[Profesor] " : "";
+        const description = `${rolPrefijo}[${estado}] - ${fechaMod}`.slice(0, 100);
 
         return {
             label: label,

@@ -87,8 +87,14 @@ module.exports = crearModal({
                         return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                     }
 
-                    if (edadpj <= 13 || edadpj >= 22) {
-                        return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", flags: ["Ephemeral"]   })
+                    const charDoc = await characters.findOne({ _id: interaction.user.id });
+                    const esProfesorChar = charDoc?.estado?.Rol === "Docente" || charDoc?.estado?.Rol === "Profesor";
+                    const minEdadChar = esProfesorChar ? 22 : 13;
+                    const maxEdadChar = esProfesorChar ? 50 : 22;
+                    const edadNum = parseInt(edadpj, 10);
+
+                    if (edadNum < minEdadChar || edadNum > maxEdadChar) {
+                        return interaction.reply({ content: `Colocaste un valor incorrecto en **\`Edad\`** (・・;).\n \`[Solo se permiten edades entre ${minEdadChar} y ${maxEdadChar}]\``, flags: ["Ephemeral"]   })
                     }
 
                     try {
@@ -376,12 +382,16 @@ module.exports = crearModal({
                 estatura: dbcharacter?.estatura,
                 gustos: dbcharacter?.gustos,
                 avatarURL: dbcharacter?.avatarURL,
+                rol: dbcharacter?.rol || "Estudiante",
             }
 
             dataCache.set(interaction.user.id, obj)
 
             cacheCharacter = dataCache.get(interaction.user.id)
 
+        } else if (!cacheCharacter.rol) {
+            const dbcharacter = await Cachedb.findOne({ _id: interaction.user.id });
+            cacheCharacter.rol = dbcharacter?.rol || "Estudiante";
         }
 
         switch (selectOption) {
@@ -450,8 +460,13 @@ module.exports = crearModal({
                     return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se admiten valores numericos]`", flags: ["Ephemeral"] })
                 }
 
-                if (edadpj < 13 || edadpj > 22) {
-                    return interaction.reply({ content: "Colocaste un valor incorrecto en **`Edad`** (・・;).\n `[Solo se permiten edades mayores a 13 y menores a 22]`", flags: ["Ephemeral"] })
+                const esProfesor = (cacheCharacter?.rol || userfind?.fichaStatus?.rol) === "Docente" || (cacheCharacter?.rol || userfind?.fichaStatus?.rol) === "Profesor";
+                const minEdad = esProfesor ? 22 : 13;
+                const maxEdad = esProfesor ? 50 : 22;
+                const edadNum = parseInt(edadpj, 10);
+
+                if (edadNum < minEdad || edadNum > maxEdad) {
+                    return interaction.reply({ content: `Colocaste un valor incorrecto en **\`Edad\`** (・・;).\n \`[Solo se permiten edades entre ${minEdad} y ${maxEdad}]\``, flags: ["Ephemeral"] })
                 }
 
                 try {
@@ -930,6 +945,7 @@ module.exports = crearModal({
                     estatura: dbcharacter?.estatura,
                     gustos: dbcharacter?.gustos,
                     avatarURL: dbcharacter?.avatarURL,
+                    rol: dbcharacter?.rol || "Estudiante",
                 }
 
                 dataCache.set(interaction.user.id, obj)
@@ -944,7 +960,11 @@ module.exports = crearModal({
             }
         }
 
+        const esProfesor = data?.rol === "Docente" || data?.rol === "Profesor";
         const camposRequeridos = ["nombre", "edad", "sexo", "cumpleaños", "ciudadOrg", "personalidad"];
+        if (esProfesor) {
+            camposRequeridos.push("aspiracion");
+        }
         const validSend = camposRequeridos.every(campo => data?.[campo])
 
         const previewCharacter = [
@@ -1007,7 +1027,7 @@ module.exports = crearModal({
                     },
                     {
                         "type": 10,
-                        "content": "# Información: \n-# `🎎` **Sexo:** " + `${`${data?.sexo} ${data?.pronombres ? `(${data.pronombres})` : ''}` || "** **"}` +
+                        "content": "# Información: \n-# `🎎` **Sexo Biológico:** " + (data?.sexo ? `${data.sexo}${data?.pronombres ? ` (${data.pronombres})` : ''}` : "** **") +
                             "\n-# `🍭` **Edad:** " + `${data?.edad || "** **"}` + "\n-# `🎂` **Cumple:** " + `${data?.cumpleaños || (data?.cumpleDia && data?.cumpleMes ? `${String(data.cumpleDia).padStart(2, '0')}/${String(data.cumpleMes).padStart(2, '0')}` : "** **")}` + "\n-# `🛫` **C/Org:** "
                             + `${data?.ciudadOrg || "** **"}` + "\n-# `👑` **Linaje Familiar:** " + `${data?.familia || "** **"}` +
                             "\n-# `🎭` **Personalidad:** " + `${data?.personalidad || "** **"}` + "\n-# `🏈` **Especialidades:** " + `${data?.especialidad || "** **"}` +
@@ -1115,9 +1135,9 @@ module.exports = crearModal({
                                         "default": false
                                     },
                                     {
-                                        "label": "» Aspiración (opcional)",
+                                        "label": esProfesor ? "» Argumentación .ᐟ.ᐟ" : "» Aspiración (opcional)",
                                         "value": `aspiracion`,
-                                        "description": "¿Cual es tu proposito?",
+                                        "description": esProfesor ? "Explica por qué deseas ser docente" : "¿Cual es tu proposito?",
                                         "emoji": null,
                                         "default": false
                                     }

@@ -216,10 +216,15 @@ module.exports = {
                 return await interaction.reply({ components: jsonV2Sex, flags: ["Ephemeral", "IsComponentsV2"] })
                 break;
             case "edad":
+                const esProfesor = character?.estado?.Rol === "Docente" || character?.estado?.Rol === "Profesor";
+                const placeholderEdad = esProfesor
+                    ? "Responde con un numero (Edad Min: 22, Edad max: 50)"
+                    : "Responde con un numero (Edad Min: 13, Edad max: 22)";
+
                 const edad = new TextInputBuilder()
                     .setCustomId("edadpj")
                     .setLabel("¿Cuantos años tendra? (Edad)")
-                    .setPlaceholder("Responde con un numero (Edad Min: 13, Edad max: 22)")
+                    .setPlaceholder(placeholderEdad)
                     .setStyle(TextInputStyle.Short)
                     .setMinLength(2)
                     .setMaxLength(2)

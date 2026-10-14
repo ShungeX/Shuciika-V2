@@ -277,7 +277,8 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
 
                 req.session.personaje = {
                     nombre: perfilExistente.perfil.Nombre,
-                    rol: perfilExistente.perfil.Rol ?? 'Estudiante',
+                    rol: String(perfilExistente.estado?.Rol ?? perfilExistente.perfil?.Rol ?? 'Estudiante').replace(/^profesor$/i, 'Docente'),
+                    estado: perfilExistente.estado || {},
                     reputacion: perfilExistente.perfil.Reputacion ?? 0,
                     grado: perfilExistente.perfil.Grado ?? 'F',
                     fechaCreacion: perfilExistente.metadata.fechaCreacion ?? new Date().toISOString(),
@@ -1633,7 +1634,8 @@ app.get('/api/me', async (req, res) => {
 
             req.session.personaje = {
                 nombre: perfilExistente.perfil.Nombre,
-                rol: perfilExistente.perfil.Rol ?? 'Estudiante',
+                rol: String(perfilExistente.estado?.Rol ?? perfilExistente.perfil?.Rol ?? 'Estudiante').replace(/^profesor$/i, 'Docente'),
+                estado: perfilExistente.estado || {},
                 reputacion: perfilExistente.perfil.Reputacion ?? 0,
                 grado: perfilExistente.perfil.Grado ?? 'F',
                 fechaCreacion: perfilExistente.metadata.fechaCreacion ?? new Date().toISOString(),
@@ -1692,7 +1694,11 @@ app.get('/api/personaje/activo', async (req, res) => {
         }
 
         const isWhitelisted = discordID === '665421882694041630';
-        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
+        const esAdmin = usuarioServer?.roles && Array.isArray(usuarioServer.roles)
+            ? ROLES_ADMIN.some(r => usuarioServer.roles.includes(r))
+            : false;
+        const isBooster = Boolean(isWhitelisted || esAdmin || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
 
         res.json({
             success: true,
@@ -1908,7 +1914,11 @@ app.get('/api/personaje/:id', async (req, res) => {
         if (!ownerUsuarioServer && ownerDiscordID) {
             ownerUsuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: ownerDiscordID });
         }
-        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerUsuarioServer?.roles?.includes('booster') || ownerUsuarioServer?.isBooster);
+        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
+        const ownerIsAdmin = ownerUsuarioServer?.roles && Array.isArray(ownerUsuarioServer.roles)
+            ? ROLES_ADMIN.some(r => ownerUsuarioServer.roles.includes(r))
+            : false;
+        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerIsAdmin || ownerUsuarioServer?.roles?.includes('booster') || ownerUsuarioServer?.isBooster);
 
         let permisosVisitante = {
             verAlma: true,
@@ -2166,9 +2176,17 @@ app.post('/api/personaje/:id/cartelera', async (req, res) => {
             return res.status(403).json({ error: 'Esta función premium requiere que el autor del personaje sea Server Booster.' });
         }
 
-        const texto = String(req.body.texto || '').trim().slice(0, 140);
+        const texto = String(req.body.texto || '').trim();
         if (!texto) {
             return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+        }
+
+        const palabras = texto.split(/\s+/).filter(Boolean);
+        if (palabras.length > 30) {
+            return res.status(400).json({ error: `El mensaje excede el límite máximo de 30 palabras (has escrito ${palabras.length} palabras).` });
+        }
+        if (texto.length > 350) {
+            return res.status(400).json({ error: 'El mensaje es demasiado largo.' });
         }
 
         const autorID = String(req.session.user.id);
@@ -2177,8 +2195,8 @@ app.post('/api/personaje/:id/cartelera', async (req, res) => {
 
         // Evaluar privacidad del tablero si quien escribe no es el autor
         const isOwner = autorID === ownerDiscordID;
+        const { charDoc: autorChar } = await obtenerPersonajeActivoUsuario(autorID);
         if (!isOwner) {
-            const { charDoc: autorChar } = await obtenerPersonajeActivoUsuario(autorID);
             const puedeEscribir = await evaluarPermisoPrivacidad(charDoc, autorChar || { _id: 0, ownerID: autorID }, 'tablero', dbRol);
             if (!puedeEscribir) {
                 return res.status(403).json({ error: 'La configuración de privacidad de este personaje no permite que le escribas en su tablero mágico.' });
@@ -2190,6 +2208,8 @@ app.post('/api/personaje/:id/cartelera', async (req, res) => {
             autorID,
             autorNombre,
             autorAvatar,
+            autorPersonajeId: autorChar?._id ? String(autorChar._id) : null,
+            autorPersonajeNombre: autorChar?.Nombre || autorChar?.perfil?.Nombre || null,
             texto,
             fecha: Date.now(),
             anclado: false
@@ -2269,6 +2289,184 @@ app.post('/api/personaje/:id/cartelera/anclar', async (req, res) => {
     } catch (err) {
         console.error("Error en anclar mensaje:", err);
         res.status(500).json({ error: 'Error al anclar mensaje' });
+    }
+});
+
+// POST /api/personaje/:id/cartelera/borrar - Borrar un mensaje de la cartelera
+app.post('/api/personaje/:id/cartelera/borrar', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const idParam = req.params.id;
+        const discordID = String(req.session.user.id);
+        const dbRol = clientdb.db("Rol_db");
+
+        let charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(idParam) });
+        if (!charDoc) {
+            charDoc = await dbRol.collection("Personajes").findOne({ _id: String(idParam) });
+        }
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const { mensajeId } = req.body;
+        if (!mensajeId) {
+            return res.status(400).json({ error: 'Falta mensajeId' });
+        }
+
+        let cartelera = Array.isArray(charDoc.social?.cartelera) ? [...charDoc.social.cartelera] : [];
+        const msgTarget = cartelera.find(m => m.id === mensajeId);
+        if (!msgTarget) {
+            return res.status(404).json({ error: 'Mensaje no encontrado' });
+        }
+
+        const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
+        const isAuthor = Boolean(msgTarget.autorID && String(msgTarget.autorID) === discordID);
+        const guild = client.guilds.cache.get("716342375303217285") || (await client.guilds.fetch("716342375303217285").catch(() => null));
+        const member = guild ? await guild.members.fetch(discordID).catch(() => null) : null;
+        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
+        const esAdmin = member ? ROLES_ADMIN.some(r => member.roles.cache.has(r)) : false;
+
+        if (!isOwner && !isAuthor && !esAdmin) {
+            return res.status(403).json({ error: 'No tienes permiso para borrar este mensaje' });
+        }
+
+        cartelera = cartelera.filter(m => m.id !== mensajeId);
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "social.cartelera": cartelera } }
+        );
+
+        res.json({ success: true, message: 'Mensaje borrado', cartelera });
+    } catch (err) {
+        console.error("Error al borrar mensaje de cartelera:", err);
+        res.status(500).json({ error: 'Error al borrar mensaje' });
+    }
+});
+
+// POST /api/personaje/:id/cartelera/reportar - Borrar y reportar mensaje a canal de Discord con Componentes V2
+app.post('/api/personaje/:id/cartelera/reportar', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const idParam = req.params.id;
+        const discordID = String(req.session.user.id);
+        const username = req.session.user.username || 'Desconocido';
+        const dbRol = clientdb.db("Rol_db");
+
+        let charDoc = await dbRol.collection("Personajes").findOne({ _id: Number(idParam) });
+        if (!charDoc) {
+            charDoc = await dbRol.collection("Personajes").findOne({ _id: String(idParam) });
+        }
+        if (!charDoc) {
+            return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        const { mensajeId, borrar = true } = req.body;
+        if (!mensajeId) {
+            return res.status(400).json({ error: 'Falta mensajeId' });
+        }
+
+        let cartelera = Array.isArray(charDoc.social?.cartelera) ? [...charDoc.social.cartelera] : [];
+        const msgTarget = cartelera.find(m => m.id === mensajeId);
+        if (!msgTarget) {
+            return res.status(404).json({ error: 'Mensaje no encontrado en el tablero' });
+        }
+
+        const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
+        const guild = client.guilds.cache.get("716342375303217285") || (await client.guilds.fetch("716342375303217285").catch(() => null));
+        const member = guild ? await guild.members.fetch(discordID).catch(() => null) : null;
+        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
+        const esAdmin = member ? ROLES_ADMIN.some(r => member.roles.cache.has(r)) : false;
+
+        if (!isOwner && !esAdmin) {
+            return res.status(403).json({ error: 'Solo el autor del personaje puede reportar mensajes de su tablero.' });
+        }
+
+        let borrado = false;
+        if (borrar) {
+            cartelera = cartelera.filter(m => m.id !== mensajeId);
+            await dbRol.collection("Personajes").updateOne(
+                { _id: charDoc._id },
+                { $set: { "social.cartelera": cartelera } }
+            );
+            borrado = true;
+        }
+
+        // Obtener datos del personaje del usuario que reporta
+        const { charDoc: reporterChar } = await obtenerPersonajeActivoUsuario(discordID);
+        const reporterCharName = reporterChar?.Nombre || reporterChar?.perfil?.Nombre || 'Sin personaje';
+        const reporterCharId = reporterChar?._id ? String(reporterChar._id) : 'N/A';
+
+        // Tiempos formateados para Discord
+        const horaReporteUnix = Math.floor(Date.now() / 1000);
+        const horaMsgUnix = Math.floor((msgTarget.fecha || Date.now()) / 1000);
+
+        // Componente V2 con la plantilla solicitada
+        const reportComponents = [
+            {
+                type: 17,
+                accent_color: 16711680,
+                spoiler: false,
+                components: [
+                    {
+                        type: 10,
+                        content: "## Nuevo reporte"
+                    },
+                    {
+                        type: 10,
+                        content: `-# Función: Tablero Mágico\n-# Usuario: <@${discordID}> (${username})\n-# Personaje: ${reporterCharName}\n-# Hora del reporte: <t:${horaReporteUnix}:F>`
+                    },
+                    {
+                        type: 14,
+                        divider: true,
+                        spacing: 1
+                    },
+                    {
+                        type: 10,
+                        content: "## Mensaje reportado:"
+                    },
+                    {
+                        type: 10,
+                        content: `${msgTarget.texto}`
+                    },
+                    {
+                        type: 10,
+                        content: `-# Usuario reportado: <@${msgTarget.autorID || ''}> (${msgTarget.autorNombre || 'Desconocido'})\n-# Hora del mensaje: <t:${horaMsgUnix}:F>\n-# ID discord: ${msgTarget.autorID || 'N/A'}\n-# ID personaje (si aplica): ${msgTarget.autorPersonajeId || 'N/A'}`
+                    }
+                ]
+            }
+        ];
+
+        // Enviar al canal de Discord 872702942065606666 en guild 716342375303217285
+        let logChannel = null;
+        if (guild) {
+            logChannel = guild.channels.cache.get("872702942065606666") || (await guild.channels.fetch("872702942065606666").catch(() => null));
+        }
+        if (!logChannel && client.channels) {
+            logChannel = await client.channels.fetch("872702942065606666").catch(() => null);
+        }
+
+        if (logChannel) {
+            await logChannel.send({
+                components: reportComponents,
+                flags: ["IsComponentsV2"]
+            }).catch(err => {
+                console.error("Error al enviar reporte de cartelera a Discord:", err);
+            });
+        }
+
+        res.json({
+            success: true,
+            message: borrado ? 'Mensaje borrado y reportado correctamente.' : 'Reporte enviado al equipo de moderación.',
+            cartelera,
+            borrado
+        });
+    } catch (err) {
+        console.error("Error en reporte de cartelera:", err);
+        res.status(500).json({ error: 'Error al procesar el reporte' });
     }
 });
 
@@ -3925,8 +4123,53 @@ app.post('/api/combat/notifications/delete-read', async (req, res) => {
 
 // ═══ ENDPOINTS CONFIGURACIÓN SISTEMA (GLOBAL, ROL, STAFF) ═══
 
+// POST /api/admin/system-config/verify - Valida el código de administración en el servidor
+app.post('/api/admin/system-config/verify', (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    const { code } = req.body || {};
+    const ADMIN_CONFIG_CODE = process.env.ADMIN_CONFIG_CODE || "gigi130925";
+
+    if (!code || typeof code !== 'string') {
+        return res.status(400).json({ error: "Código requerido" });
+    }
+
+    if (code.trim() === ADMIN_CONFIG_CODE) {
+        req.session.systemConfigUnlocked = true;
+        return res.json({ success: true, message: "Acceso concedido" });
+    } else {
+        return res.status(403).json({ success: false, error: "Código de administración incorrecto" });
+    }
+});
+
+// GET /api/admin/system-config/status - Verifica si la sesión actual tiene el panel desbloqueado
+app.get('/api/admin/system-config/status', (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    return res.json({
+        success: true,
+        unlocked: Boolean(req.session.systemConfigUnlocked)
+    });
+});
+
+// POST /api/admin/system-config/lock - Bloquea la sesión de administración
+app.post('/api/admin/system-config/lock', (req, res) => {
+    if (req.session) {
+        req.session.systemConfigUnlocked = false;
+    }
+    return res.json({ success: true, message: "Panel bloqueado" });
+});
+
 // GET /api/admin/system-config
 app.get('/api/admin/system-config', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    if (!req.session.systemConfigUnlocked) {
+        return res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" });
+    }
     try {
         const dbServer = clientdb.db("Server_db");
         const configColl = dbServer.collection("config");
@@ -3951,6 +4194,12 @@ app.get('/api/admin/system-config', async (req, res) => {
 
 // POST /api/admin/system-config/save
 app.post('/api/admin/system-config/save', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    if (!req.session.systemConfigUnlocked) {
+        return res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" });
+    }
     try {
         const { target, data } = req.body;
         if (!target || !data) {
@@ -4002,6 +4251,12 @@ app.post('/api/admin/system-config/save', async (req, res) => {
 
 // GET /api/admin/discord-user/:id
 app.get('/api/admin/discord-user/:id', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    if (!req.session.systemConfigUnlocked) {
+        return res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" });
+    }
     try {
         const userId = req.params.id;
         if (!userId) return res.status(400).json({ error: "ID faltante" });
@@ -4043,6 +4298,499 @@ app.get('/api/admin/discord-user/:id', async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ error: "Error resolviendo usuario" });
+    }
+});
+
+/* ============================================================
+   SISTEMA DE CLASES E INSTITUTO — Nix World / Instituto Mágico Shuciika
+   ============================================================ */
+
+const TAGS_INSTITUTO_DEFAULT = [
+    'Teoría Mágica',
+    'Matemáticas elementales',
+    'Alquimia & Pociones',
+    'Historia Arcana',
+    'Encantamientos',
+    'Astronomía Mágica',
+    'Defensa Elemental'
+];
+
+const SALONES_INSTITUTO_DEFAULT = [
+    'Aula 1 - Torre de Cristal',
+    'Aula 2 - Invernadero Botánico',
+    'Aula Magna - Gran Salón',
+    'Laboratorio de Alquimia y Pociones',
+    'Observatorio Astral'
+];
+
+function calcularGradoInstituto(puntos) {
+    const pts = Math.max(0, Number(puntos) || 0);
+    if (pts < 20) return { letra: 'F', puntos: pts, siguiente: 20 };
+    if (pts < 40) return { letra: 'D', puntos: pts, siguiente: 40 };
+    if (pts < 60) return { letra: 'C', puntos: pts, siguiente: 60 };
+    if (pts < 80) return { letra: 'B', puntos: pts, siguiente: 80 };
+    if (pts < 100) return { letra: 'A', puntos: pts, siguiente: 100 };
+    if (pts < 125) return { letra: 'A+', puntos: pts, siguiente: 125 };
+    if (pts < 150) return { letra: 'S', puntos: pts, siguiente: 150 };
+    return { letra: 'S+', puntos: pts, siguiente: null };
+}
+
+// GET /api/instituto/datos — Obtener datos del alumno/profesor, clases activas y salones
+app.get('/api/instituto/datos', async (req, res) => {
+    try {
+        if (!req.session?.user) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+        const discordID = req.session.user.id;
+        const { charDoc, usuarioServer, misPersonajes } = await obtenerPersonajeActivoUsuario(discordID);
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'No tienes un personaje activo seleccionado' });
+        }
+
+        const dbRol = clientdb.db(dbname || "Rol_db");
+        // Obtener rol desde estado.Rol (ej. "Docente", "Alumno / a"), con fallbacks a perfil.Rol o Rol
+        const rolRaw = charDoc.estado?.Rol ?? charDoc.perfil?.Rol ?? charDoc.Rol ?? charDoc.rol ?? 'Alumno / a';
+        const rolTexto = String(rolRaw).trim();
+        const rolLower = rolTexto.toLowerCase();
+        const esProfesor = rolLower.includes('profesor') || 
+                           rolLower.includes('docente') || 
+                           rolLower.includes('maestro') || 
+                           rolLower.includes('catedratico');
+
+        // Extraer IDs de todos los personajes pertenecientes a este usuario
+        const misPjsIds = Array.isArray(misPersonajes)
+            ? misPersonajes.map(p => String(p.id ?? p._id)).filter(Boolean)
+            : [];
+        if (!misPjsIds.includes(String(charDoc._id))) {
+            misPjsIds.push(String(charDoc._id));
+        }
+
+        // Obtener grado
+        const gradoPuntos = charDoc.instituto?.grado ?? 0;
+        const gradoCalculado = calcularGradoInstituto(gradoPuntos);
+
+        // Obtener todas las clases programadas o recientes
+        const clasesCol = dbRol.collection("Clases");
+        const clasesDocs = await clasesCol.find({
+            estado: { $in: ['programada', 'en_curso', 'cerrada'] }
+        }).sort({ inicioProgramado: 1 }).toArray();
+
+        // Obtener avatares de los profesores
+        const profIds = [...new Set(clasesDocs.map(c => c.profesorId).filter(Boolean))];
+        const profesoresDocs = await dbRol.collection("Personajes").find(
+            { _id: { $in: profIds } },
+            { projection: { _id: 1, avatarURL: 1, "perfil.avatarURL": 1 } }
+        ).toArray();
+        const profAvatarMap = new Map();
+        for (const p of profesoresDocs) {
+            profAvatarMap.set(String(p._id), p.perfil?.avatarURL || p.avatarURL || '');
+        }
+
+        // Enriquecer clases con metadata de usuario
+        const clasesEnriquecidas = clasesDocs.map(c => {
+            const inscritos = Array.isArray(c.inscritos) ? c.inscritos : [];
+            const estaInscrito = inscritos.some(ins => String(ins.personajeId) === String(charDoc._id));
+            const usuarioTieneInscrito = inscritos.some(ins => String(ins.userId) === String(discordID));
+            const esMiClase = String(c.profesorId) === String(charDoc._id) || String(c.profesorUserId) === String(discordID);
+            const profesorAvatar = c.profesorAvatarURL || profAvatarMap.get(String(c.profesorId)) || 'icons/home.png';
+            const recompensas = c.recompensas || { gradoPuntos: 3, fragmentoEstelar: 1 };
+
+            return {
+                _id: String(c._id),
+                titulo: c.titulo,
+                descripcion: c.descripcion,
+                tags: c.tags || [],
+                salonId: c.salonId || null,
+                salon: c.salon,
+                inicioProgramado: c.inicioProgramado,
+                finProgramado: c.finProgramado,
+                duracionMinutos: Math.round((new Date(c.finProgramado) - new Date(c.inicioProgramado)) / 60000) || 60,
+                cupo: c.cupo,
+                estado: c.estado,
+                oficial: !!c.oficial,
+                profesorId: c.profesorId,
+                profesorNombre: c.profesorNombre,
+                profesorAvatarURL: profesorAvatar,
+                recompensas: recompensas,
+                totalInscritos: inscritos.length,
+                estaInscrito,
+                usuarioTieneInscrito,
+                esMiClase,
+                inscritos: esMiClase ? inscritos : inscritos.map(i => ({ personajeNombre: i.personajeNombre }))
+            };
+        });
+
+        res.json({
+            success: true,
+            personaje: {
+                _id: charDoc._id,
+                nombre: charDoc.nombre || charDoc.name || charDoc.perfil?.Nombre || 'Sin nombre',
+                avatarURL: charDoc.perfil?.avatarURL || charDoc.avatarURL || (req.session.user?.avatar ? `https://cdn.discordapp.com/avatars/${discordID}/${req.session.user.avatar}.png` : 'icons/home.png'),
+                rol: rolTexto,
+                esProfesor,
+                estado: charDoc.estado || { Rol: rolTexto },
+                grado: gradoCalculado,
+                instituto: charDoc.instituto || { grado: 0, clases: [] }
+            },
+            clases: clasesEnriquecidas,
+            salones: SALONES_INSTITUTO_DEFAULT,
+            tagsDisponibles: TAGS_INSTITUTO_DEFAULT
+        });
+    } catch (error) {
+        console.error("Error en GET /api/instituto/datos:", error);
+        res.status(500).json({ error: "Error obteniendo datos del instituto" });
+    }
+});
+
+// POST /api/instituto/clases/crear — Programar una nueva clase (Solo profesores)
+app.post('/api/instituto/clases/crear', async (req, res) => {
+    try {
+        if (!req.session?.user) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+        const discordID = req.session.user.id;
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'No tienes un personaje activo' });
+        }
+
+        const rolRaw = charDoc.estado?.Rol ?? charDoc.perfil?.Rol ?? charDoc.Rol ?? charDoc.rol ?? '';
+        const rolTexto = String(rolRaw).trim();
+        const rolLower = rolTexto.toLowerCase();
+        const esProfesor = rolLower.includes('profesor') || 
+                           rolLower.includes('docente') || 
+                           rolLower.includes('maestro') || 
+                           rolLower.includes('catedratico');
+        if (!esProfesor) {
+            return res.status(403).json({ error: 'Solo los personajes con el rol "Docente" o "Profesor" pueden crear clases.' });
+        }
+
+        const { titulo, descripcion, tags, salon, inicioProgramado, finProgramado, cupo } = req.body;
+
+        if (!titulo || !descripcion || !inicioProgramado || !finProgramado) {
+            return res.status(400).json({ error: 'Todos los campos obligatorios deben completarse.' });
+        }
+
+        const fechaInicio = new Date(inicioProgramado);
+        const fechaFin = new Date(finProgramado);
+        const ahora = new Date();
+
+        if (isNaN(fechaInicio.getTime()) || isNaN(fechaFin.getTime())) {
+            return res.status(400).json({ error: 'Fechas de inicio o fin inválidas.' });
+        }
+
+        if (fechaFin <= fechaInicio) {
+            return res.status(400).json({ error: 'La hora de fin debe ser posterior a la hora de inicio.' });
+        }
+
+        // Regla: Anticipación mínima de 1 hora
+        if (fechaInicio.getTime() - ahora.getTime() < 59 * 60 * 1000) {
+            return res.status(400).json({ error: 'La clase debe programarse con al menos 1 hora de anticipación.' });
+        }
+
+        const cupoNum = Math.max(10, Math.min(50, parseInt(cupo) || 20));
+
+        const dbRol = clientdb.db(dbname || "Rol_db");
+        const clasesCol = dbRol.collection("Clases");
+
+        // Regla: Máximo 3 clases programadas a la vez por profesor
+        const clasesActivasProfesor = await clasesCol.countDocuments({
+            profesorId: charDoc._id,
+            estado: 'programada'
+        });
+
+        if (clasesActivasProfesor >= 3) {
+            return res.status(400).json({ error: 'Has alcanzado el límite máximo de 3 clases programadas a la vez.' });
+        }
+
+        const dbServer = clientdb.db(dbserverName || "Server_db");
+        const configColl = dbServer.collection("config");
+        const rolDoc = await configColl.findOne({ _id: "rol" });
+
+        let salonesDisponibles = Array.isArray(rolDoc?.salonesDisponibles) ? [...rolDoc.salonesDisponibles] : [];
+        if (!salonesDisponibles.length) {
+            return res.status(400).json({ error: 'No hay salones disponibles en la Academia en este momento. Por favor espera a que se libere un salón.' });
+        }
+
+        // Elegir un salón disponible aleatoriamente
+        const randomIndex = Math.floor(Math.random() * salonesDisponibles.length);
+        const salonIdSeleccionado = String(salonesDisponibles[randomIndex]);
+
+        // Mover a salonesOcupados y retirar de salonesDisponibles
+        await configColl.updateOne(
+            { _id: "rol" },
+            {
+                $pull: { salonesDisponibles: salonIdSeleccionado },
+                $addToSet: { salonesOcupados: salonIdSeleccionado }
+            }
+        );
+
+        // Obtener el nombre del salón mediante la ID de Discord
+        let salonNombre = `Salón ${salonIdSeleccionado}`;
+        if (client && client.channels) {
+            try {
+                const canal = client.channels.cache.get(salonIdSeleccionado) || await client.channels.fetch(salonIdSeleccionado).catch(() => null);
+                if (canal && canal.name) {
+                    salonNombre = canal.name;
+                }
+            } catch (e) {
+                console.warn("No se pudo obtener el nombre del canal con client:", e.message);
+            }
+        }
+        if (salonNombre === `Salón ${salonIdSeleccionado}` && process.env.TOKEN_BOT) {
+            try {
+                const resDiscord = await axios.get(`https://discord.com/api/v10/channels/${salonIdSeleccionado}`, {
+                    headers: { Authorization: `Bot ${process.env.TOKEN_BOT}` }
+                });
+                if (resDiscord.data && resDiscord.data.name) {
+                    salonNombre = resDiscord.data.name;
+                }
+            } catch (e) {
+                // Mantener fallback
+            }
+        }
+
+        const profAvatarURL = charDoc.perfil?.avatarURL || charDoc.avatarURL || (req.session.user?.avatar ? `https://cdn.discordapp.com/avatars/${discordID}/${req.session.user.avatar}.png` : 'icons/home.png');
+
+        const nuevaClase = {
+            _id: `clase_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            profesorId: charDoc._id,
+            profesorNombre: charDoc.nombre || charDoc.name || charDoc.perfil?.Nombre || 'Docente',
+            profesorAvatarURL: profAvatarURL,
+            profesorUserId: String(discordID),
+            titulo: String(titulo).trim(),
+            descripcion: String(descripcion).trim(),
+            tags: Array.isArray(tags) ? tags : [String(tags || 'Teoría Mágica')],
+            salonId: salonIdSeleccionado,
+            salon: salonNombre,
+            inicioProgramado: fechaInicio.toISOString(),
+            finProgramado: fechaFin.toISOString(),
+            duracionMinutos: Math.round((fechaFin - fechaInicio) / 60000),
+            cupo: cupoNum,
+            estado: 'programada',
+            oficial: false,
+            saldoAlCrear: charDoc.economia?.Lumens ?? 0,
+            recompensas: {
+                gradoPuntos: 3,
+                fragmentoEstelar: 1
+            },
+            inscritos: [],
+            esperando: [],
+            participacion: {},
+            participacionProfesor: 0,
+            createdAt: new Date().toISOString()
+        };
+
+        await clasesCol.insertOne(nuevaClase);
+
+        // Actualizar en el documento del personaje
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $push: { "instituto.clasesCreadas": nuevaClase._id } }
+        );
+
+        res.json({
+            success: true,
+            message: `¡Clase programada exitosamente en el tablón! Te tocó: ${salonNombre}`,
+            clase: nuevaClase
+        });
+    } catch (error) {
+        console.error("Error en POST /api/instituto/clases/crear:", error);
+        res.status(500).json({ error: "Error programando la clase" });
+    }
+});
+
+// POST /api/instituto/clases/:id/inscribir — Inscribir personaje a una clase
+app.post('/api/instituto/clases/:id/inscribir', async (req, res) => {
+    try {
+        if (!req.session?.user) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+        const discordID = req.session.user.id;
+        const claseId = req.params.id;
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'No tienes un personaje activo' });
+        }
+
+        const dbRol = clientdb.db(dbname || "Rol_db");
+        const clasesCol = dbRol.collection("Clases");
+        const clase = await clasesCol.findOne({ _id: String(claseId) });
+
+        if (!clase) {
+            return res.status(404).json({ error: 'La clase solicitada no existe.' });
+        }
+
+        if (clase.estado !== 'programada') {
+            return res.status(400).json({ error: 'Esta clase ya no acepta inscripciones (no está en estado programada).' });
+        }
+
+        if (new Date(clase.inicioProgramado) <= new Date()) {
+            return res.status(400).json({ error: 'Esta clase ya ha comenzado.' });
+        }
+
+        // No puede ser el profesor de la clase
+        if (String(clase.profesorUserId) === String(discordID) || String(clase.profesorId) === String(charDoc._id)) {
+            return res.status(400).json({ error: 'No puedes inscribirte a una clase impartida por ti mismo.' });
+        }
+
+        const inscritos = Array.isArray(clase.inscritos) ? clase.inscritos : [];
+
+        // Regla esencial: solo se puede inscribir un personaje por usuario en la misma clase
+        const yaTienePersonajeInscrito = inscritos.some(ins => String(ins.userId) === String(discordID));
+        if (yaTienePersonajeInscrito) {
+            return res.status(400).json({ error: 'Ya tienes un personaje inscrito en esta clase. Solo se permite inscribir un personaje por usuario.' });
+        }
+
+        // Verificar cupo
+        if (inscritos.length >= clase.cupo) {
+            return res.status(400).json({ error: 'El cupo de esta clase está completo.' });
+        }
+
+        const nuevoInscrito = {
+            userId: String(discordID),
+            personajeId: charDoc._id,
+            personajeNombre: charDoc.nombre || charDoc.name || charDoc.perfil?.Nombre || 'Estudiante',
+            fechaInscripcion: new Date().toISOString()
+        };
+
+        // 1. Añadir a inscritos en la colección Clases
+        await clasesCol.updateOne(
+            { _id: clase._id },
+            { $push: { inscritos: nuevoInscrito } }
+        );
+
+        // 2. Guardar en el personaje activo: personajes.instituto.clases
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            {
+                $push: {
+                    "instituto.clases": {
+                        claseId: clase._id,
+                        titulo: clase.titulo,
+                        estado: 'inscrito',
+                        fechaInscripcion: new Date().toISOString()
+                    }
+                }
+            }
+        );
+
+        res.json({
+            success: true,
+            message: `¡${nuevoInscrito.personajeNombre} se ha inscrito con éxito a "${clase.titulo}"!`
+        });
+    } catch (error) {
+        console.error("Error en POST /api/instituto/clases/:id/inscribir:", error);
+        res.status(500).json({ error: "Error procesando la inscripción" });
+    }
+});
+
+// POST /api/instituto/clases/:id/cancelar-inscripcion — Cancelar inscripción
+app.post('/api/instituto/clases/:id/cancelar-inscripcion', async (req, res) => {
+    try {
+        if (!req.session?.user) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+        const discordID = req.session.user.id;
+        const claseId = req.params.id;
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+
+        if (!charDoc) {
+            return res.status(404).json({ error: 'No tienes un personaje activo' });
+        }
+
+        const dbRol = clientdb.db(dbname || "Rol_db");
+        const clasesCol = dbRol.collection("Clases");
+        const clase = await clasesCol.findOne({ _id: String(claseId) });
+
+        if (!clase) {
+            return res.status(404).json({ error: 'Clase no encontrada.' });
+        }
+
+        // Regla: Cancelar inscripción hasta 30 minutos antes del inicio sin sanción
+        const diffMs = new Date(clase.inicioProgramado) - new Date();
+        if (diffMs < 30 * 60 * 1000) {
+            return res.status(400).json({
+                error: 'No es posible cancelar la inscripción en los últimos 30 minutos previos al inicio de la clase.'
+            });
+        }
+
+        // Quitar de Clases
+        await clasesCol.updateOne(
+            { _id: clase._id },
+            { $pull: { inscritos: { userId: String(discordID) } } }
+        );
+
+        // Quitar en Personajes
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $pull: { "instituto.clases": { claseId: clase._id } } }
+        );
+
+        res.json({
+            success: true,
+            message: 'Inscripción cancelada correctamente sin sanción.'
+        });
+    } catch (error) {
+        console.error("Error en cancelar inscripción:", error);
+        res.status(500).json({ error: "Error cancelando la inscripción" });
+    }
+});
+
+// POST /api/instituto/clases/:id/cancelar-profesor — Cancelar clase por parte del profesor
+app.post('/api/instituto/clases/:id/cancelar-profesor', async (req, res) => {
+    try {
+        if (!req.session?.user) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+        const discordID = req.session.user.id;
+        const claseId = req.params.id;
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+
+        const dbRol = clientdb.db(dbname || "Rol_db");
+        const clasesCol = dbRol.collection("Clases");
+        const clase = await clasesCol.findOne({ _id: String(claseId) });
+
+        if (!clase) {
+            return res.status(404).json({ error: 'Clase no encontrada.' });
+        }
+
+        if (String(clase.profesorUserId) !== String(discordID) && String(clase.profesorId) !== String(charDoc?._id)) {
+            return res.status(403).json({ error: 'No tienes permiso para cancelar esta clase.' });
+        }
+
+        await clasesCol.updateOne(
+            { _id: clase._id },
+            { $set: { estado: 'cancelada', canceladaEn: new Date().toISOString() } }
+        );
+
+        // Liberar el salón para que vuelva a estar disponible
+        if (clase.salonId) {
+            try {
+                const dbServer = clientdb.db(dbserverName || "Server_db");
+                const configColl = dbServer.collection("config");
+                await configColl.updateOne(
+                    { _id: "rol" },
+                    {
+                        $pull: { salonesOcupados: clase.salonId },
+                        $addToSet: { salonesDisponibles: clase.salonId }
+                    }
+                );
+            } catch (errSalon) {
+                console.error("Error liberando salón en cancelación:", errSalon);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'La clase ha sido cancelada y el salón ha sido liberado.'
+        });
+    } catch (error) {
+        console.error("Error cancelando clase:", error);
+        res.status(500).json({ error: "Error cancelando la clase" });
     }
 });
 
