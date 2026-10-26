@@ -18,6 +18,10 @@ function construirOptions(interaction, tipo, handler) {
     }
 
     if (tipo === "modal") {
+        // Modals cuyos campos los define el usuario en tiempo de ejecución (ej. los
+        // de diálogos): no pueden declarar un mapeo fijo y leen interaction.fields.
+        if (handler.camposDinamicos) return {}
+
         const mapeo = handler.fieldNames || {}              // { "campoIDEnElModal": "sesionID" }
         const resultado = {}
         if (!mapeo || Object.keys(mapeo).length === 0) {

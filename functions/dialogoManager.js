@@ -1245,36 +1245,55 @@ class DialogueSystem {
     }
 
     async parseTextAsync(text, contextData) {
-        if (!text) return '';
-        const { interaction, user, userData } = contextData;
+        if (!text || typeof text !== 'string') return '';
+        const { interaction, user, userData } = contextData || {};
         const context = userData?.context || {};
 
+        // Función de seguridad: sanea cualquier valor proveniente del usuario o personaje
+        // eliminando llaves {} para garantizar que nunca sea interpretado como comando o tag
+        const sanitizePlayerPlainValue = (val) => {
+            if (val === null || val === undefined) return '';
+            return String(val).replace(/[{}]/g, '');
+        };
+
         const regex = /\{([^}]+)\}/g;
-        let matches = [];
+        const matches = [];
         let match;
         while ((match = regex.exec(text)) !== null) {
-            matches.push({ fullTag: match[0], tagContent: match[1] });
+            matches.push({
+                fullTag: match[0],
+                tagContent: match[1],
+                start: match.index,
+                end: regex.lastIndex
+            });
         }
 
-        let resultText = text;
+        if (matches.length === 0) return text;
 
+        // Evaluar cada tag una sola vez de forma lineal y segura
         for (const item of matches) {
             const parts = item.tagContent.split(':');
             const cmdName = parts[0].trim();
             const cmdParam = parts.slice(1).join(':').trim();
 
             if (this.commandHandlers.has(cmdName)) {
-                const handler = this.commandHandlers.get(cmdName);
-                const replacement = await handler(cmdParam, { interaction, user, userData, context, messageOptions: contextData.messageOptions });
-                resultText = resultText.replace(item.fullTag, replacement !== undefined ? replacement : '');
+                try {
+                    const handler = this.commandHandlers.get(cmdName);
+                    const rep = await handler(cmdParam, { interaction, user, userData, context, messageOptions: contextData.messageOptions });
+                    item.replacement = rep !== undefined && rep !== null ? String(rep) : '';
+                } catch (errCmd) {
+                    console.error(`[dialogoManager] Error en comando {${cmdName}}:`, errCmd);
+                    item.replacement = '';
+                }
             } else if (context[cmdName] !== undefined) {
-                resultText = resultText.replace(item.fullTag, context[cmdName]);
+                // Variables de contexto sanitizadas como texto plano
+                item.replacement = sanitizePlayerPlainValue(context[cmdName]);
             } else if (cmdName === 'user_name') {
-                resultText = resultText.replace(item.fullTag, user?.displayName || user?.username || 'Viajero');
+                item.replacement = sanitizePlayerPlainValue(user?.displayName || user?.username || 'Viajero');
             } else if (cmdName === 'user') {
-                resultText = resultText.replace(item.fullTag, `<@${user?.id}>`);
+                item.replacement = user?.id ? `<@${sanitizePlayerPlainValue(user.id)}>` : '@Viajero';
             } else if (cmdName === 'user_id') {
-                resultText = resultText.replace(item.fullTag, user?.id || '');
+                item.replacement = sanitizePlayerPlainValue(user?.id);
             } else if (cmdName === 'character_id' || cmdName === 'char_id') {
                 try {
                     let charDoc = userData?.charDoc;
@@ -1283,26 +1302,27 @@ class DialogueSystem {
                         charDoc = await this.obtenerPersonajeActivo(user.id, targetCharId);
                         if (userData && charDoc) userData.charDoc = charDoc;
                     }
-                    resultText = resultText.replace(item.fullTag, charDoc ? String(charDoc._id) : (userData?.charId || userData?.soulId || ''));
+                    const cId = charDoc ? charDoc._id : (userData?.charId || userData?.soulId || '');
+                    item.replacement = sanitizePlayerPlainValue(cId);
                 } catch (e) {
-                    resultText = resultText.replace(item.fullTag, '');
+                    item.replacement = '';
                 }
             } else if (cmdName === 'user_avatar') {
                 const avatar = user?.displayAvatarURL?.() || '';
-                resultText = resultText.replace(item.fullTag, avatar);
+                item.replacement = sanitizePlayerPlainValue(avatar);
             } else if (cmdName === 'client_name') {
                 const clientObj = this.client || interaction?.client;
-                resultText = resultText.replace(item.fullTag, clientObj?.user?.username || 'Shuciika');
+                item.replacement = sanitizePlayerPlainValue(clientObj?.user?.username || 'Shuciika');
             } else if (cmdName === 'client') {
                 const clientObj = this.client || interaction?.client;
-                resultText = resultText.replace(item.fullTag, `<@${clientObj?.user?.id}>`);
+                item.replacement = clientObj?.user?.id ? `<@${sanitizePlayerPlainValue(clientObj.user.id)}>` : '@Shuciika';
             } else if (cmdName === 'client_id') {
                 const clientObj = this.client || interaction?.client;
-                resultText = resultText.replace(item.fullTag, clientObj?.user?.id || '');
+                item.replacement = sanitizePlayerPlainValue(clientObj?.user?.id);
             } else if (cmdName === 'client_avatar') {
                 const clientObj = this.client || interaction?.client;
                 const avatar = clientObj?.user?.displayAvatarURL?.() || '';
-                resultText = resultText.replace(item.fullTag, avatar);
+                item.replacement = sanitizePlayerPlainValue(avatar);
             } else if (cmdName.startsWith('ch_')) {
                 const pathKey = cmdName.slice(3);
                 try {
@@ -1334,30 +1354,63 @@ class DialogueSystem {
                             }
                         }
 
-                        if (val !== undefined && val !== null) {
-                            resultText = resultText.replace(item.fullTag, String(val));
-                        } else {
-                            resultText = resultText.replace(item.fullTag, '');
-                        }
+                        item.replacement = sanitizePlayerPlainValue(val);
                     } else {
-                        resultText = resultText.replace(item.fullTag, '');
+                        item.replacement = '';
                     }
                 } catch (e) {
                     console.error('[dialogoManager] Error parseando tag de personaje:', e);
-                    resultText = resultText.replace(item.fullTag, '');
+                    item.replacement = '';
                 }
+            } else {
+                // Tag no reconocido: mantener intacto sin evaluar
+                item.replacement = item.fullTag;
             }
         }
+
+        // Construcción segura en un solo paso:
+        // Los reemplazos se concatenan directamente por sus índices originales,
+        // garantizando que NUNCA se vuelvan a evaluar o escanear como comandos
+        let resultText = '';
+        let cursor = 0;
+        for (const item of matches) {
+            resultText += text.slice(cursor, item.start);
+            resultText += (item.replacement !== undefined ? item.replacement : '');
+            cursor = item.end;
+        }
+        resultText += text.slice(cursor);
 
         return resultText;
     }
 
-    async executeActions(actions, interaction, context) {
+    async executeActions(actions, interaction, context, user) {
         if (!actions) return;
         const actionsList = Array.isArray(actions) ? actions : [actions];
+        const dialogoHooks = require('./dialogoHooks');
 
-        if (actions?.code === "despertar") {
-            await despertarAlma(interaction, context);
+        for (const act of actionsList) {
+            let hookId = null;
+            if (typeof act === 'string') hookId = act;
+            else if (act?.hookId) hookId = act.hookId;
+            else if (act?.code) hookId = act.code;
+
+            if (!hookId) continue;
+
+            // Compatibilidad retroactiva si se especificó 'despertar'
+            if (hookId === 'despertar' && !dialogoHooks.existe('despertar') && dialogoHooks.existe('despertar_alma')) {
+                hookId = 'despertar_alma';
+            }
+
+            const payload = {
+                client: this.client || interaction?.client,
+                interaction,
+                context: context || {},
+                user: user || interaction?.user,
+                charDoc: this.activeDialogues.get(user?.id)?.charDoc || null,
+                dialogueSystem: this
+            };
+
+            await dialogoHooks.ejecutar(hookId, payload);
         }
     }
 

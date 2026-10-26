@@ -12,6 +12,9 @@ const connectMongo = require('connect-mongo');
 const MongoStore = connectMongo.default || connectMongo;
 const cors = require('cors');
 const cloudinary = require("cloudinary").v2;
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const { evaluarPermisoPrivacidad } = require('./functions/privacidad.js');
 
 cloudinary.config({
@@ -19,6 +22,108 @@ cloudinary.config({
     api_key: process.env.API_KEY,
     api_secret: process.env.API_SECRET
 });
+
+const GUILD_ID = "716342375303217285"; // ID del servidor de Discord
+const ROLES_ADMIN_IDS = ['737058095599058995', '746581152717865041'];
+const PERSONAS_AUTORIZADAS = ["665421882694041630"];
+const ROLES_STAFF_NAMES = ['ADMIN-CREADOR', 'Director', 'Subdirector', 'Administrador', 'Administradores', 'Moderador', 'Vigilantes', 'Ayudantes'];
+const personas_autorizadas = PERSONAS_AUTORIZADAS; // Compatibilidad con referencias de archivo
+
+async function esUsuarioAdminOMod(discordID) {
+    if (!discordID) return false;
+    const strId = String(discordID);
+    if (PERSONAS_AUTORIZADAS.includes(strId)) return true;
+    if (!client) return false;
+
+    try {
+        const guild = client.guilds.cache.get(GUILD_ID) || (await client.guilds.fetch(GUILD_ID).catch(() => null));
+        if (!guild) return false;
+        const member = await guild.members.fetch(strId).catch(() => null);
+        if (!member) return false;
+        const hasAdminRole = member.roles.cache.some(r => ROLES_ADMIN_IDS.includes(r.id) || ROLES_STAFF_NAMES.includes(r.name));
+        return Boolean(hasAdminRole);
+    } catch {
+        return false;
+    }
+}
+
+async function requireAdminOrMod(req, res, next) {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    const esAdmin = await esUsuarioAdminOMod(req.session.user.id);
+    if (!esAdmin) {
+        return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de moderador o administrador.' });
+    }
+    next();
+}
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB máximo
+
+function esUrlSeguraParaDescarga(urlStr) {
+    try {
+        const parsed = new URL(urlStr);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+        const host = parsed.hostname.toLowerCase();
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0') return false;
+        if (host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('169.254.')) return false;
+        if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function validarBufferImagen(buffer, maxBytes = MAX_IMAGE_BYTES) {
+    if (!Buffer.isBuffer(buffer)) {
+        throw new Error("El archivo no es un buffer válido.");
+    }
+    if (buffer.length === 0) {
+        throw new Error("El archivo de imagen está vacío.");
+    }
+    if (buffer.length > maxBytes) {
+        throw new Error(`El archivo excede el tamaño máximo permitido (${Math.round(maxBytes / (1024 * 1024))} MB).`);
+    }
+
+    const isPng = buffer.length > 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+    const isJpeg = buffer.length > 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+    const isGif = buffer.length > 6 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38;
+    const isWebp = buffer.length > 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
+
+    if (!isPng && !isJpeg && !isGif && !isWebp) {
+        throw new Error("Formato de imagen inválido o no permitido. Solo se aceptan PNG, JPEG, GIF o WEBP.");
+    }
+
+    return true;
+}
+
+async function obtenerYValidarBufferImagen(input, maxBytes = MAX_IMAGE_BYTES) {
+    if (!input || typeof input !== 'string') {
+        throw new Error("No se proporcionó imagen válida.");
+    }
+
+    let buffer = null;
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+        if (!esUrlSeguraParaDescarga(input)) {
+            throw new Error("La URL proporcionada no está permitida o apunta a un recurso privado.");
+        }
+        const resp = await fetch(input, { signal: AbortSignal.timeout(10000) });
+        if (!resp.ok) throw new Error("No se pudo descargar la imagen desde la URL remota.");
+        const arrBuff = await resp.arrayBuffer();
+        buffer = Buffer.from(arrBuff);
+    } else if (input.startsWith('data:')) {
+        const matches = input.match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+        if (!matches || !matches[1]) {
+            throw new Error("Formato Data URL inválido. Debe ser una imagen en base64.");
+        }
+        buffer = Buffer.from(matches[1], 'base64');
+    } else {
+        buffer = Buffer.from(input, 'base64');
+    }
+
+    validarBufferImagen(buffer, maxBytes);
+    return buffer;
+}
 
 function extraerPublicIdCloudinary(urlStr) {
     if (!urlStr || typeof urlStr !== 'string' || !urlStr.includes('cloudinary.com')) return null;
@@ -70,19 +175,8 @@ async function procesarBanner(targetId, bannerInput, prevBannerUrl = null) {
     // También destruir el public_id específico para asegurar que se limpie cualquier caché o variante anterior
     await cloudinary.uploader.destroy(fullPublicId, { invalidate: true }).catch(() => {});
 
-    // 2. Preparar el buffer de subida (idéntico al esquema de procesarFoto)
-    let resourceBuffer = null;
-    if (bannerInput.startsWith('http://') || bannerInput.startsWith('https://')) {
-        const getResponse = await fetch(bannerInput);
-        if (!getResponse.ok) throw new Error("Error al descargar la imagen para Cloudinary");
-        const buff = await getResponse.arrayBuffer();
-        resourceBuffer = Buffer.from(buff);
-    } else if (bannerInput.startsWith('data:')) {
-        const base64Data = bannerInput.replace(/^data:image\/\w+;base64,/, '');
-        resourceBuffer = Buffer.from(base64Data, 'base64');
-    } else {
-        resourceBuffer = Buffer.from(bannerInput, 'base64');
-    }
+    // 2. Preparar el buffer de subida con validación estricta de tamaño, magic bytes y anti-SSRF
+    const resourceBuffer = await obtenerYValidarBufferImagen(bannerInput, MAX_IMAGE_BYTES);
 
     // 3. Subir a Cloudinary vía upload_stream en la carpeta Rol/Banners con el nombre `${targetId}_BannerRol`
     const uploadCloudinary = await new Promise((resolve, reject) => {
@@ -104,8 +198,6 @@ async function procesarBanner(targetId, bannerInput, prevBannerUrl = null) {
 
     return uploadCloudinary?.secure_url || null;
 }
-
-const GUILD_ID = "716342375303217285"; // ID del servidor de Discord
 const uri = process.env.MONGODB_URI
 const clientdb = new MongoClient(uri, { family: 4 });
 const dbserverName = "Server_db"
@@ -176,8 +268,62 @@ app.use(cors({
     credentials: true
 }));
 
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 400,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas peticiones desde esta IP, por favor intenta más tarde.' }
+});
+app.use('/api/', generalLimiter);
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 50,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes de autenticación, por favor intenta más tarde.' }
+});
+app.use('/api/auth/', authLimiter);
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
+
+// Sanitizador global contra inyecciones NoSQL recursivo en body, query y params
+function sanitizeMongoInput(data) {
+    if (!data || typeof data !== 'object') return data;
+    if (Array.isArray(data)) {
+        return data.map(sanitizeMongoInput);
+    }
+    const sanitized = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (key.startsWith('$') || key.includes('.')) {
+            console.warn(`[Seguridad] Clave NoSQL bloqueada en petición: "${key}"`);
+            continue;
+        }
+        sanitized[key] = sanitizeMongoInput(value);
+    }
+    return sanitized;
+}
+
+app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+        req.body = sanitizeMongoInput(req.body);
+    }
+    if (req.query && typeof req.query === 'object') {
+        req.query = sanitizeMongoInput(req.query);
+    }
+    if (req.params && typeof req.params === 'object') {
+        req.params = sanitizeMongoInput(req.params);
+    }
+    next();
+});
 
 // Wrapper de sesión diferido para inicializar MongoStore después de que clientdb se conecte
 app.use((req, res, next) => {
@@ -199,9 +345,14 @@ app.get('/api/auth/discord', (req, res) => {
         }
     }
 
+    const state = crypto.randomBytes(24).toString('hex');
+    if (req.session) {
+        req.session.oauthState = state;
+    }
+
     const client_id = process.env.ClientID || '721903366837501975';
     const redirect_uri = encodeURIComponent('http://localhost:3000/api/auth/discord/redirect');
-    const discordOAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify+guilds`;
+    const discordOAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify+guilds&state=${state}`;
     
     res.redirect(discordOAuthUrl);
 });
@@ -211,12 +362,19 @@ app.get('/api/auth/discord/login', (req, res) => {
 });
 
 app.get('/api/auth/discord/redirect', async (req, res) => {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
 
     if (error) {
         console.warn(`[Discord Auth] Autorización cancelada o denegada por usuario: ${error}`);
         return res.redirect(`${FRONTEND_URL}/index.html?estado=acceso_denegado`);
     }
+
+    // Validación anti-CSRF del parámetro state
+    if (!state || !req.session?.oauthState || state !== req.session.oauthState) {
+        console.warn(`[Discord Auth] Posible ataque CSRF: el parámetro 'state' no coincide con la sesión.`);
+        return res.redirect(`${FRONTEND_URL}/index.html?estado=csrf_invalido`);
+    }
+    delete req.session.oauthState;
 
     if (!code) {
         return res.status(400).send('No se proporcionó ningún código de autorización.');
@@ -279,7 +437,7 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
                     nombre: perfilExistente.perfil.Nombre,
                     rol: String(perfilExistente.estado?.Rol ?? perfilExistente.perfil?.Rol ?? 'Estudiante').replace(/^profesor$/i, 'Docente'),
                     estado: perfilExistente.estado || {},
-                    reputacion: perfilExistente.perfil.Reputacion ?? 0,
+                    reputacion: perfilExistente.estado?.Reputacion ?? perfilExistente.Reputacion ?? 0,
                     grado: perfilExistente.perfil.Grado ?? 'F',
                     fechaCreacion: perfilExistente.metadata.fechaCreacion ?? new Date().toISOString(),
                     energia: soulExistente?.nucleo?.energy ?? null,
@@ -287,6 +445,7 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
                     lugarExploracion: perfilExistente.perfil.UltimoLugar ?? 'Ninguno',
                     Historia: perfilExistente.perfil.Historia ?? '',
                     avatarURL: perfilExistente.perfil.avatarURL ?? '',
+                social: perfilExistente.social || {},
                     recompensaReclamada: ahora < proximaDisponible ?? false
                 };
                 // Redirigimos al dashboard del frontend
@@ -357,17 +516,21 @@ app.get('/api/combat/characters', async (req, res) => {
         // 3. Mapear solo los campos necesarios para el frontend
         const resultado = personajes.map(char => {
             const charIdStr = char._id.toString();
-            const soul = soulsMap[charIdStr] || {};
+            const soul = soulsMap[charIdStr] || null;
+            // Sin documento Soul (o con la creación sin terminar) el personaje
+            // no tiene sistema de combate inicializado
+            const tieneAlma = Boolean(soul && (soul.nucleo || soul.stats) && soul.isFinish !== false);
             return {
                 _id: charIdStr,
                 nombre: char.perfil?.Nombre || 'Sin nombre',
                 avatarURL: char.perfil?.avatarURL || '',
                 Historia: char.perfil?.Historia || null,
-                resplandor: soul.sendero?.resplandor || 'I',
-                FE: soul.sendero?.StelarFragments || 0,
-                HP: soul.nucleo?.HP || 0,
+                tieneAlma,
+                resplandor: soul?.sendero?.resplandor || 'I',
+                FE: soul?.sendero?.StelarFragments || 0,
+                HP: soul?.nucleo?.HP || 0,
                 // Un personaje está derrotado si su HP es 0 o menos
-                derrotado: (soul.nucleo?.HP ?? 1) <= 0
+                derrotado: tieneAlma && (soul.nucleo?.HP ?? 1) <= 0
             };
         });
 
@@ -1347,9 +1510,8 @@ app.put('/api/admin/npcs/:id', async (req, res) => {
     }
 });
 
-// GET /api/admin/regiones (Obtener todas las regiones)
-app.get('/api/admin/regiones', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// GET /api/admin/regiones (Obtener todas las regiones - Solo Admins/Mods)
+app.get('/api/admin/regiones', requireAdminOrMod, async (req, res) => {
     try {
         const db = clientdb.db(dbname);
         const regionesList = await db.collection('Regiones').find({}).toArray();
@@ -1360,19 +1522,20 @@ app.get('/api/admin/regiones', async (req, res) => {
     }
 });
 
-// POST /api/admin/regiones (Crear nueva región)
-app.post('/api/admin/regiones', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// POST /api/admin/regiones (Crear nueva región - Solo Admins/Mods)
+app.post('/api/admin/regiones', requireAdminOrMod, async (req, res) => {
     try {
         const db = clientdb.db(dbname);
         const { region } = req.body;
         if (!region || !region._id || !region.Nombre) {
             return res.status(400).json({ error: 'Faltan campos obligatorios para la región (_id, Nombre).' });
         }
-        const existing = await db.collection('Regiones').findOne({ _id: region._id });
+        const regId = String(region._id).trim();
+        const existing = await db.collection('Regiones').findOne({ _id: regId });
         if (existing) {
             return res.status(400).json({ error: 'Ya existe una región con este ID.' });
         }
+        region._id = regId;
         if (!region.areas) region.areas = {};
         await db.collection('Regiones').insertOne(region);
         res.json({ success: true, message: 'Región creada exitosamente.', region });
@@ -1382,11 +1545,10 @@ app.post('/api/admin/regiones', async (req, res) => {
     }
 });
 
-// PUT /api/admin/regiones/:id (Actualizar región completa o parcial con operaciones atómicas)
-app.put('/api/admin/regiones/:id', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// PUT /api/admin/regiones/:id (Actualizar región completa o parcial con operaciones atómicas - Solo Admins/Mods)
+app.put('/api/admin/regiones/:id', requireAdminOrMod, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { region, updateQuery } = req.body;
         const db = clientdb.db(dbname);
         const collection = db.collection('Regiones');
@@ -1397,7 +1559,7 @@ app.put('/api/admin/regiones/:id', async (req, res) => {
         }
 
         if (updateQuery && typeof updateQuery === 'object') {
-            // Operación atómica de MongoDB ($set, $unset, etc.)
+            // Operación atómica de MongoDB ($set, $unset, etc.) autorizada para administradores
             await collection.updateOne({ _id: id }, updateQuery);
         } else if (region) {
             region._id = id;
@@ -1414,11 +1576,10 @@ app.put('/api/admin/regiones/:id', async (req, res) => {
     }
 });
 
-// DELETE /api/admin/regiones/:id (Eliminar región)
-app.delete('/api/admin/regiones/:id', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// DELETE /api/admin/regiones/:id (Eliminar región - Solo Admins/Mods)
+app.delete('/api/admin/regiones/:id', requireAdminOrMod, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const db = clientdb.db(dbname);
         await db.collection('Regiones').deleteOne({ _id: id });
         res.json({ success: true, message: 'Región eliminada exitosamente.' });
@@ -1432,9 +1593,230 @@ app.delete('/api/admin/regiones/:id', async (req, res) => {
 // ENDPOINTS DE ADMINISTRACIÓN: DIÁLOGOS
 // ==========================================
 
-// GET /api/admin/dialogos (Obtener todos los eventos de diálogo)
-app.get('/api/admin/dialogos', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// ─────────────────────────────────────────────────────────────
+// Normalización de los eventos de diálogo que envía el dashboard
+// (variables del evento, StringSelectMenus con sus acciones y modals)
+//
+// Criterio: NO se reconstruyen los objetos desde cero, se copian tal cual
+// y solo se corrigen los campos conocidos. Así un paso con campos antiguos
+// o propios del bot nunca pierde información al guardarse desde la web.
+// ─────────────────────────────────────────────────────────────
+
+const DLG_TIPOS_VARIABLE = ['string', 'number', 'boolean'];
+const DLG_ACCIONES_VALIDAS = ['next', 'jump', 'prev', 'inventory', 'perfil', 'item'];
+const DLG_MAX_BOTONES = 5;
+const DLG_MAX_FILAS = 5;
+const DLG_MAX_OPCIONES_SELECT = 25;
+const DLG_MAX_INPUTS_MODAL = 5;
+
+function dlgTexto(valor, maxLen) {
+    if (valor === null || valor === undefined) return '';
+    const str = String(valor);
+    return maxLen ? str.slice(0, maxLen) : str;
+}
+
+// ¿Es un StringSelectMenu? Se aceptan todas las variantes de nombre que han
+// circulado (el dashboard manda STRING_SELECT, el runtime usa SELECT_MENU).
+function dlgEsSelect(comp) {
+    if (!comp || typeof comp !== 'object') return false;
+    const tipo = String(comp.type || '').toUpperCase().replace(/[\s_-]/g, '');
+    if (tipo === 'STRINGSELECT' || tipo === 'STRINGSELECTMENU' || tipo === 'SELECTMENU' || tipo === 'SELECT') return true;
+    if (tipo === 'BUTTON') return false;
+    return Array.isArray(comp.options);
+}
+
+function dlgSanearVariables(variables) {
+    if (!Array.isArray(variables)) return [];
+    const vistas = new Set();
+    const limpias = [];
+
+    for (const v of variables) {
+        if (!v || typeof v !== 'object') continue;
+        const nombre = dlgTexto(v.name).trim().replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
+        if (!nombre || vistas.has(nombre)) continue;
+        vistas.add(nombre);
+        limpias.push({
+            name: nombre,
+            type: DLG_TIPOS_VARIABLE.includes(v.type) ? v.type : 'string'
+        });
+    }
+
+    return limpias;
+}
+
+// Una opción solo puede escribir en una variable declarada en el evento.
+// Sumar y restar únicamente tienen sentido sobre variables numéricas.
+function dlgSanearSetVar(setVar, variablesPorNombre) {
+    if (!setVar || typeof setVar !== 'object') return null;
+
+    const nombre = dlgTexto(setVar.name).trim();
+    const declarada = variablesPorNombre.get(nombre);
+    if (!declarada) return null;
+
+    const tipo = declarada.type;
+    let modo = setVar.mode === 'add' || setVar.mode === 'sub' ? setVar.mode : 'set';
+    if (tipo !== 'number') modo = 'set';
+
+    let valor;
+    if (tipo === 'number') {
+        valor = Number(setVar.value);
+        if (!Number.isFinite(valor)) valor = 0;
+    } else if (tipo === 'boolean') {
+        valor = setVar.value === true || setVar.value === 'true';
+    } else {
+        valor = dlgTexto(setVar.value, 200);
+    }
+
+    return { name: nombre, type: tipo, mode: modo, value: valor };
+}
+
+function dlgSanearModal(modal) {
+    if (!modal || typeof modal !== 'object') return null;
+
+    const entradas = Array.isArray(modal.inputs) ? modal.inputs.slice(0, DLG_MAX_INPUTS_MODAL) : [];
+    const inputs = entradas
+        .filter(inp => inp && typeof inp === 'object')
+        .map((inp, i) => {
+            const min = Math.min(4000, Math.max(0, Number(inp.minLength) || 0));
+            let max = Math.min(4000, Math.max(0, Number(inp.maxLength) || 0));
+            if (max && max < min) max = min;
+            return {
+                ...inp,
+                customId: dlgTexto(inp.customId, 100).trim() || `campo_${i + 1}`,
+                label: dlgTexto(inp.label, 45) || `Campo ${i + 1}`,
+                style: inp.style === 'paragraph' ? 'paragraph' : 'short',
+                placeholder: dlgTexto(inp.placeholder, 100),
+                required: inp.required !== false,
+                minLength: min,
+                maxLength: max
+            };
+        });
+
+    if (inputs.length === 0) return null;
+
+    return {
+        ...modal,
+        customId: dlgTexto(modal.customId, 100).trim() || 'dialogue_modal',
+        title: dlgTexto(modal.title, 45) || 'Formulario',
+        inputs
+    };
+}
+
+function dlgSanearComponente(comp, variablesPorNombre) {
+    if (!comp || typeof comp !== 'object') return null;
+
+    if (dlgEsSelect(comp)) {
+        const opcionesCrudas = Array.isArray(comp.options) ? comp.options.slice(0, DLG_MAX_OPCIONES_SELECT) : [];
+        const options = opcionesCrudas
+            .filter(o => o && typeof o === 'object')
+            .map((o, i) => {
+                const accion = DLG_ACCIONES_VALIDAS.includes(o.actionType) ? o.actionType : 'next';
+                return {
+                    ...o,
+                    label: dlgTexto(o.label, 100) || `Opción ${i + 1}`,
+                    value: dlgTexto(o.value, 100).trim() || `opcion_${i + 1}`,
+                    description: dlgTexto(o.description, 100) || undefined,
+                    emoji: o.emoji || undefined,
+                    default: o.default === true,
+                    actionType: accion,
+                    actionParam: dlgTexto(o.actionParam, 100),
+                    setVar: dlgSanearSetVar(o.setVar, variablesPorNombre)
+                };
+            });
+
+        if (options.length === 0) return null;
+
+        const minValues = Math.min(options.length, Math.max(0, Number(comp.minValues) || 0));
+        const maxValues = Math.min(options.length, Math.max(minValues || 1, Number(comp.maxValues) || 1));
+
+        return {
+            ...comp,
+            // El runtime (dialogoManager.buildComponentsAsync) espera SELECT_MENU
+            type: 'SELECT_MENU',
+            customId: dlgTexto(comp.customId || comp.custom_id, 100).trim() || 'dialogue_select',
+            placeholder: dlgTexto(comp.placeholder, 150),
+            minValues,
+            maxValues,
+            disabled: comp.disabled === true,
+            options
+        };
+    }
+
+    // Botón
+    const accion = DLG_ACCIONES_VALIDAS.includes(comp.actionType) ? comp.actionType : undefined;
+    const modal = dlgSanearModal(comp.modal);
+    const saneado = {
+        ...comp,
+        type: 'BUTTON',
+        label: dlgTexto(comp.label || comp.text, 80) || 'Botón',
+        customId: dlgTexto(comp.customId || comp.custom_id, 100).trim(),
+        disabled: comp.disabled === true
+    };
+
+    if (accion) saneado.actionType = accion;
+    if (modal) saneado.modal = modal; else delete saneado.modal;
+
+    return saneado;
+}
+
+// Reparte los componentes respetando los límites de Discord:
+// los botones comparten una fila (máx. 5) y cada select ocupa una entera.
+function dlgSanearComponentesDePaso(lista, variablesPorNombre) {
+    const saneados = lista
+        .map(c => dlgSanearComponente(c, variablesPorNombre))
+        .filter(Boolean);
+
+    const botones = saneados.filter(c => c.type === 'BUTTON').slice(0, DLG_MAX_BOTONES);
+    const filasDisponibles = DLG_MAX_FILAS - (botones.length > 0 ? 1 : 0);
+    const selects = saneados.filter(c => c.type === 'SELECT_MENU').slice(0, filasDisponibles);
+
+    // Los selects van primero para que el runtime los coloque en filas propias
+    return [...selects, ...botones];
+}
+
+function dlgSanearPasos(dialogos, variables) {
+    if (!Array.isArray(dialogos)) return [];
+    const variablesPorNombre = new Map(variables.map(v => [v.name, v]));
+
+    return dialogos.map((paso, idx) => {
+        if (!paso || typeof paso !== 'object') return paso;
+
+        // Se conserva el paso íntegro y solo se tocan sus componentes
+        const saneado = { ...paso, step: idx };
+        const crudos = Array.isArray(paso.components)
+            ? paso.components
+            : (Array.isArray(paso.buttons) ? paso.buttons : null);
+
+        if (crudos) {
+            const componentes = dlgSanearComponentesDePaso(crudos, variablesPorNombre);
+            if (componentes.length > 0) {
+                saneado.components = componentes;
+            } else {
+                delete saneado.components;
+            }
+            // `buttons` era el nombre antiguo del mismo array; se unifica en `components`
+            delete saneado.buttons;
+        }
+
+        return saneado;
+    });
+}
+
+// GET /api/admin/dialogos/hooks (Obtener lista de hooks de evento registrados en data/dialogos/funciones_evento)
+app.get('/api/admin/dialogos/hooks', requireAdminOrMod, (req, res) => {
+    try {
+        const dialogoHooks = require('./functions/dialogoHooks');
+        dialogoHooks.cargarHooks();
+        const lista = dialogoHooks.obtenerListaPublica();
+        res.json(lista);
+    } catch (err) {
+        console.error('[Server] Error obteniendo lista de hooks:', err);
+        res.status(500).json({ error: 'Error obteniendo hooks de diálogo' });
+    }
+});
+
+// GET /api/admin/dialogos (Obtener todos los eventos de diálogo - Solo Admins/Mods)
+app.get('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     try {
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
@@ -1465,7 +1847,8 @@ app.get('/api/admin/dialogos', async (req, res) => {
                                         canal: item.canal || { Objetivo: 'MD', ID: null },
                                         mensajeMDPersonalizado: item.mensajeMDPersonalizado || null,
                                         cooldownEspera: item.cooldownEspera || 5,
-                                        dialogos: Array.isArray(item.dialogos) ? item.dialogos : []
+                                        dialogos: Array.isArray(item.dialogos) ? item.dialogos : [],
+                                        variables: dlgSanearVariables(item.variables)
                                     });
                                 }
                             }
@@ -1490,12 +1873,12 @@ app.get('/api/admin/dialogos', async (req, res) => {
     }
 });
 
-// GET /api/admin/dialogos/:id (Obtener un evento específico)
-app.get('/api/admin/dialogos/:id', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// GET /api/admin/dialogos/:id (Obtener un evento específico - Solo Admins/Mods)
+app.get('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     try {
+        const id = String(req.params.id);
         const db = clientdb.db(dbname);
-        const doc = await db.collection('Dialogos').findOne({ _id: req.params.id });
+        const doc = await db.collection('Dialogos').findOne({ _id: id });
         if (!doc) return res.status(404).json({ error: 'Diálogo no encontrado' });
         res.json(doc);
     } catch (err) {
@@ -1504,27 +1887,33 @@ app.get('/api/admin/dialogos/:id', async (req, res) => {
     }
 });
 
-// POST /api/admin/dialogos (Crear nuevo diálogo)
-app.post('/api/admin/dialogos', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// POST /api/admin/dialogos (Crear nuevo diálogo - Solo Admins/Mods)
+app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     try {
-        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos } = req.body;
+        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos, embedPresets, variables, onComplete } = req.body;
         if (!_id) return res.status(400).json({ error: 'El ID del evento es obligatorio.' });
 
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
 
-        const existe = await col.findOne({ _id: String(_id) });
-        if (existe) return res.status(400).json({ error: `Ya existe un diálogo con el ID '${_id}'.` });
+        const variablesSaneadas = dlgSanearVariables(variables);
+        const dialogosSaneados = dlgSanearPasos(dialogos, variablesSaneadas);
+
+        const safeId = String(_id).trim();
+        const existe = await col.findOne({ _id: safeId });
+        if (existe) return res.status(400).json({ error: `Ya existe un diálogo con el ID '${safeId}'.` });
 
         const nuevoDoc = {
-            _id: String(_id),
+            _id: safeId,
             requisitos: requisitos || null,
             limite: Number(limite) || 0,
             canal: canal || { Objetivo: 'MD', ID: null },
             mensajeMDPersonalizado: mensajeMDPersonalizado ? String(mensajeMDPersonalizado).slice(0, 200) : null,
             cooldownEspera: Math.min(20, Math.max(0, Number(cooldownEspera) || 0)),
-            dialogos: Array.isArray(dialogos) ? dialogos : []
+            dialogos: dialogosSaneados,
+            embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
+            variables: variablesSaneadas,
+            onComplete: onComplete || null
         };
 
         await col.insertOne(nuevoDoc);
@@ -1540,15 +1929,17 @@ app.post('/api/admin/dialogos', async (req, res) => {
     }
 });
 
-// PUT /api/admin/dialogos/:id (Editar diálogo existente)
-app.put('/api/admin/dialogos/:id', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// PUT /api/admin/dialogos/:id (Editar diálogo existente - Solo Admins/Mods)
+app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos } = req.body;
+        const id = String(req.params.id);
+        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos, embedPresets, variables, onComplete } = req.body;
 
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
+
+        const variablesSaneadas = dlgSanearVariables(variables);
+        const dialogosSaneados = dlgSanearPasos(dialogos, variablesSaneadas);
 
         const updateFields = {
             requisitos: requisitos !== undefined ? requisitos : null,
@@ -1556,7 +1947,10 @@ app.put('/api/admin/dialogos/:id', async (req, res) => {
             canal: canal || { Objetivo: 'MD', ID: null },
             mensajeMDPersonalizado: mensajeMDPersonalizado ? String(mensajeMDPersonalizado).slice(0, 200) : null,
             cooldownEspera: Math.min(20, Math.max(0, Number(cooldownEspera) || 0)),
-            dialogos: Array.isArray(dialogos) ? dialogos : []
+            dialogos: dialogosSaneados,
+            embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
+            variables: variablesSaneadas,
+            onComplete: onComplete !== undefined ? onComplete : null
         };
 
         const result = await col.updateOne({ _id: id }, { $set: updateFields });
@@ -1574,11 +1968,10 @@ app.put('/api/admin/dialogos/:id', async (req, res) => {
     }
 });
 
-// DELETE /api/admin/dialogos/:id (Eliminar diálogo)
-app.delete('/api/admin/dialogos/:id', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+// DELETE /api/admin/dialogos/:id (Eliminar diálogo - Solo Admins/Mods)
+app.delete('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const db = clientdb.db(dbname);
         await db.collection('Dialogos').deleteOne({ _id: id });
 
@@ -1633,10 +2026,12 @@ app.get('/api/me', async (req, res) => {
             }
 
             req.session.personaje = {
+                id: String(perfilExistente._id),
+                _id: String(perfilExistente._id),
                 nombre: perfilExistente.perfil.Nombre,
                 rol: String(perfilExistente.estado?.Rol ?? perfilExistente.perfil?.Rol ?? 'Estudiante').replace(/^profesor$/i, 'Docente'),
                 estado: perfilExistente.estado || {},
-                reputacion: perfilExistente.perfil.Reputacion ?? 0,
+                reputacion: perfilExistente.estado?.Reputacion ?? perfilExistente.Reputacion ?? 0,
                 grado: perfilExistente.perfil.Grado ?? 'F',
                 fechaCreacion: perfilExistente.metadata.fechaCreacion ?? new Date().toISOString(),
                 energia: energiaFinal,
@@ -1748,8 +2143,9 @@ app.get('/api/personaje/privacidad', async (req, res) => {
             success: true,
             privacidad,
             hasCompanero,
-            personajeId: charDoc._id,
-            personajeNombre: charDoc.Nombre
+            personajeId: String(charDoc._id),
+            personajeNombre: charDoc.perfil?.Nombre || charDoc.Nombre || 'Personaje Activo',
+            avatarURL: charDoc.avatarURL || charDoc.perfil?.avatarURL || ''
         });
     } catch (err) {
         console.error("Error en GET /api/personaje/privacidad:", err);
@@ -2053,15 +2449,27 @@ app.post('/api/personaje/cambiar-activo', async (req, res) => {
             }
         );
 
+        const nuevoPj = {
+            id: String(charDoc._id),
+            _id: String(charDoc._id),
+            nombre: charDoc.perfil?.Nombre || charDoc.Nombre || 'Personaje',
+            avatarURL: charDoc.avatarURL || charDoc.perfil?.avatarURL || '',
+            social: charDoc.social || {}
+        };
+
         if (req.session.personaje) {
-            req.session.personaje.nombre = charDoc.perfil?.Nombre || '';
-            req.session.personaje.avatarURL = charDoc.perfil?.avatarURL || '';
+            req.session.personaje.id = nuevoPj.id;
+            req.session.personaje._id = nuevoPj._id;
+            req.session.personaje.nombre = nuevoPj.nombre;
+            req.session.personaje.avatarURL = nuevoPj.avatarURL;
+            req.session.personaje.social = nuevoPj.social;
         }
 
         res.json({
             success: true,
             personajeActivo: nuevoActivoId,
-            nombre: charDoc.perfil?.Nombre
+            nombre: nuevoPj.nombre,
+            personaje: nuevoPj
         });
     } catch (err) {
         console.error("Error en POST /api/personaje/cambiar-activo:", err);
@@ -2071,17 +2479,35 @@ app.post('/api/personaje/cambiar-activo', async (req, res) => {
 
 // POST /api/personaje/descripcion - Actualiza la descripción del personaje activo (máx 250 caracteres)
 app.post('/api/personaje/descripcion', async (req, res) => {
-    if (!req.session.user) {
+    if (!req.session?.user) {
         return res.status(401).json({ error: 'No autenticado' });
     }
     try {
         const discordID = String(req.session.user.id);
         const dbRol = clientdb.db("Rol_db");
+        const targetPjId = req.body.personajeId;
+        const esAdmin = await esUsuarioAdminOMod(discordID);
 
-        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
-
-        if (!charDoc) {
-            return res.status(404).json({ error: 'Personaje no encontrado' });
+        let charDoc = null;
+        if (targetPjId) {
+            const asNum = Number(targetPjId);
+            const query = !isNaN(asNum)
+                ? { $or: [{ _id: asNum }, { _id: String(targetPjId) }] }
+                : { _id: String(targetPjId) };
+            charDoc = await dbRol.collection("Personajes").findOne(query);
+            if (!charDoc) {
+                return res.status(404).json({ error: 'Personaje no encontrado' });
+            }
+            const isOwner = Boolean(charDoc.ownerID && String(charDoc.ownerID) === discordID);
+            if (!isOwner && !esAdmin) {
+                return res.status(403).json({ error: 'No tienes permiso para editar este personaje (Anti-IDOR).' });
+            }
+        } else {
+            const activeRes = await obtenerPersonajeActivoUsuario(discordID);
+            charDoc = activeRes.charDoc;
+            if (!charDoc) {
+                return res.status(404).json({ error: 'Personaje no encontrado' });
+            }
         }
 
         const nuevaDesc = String(req.body.descripcion || '').trim().slice(0, 250);
@@ -2100,23 +2526,46 @@ app.post('/api/personaje/descripcion', async (req, res) => {
 
 // POST /api/personaje/banner - Actualiza el banner del personaje activo en Cloudinary
 app.post('/api/personaje/banner', async (req, res) => {
-    if (!req.session.user) {
+    if (!req.session?.user) {
         return res.status(401).json({ error: 'No autenticado' });
     }
     try {
         const discordID = String(req.session.user.id);
-        const isWhitelisted = discordID === '665421882694041630';
         const dbRol = clientdb.db("Rol_db");
+        const dbServer = clientdb.db(dbserverName || "Server_db");
+        const targetPjId = req.body.personajeId;
+        const esAdmin = await esUsuarioAdminOMod(discordID);
 
-        const { charDoc, usuarioServer } = await obtenerPersonajeActivoUsuario(discordID);
+        let charDoc = null;
+        let usuarioServer = null;
 
-        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
-        if (!isBooster && !isWhitelisted) {
-            return res.status(403).json({ error: 'Función exclusiva para Server Boosters.' });
+        if (targetPjId) {
+            const asNum = Number(targetPjId);
+            const query = !isNaN(asNum)
+                ? { $or: [{ _id: asNum }, { _id: String(targetPjId) }] }
+                : { _id: String(targetPjId) };
+            charDoc = await dbRol.collection("Personajes").findOne(query);
+            if (!charDoc) {
+                return res.status(404).json({ error: 'Personaje no encontrado' });
+            }
+            const isOwner = Boolean(charDoc.ownerID && String(charDoc.ownerID) === discordID);
+            if (!isOwner && !esAdmin) {
+                return res.status(403).json({ error: 'No tienes permiso para editar el banner de este personaje (Anti-IDOR).' });
+            }
+            usuarioServer = await dbServer.collection("usuarios_server").findOne({ _id: discordID });
+        } else {
+            const activeRes = await obtenerPersonajeActivoUsuario(discordID);
+            charDoc = activeRes.charDoc;
+            usuarioServer = activeRes.usuarioServer;
+            if (!charDoc) {
+                return res.status(404).json({ error: 'Personaje no encontrado' });
+            }
         }
 
-        if (!charDoc) {
-            return res.status(404).json({ error: 'Personaje no encontrado' });
+        const isWhitelisted = discordID === '665421882694041630';
+        const isBooster = Boolean(isWhitelisted || esAdmin || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        if (!isBooster && !isWhitelisted && !esAdmin) {
+            return res.status(403).json({ error: 'Función exclusiva para Server Boosters.' });
         }
 
         const bannerInput = String(req.body.bannerURL || req.body.bannerData || '').trim();
@@ -2127,15 +2576,13 @@ app.post('/api/personaje/banner', async (req, res) => {
         const targetId = charDoc._id;
         const prevBannerUrl = charDoc.perfil?.bannerURL || charDoc.bannerURL;
 
-        // Subir mediante procesarBanner (elimina foto anterior, usa upload_stream con identificador único)
+        // Subir mediante procesarBanner (valida tamaño, magic bytes, anti-SSRF y sube seguro a Cloudinary)
         const finalCloudinaryUrl = await procesarBanner(targetId, bannerInput, prevBannerUrl);
 
         if (!finalCloudinaryUrl) {
             throw new Error("No se pudo obtener la URL de Cloudinary para el banner");
         }
 
-        // NUNCA guardar base64 ni objetos pesados en el documento o JSON del personaje.
-        // Guardar estrictamente la URL HTTPS devuelta por Cloudinary.
         await dbRol.collection("Personajes").updateOne(
             { _id: charDoc._id },
             { $set: { "perfil.bannerURL": finalCloudinaryUrl } }
@@ -2258,8 +2705,9 @@ app.post('/api/personaje/:id/cartelera/anclar', async (req, res) => {
         }
 
         const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
-        if (!isOwner) {
-            return res.status(403).json({ error: 'Solo el autor del personaje puede anclar mensajes' });
+        const esAdmin = await esUsuarioAdminOMod(discordID);
+        if (!isOwner && !esAdmin) {
+            return res.status(403).json({ error: 'Solo el autor del personaje o un moderador puede anclar mensajes' });
         }
 
         const { mensajeId, anclar } = req.body;
@@ -2323,10 +2771,7 @@ app.post('/api/personaje/:id/cartelera/borrar', async (req, res) => {
 
         const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
         const isAuthor = Boolean(msgTarget.autorID && String(msgTarget.autorID) === discordID);
-        const guild = client.guilds.cache.get("716342375303217285") || (await client.guilds.fetch("716342375303217285").catch(() => null));
-        const member = guild ? await guild.members.fetch(discordID).catch(() => null) : null;
-        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
-        const esAdmin = member ? ROLES_ADMIN.some(r => member.roles.cache.has(r)) : false;
+        const esAdmin = await esUsuarioAdminOMod(discordID);
 
         if (!isOwner && !isAuthor && !esAdmin) {
             return res.status(403).json({ error: 'No tienes permiso para borrar este mensaje' });
@@ -2489,8 +2934,9 @@ app.post('/api/personaje/:id/galeria', async (req, res) => {
         }
 
         const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
-        if (!isOwner) {
-            return res.status(403).json({ error: 'Solo el propietario puede editar la galería' });
+        const esAdmin = await esUsuarioAdminOMod(discordID);
+        if (!isOwner && !esAdmin) {
+            return res.status(403).json({ error: 'Solo el propietario o un moderador puede editar la galería' });
         }
 
         // 1. Eliminar imagen de galería y de Cloudinary
@@ -2556,7 +3002,7 @@ app.post('/api/personaje/:id/galeria', async (req, res) => {
             return res.json({ success: true, galeria: nuevaGaleria });
         }
 
-        // 4. Subir nueva foto a Cloudinary
+        // 4. Subir nueva foto a Cloudinary con validación de tamaño, magic bytes y anti-SSRF
         const imgData = req.body.imagenData || req.body.fotoData;
         if (imgData) {
             let galeriaActual = Array.isArray(charDoc.social?.galeria) ? [...charDoc.social.galeria] : [];
@@ -2564,13 +3010,24 @@ app.post('/api/personaje/:id/galeria', async (req, res) => {
                 return res.status(400).json({ error: 'Has alcanzado el límite máximo de 9 imágenes' });
             }
 
+            const imgBuffer = await obtenerYValidarBufferImagen(imgData, MAX_IMAGE_BYTES);
             const imgId = 'img_' + Math.random().toString(36).substring(2, 7);
-            const uploadRes = await cloudinary.uploader.upload(imgData, {
-                folder: "Rol/Galeria",
-                public_id: `${charDoc._id}_${imgId}`,
-                overwrite: true,
-                invalidate: true,
-                resource_type: "image"
+
+            const uploadRes = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: "Rol/Galeria",
+                        public_id: `${charDoc._id}_${imgId}`,
+                        overwrite: true,
+                        invalidate: true,
+                        resource_type: "image"
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                uploadStream.end(imgBuffer);
             });
 
             if (!uploadRes?.secure_url) {
@@ -3505,7 +3962,6 @@ app.delete('/api/combat/room/:code', async (req, res) => {
 
 
 const { v4: uuidv4 } = require("uuid");
-const personas_autorizadas = ["665421882694041630"]; // Array de ID para usuarios que no requieren autorización
 
 // POST /api/combat/admin/request
 // Crea una nueva petición de autorización para administradores
@@ -4474,21 +4930,33 @@ app.post('/api/instituto/clases/crear', async (req, res) => {
         }
 
         const fechaInicio = new Date(inicioProgramado);
-        const fechaFin = new Date(finProgramado);
+        let fechaFin = new Date(finProgramado);
         const ahora = new Date();
 
         if (isNaN(fechaInicio.getTime()) || isNaN(fechaFin.getTime())) {
             return res.status(400).json({ error: 'Fechas de inicio o fin inválidas.' });
         }
 
+        // Si la hora de fin es menor o igual a la de inicio, cruza la medianoche hacia el día siguiente
         if (fechaFin <= fechaInicio) {
-            return res.status(400).json({ error: 'La hora de fin debe ser posterior a la hora de inicio.' });
+            fechaFin = new Date(fechaFin.getTime() + 24 * 60 * 60 * 1000);
         }
 
-        // Regla: Anticipación mínima de 1 hora
-        if (fechaInicio.getTime() - ahora.getTime() < 59 * 60 * 1000) {
-            return res.status(400).json({ error: 'La clase debe programarse con al menos 1 hora de anticipación.' });
+        const duracionMinutosClase = Math.round((fechaFin - fechaInicio) / 60000);
+        if (duracionMinutosClase < 15) {
+            return res.status(400).json({ error: 'La clase debe durar al menos 15 minutos.' });
         }
+        if (duracionMinutosClase > 180) {
+            return res.status(400).json({ error: 'La duración máxima de una clase es de 3 horas (180 minutos).' });
+        }
+
+        // Regla: No más de 1 mes de anticipación
+        const unMesMs = 31 * 24 * 60 * 60 * 1000;
+        if (fechaInicio.getTime() - ahora.getTime() > unMesMs) {
+            return res.status(400).json({ error: 'No se pueden programar clases con más de 1 mes de anticipación.' });
+        }
+
+        // Regla: Anticipación mínima de 1 hora (desactivada en debug para permitir cualquier hora libremente)
 
         const cupoNum = Math.max(10, Math.min(50, parseInt(cupo) || 20));
 
@@ -4496,13 +4964,25 @@ app.post('/api/instituto/clases/crear', async (req, res) => {
         const clasesCol = dbRol.collection("Clases");
 
         // Regla: Máximo 3 clases programadas a la vez por profesor
-        const clasesActivasProfesor = await clasesCol.countDocuments({
+        const clasesActivasProfesor = await clasesCol.find({
             profesorId: charDoc._id,
             estado: 'programada'
-        });
+        }).toArray();
 
-        if (clasesActivasProfesor >= 3) {
+        if (clasesActivasProfesor.length >= 3) {
             return res.status(400).json({ error: 'Has alcanzado el límite máximo de 3 clases programadas a la vez.' });
+        }
+
+        // Regla: Separación mínima de 1 hora entre clases del mismo profesor
+        for (const c of clasesActivasProfesor) {
+            const cStart = new Date(c.inicioProgramado).getTime();
+            const cEnd = new Date(c.finProgramado).getTime();
+            const newStart = fechaInicio.getTime();
+            const newEnd = fechaFin.getTime();
+
+            if (newStart < cEnd && newEnd > cStart) {
+                return res.status(400).json({ error: 'Ya tienes otra clase programada que se solapa con este horario.' });
+            }
         }
 
         const dbServer = clientdb.db(dbserverName || "Server_db");
@@ -4570,8 +5050,18 @@ app.post('/api/instituto/clases/crear', async (req, res) => {
             duracionMinutos: Math.round((fechaFin - fechaInicio) / 60000),
             cupo: cupoNum,
             estado: 'programada',
+            asistenciaConfirmada: false,
+            inicioReal: null,
+            finReal: null,
+            avisos: {
+                mismoDia: false,
+                profe30: false,
+                profe1: false
+            },
             oficial: false,
             saldoAlCrear: charDoc.economia?.Lumens ?? 0,
+            discordRoleId: null,
+            rolEliminado: false,
             recompensas: {
                 gradoPuntos: 3,
                 fragmentoEstelar: 1
@@ -4663,6 +5153,43 @@ app.post('/api/instituto/clases/:id/inscribir', async (req, res) => {
             { $push: { inscritos: nuevoInscrito } }
         );
 
+        // Manejo del Rol temporal en Discord para los alumnos inscritos
+        let targetRoleId = clase.discordRoleId;
+        if (client) {
+            try {
+                let guild = null;
+                if (clase.salonId) {
+                    const canal = client.channels.cache.get(clase.salonId) || await client.channels.fetch(clase.salonId).catch(() => null);
+                    if (canal) guild = canal.guild;
+                }
+                if (!guild) guild = client.guilds.cache.first();
+
+                if (guild) {
+                    if (!targetRoleId) {
+                        const nombreRol = `[${clase.salon || 'Salón'}]-${clase.profesorUserId}`;
+                        const createdRole = await guild.roles.create({
+                            name: nombreRol,
+                            color: '#a8c5ff',
+                            reason: `Rol temporal de clase ${clase.titulo} (${clase._id})`
+                        });
+                        targetRoleId = createdRole.id;
+                        await clasesCol.updateOne(
+                            { _id: clase._id },
+                            { $set: { discordRoleId: targetRoleId, rolEliminado: false } }
+                        );
+                    }
+                    if (targetRoleId) {
+                        const member = await guild.members.fetch(String(discordID)).catch(() => null);
+                        if (member) {
+                            await member.roles.add(targetRoleId).catch(err => console.warn('No se pudo asignar rol al alumno:', err.message));
+                        }
+                    }
+                }
+            } catch (errRole) {
+                console.error('Error gestionando rol temporal en Discord para inscripción:', errRole.message);
+            }
+        }
+
         // 2. Guardar en el personaje activo: personajes.instituto.clases
         await dbRol.collection("Personajes").updateOne(
             { _id: charDoc._id },
@@ -4724,6 +5251,26 @@ app.post('/api/instituto/clases/:id/cancelar-inscripcion', async (req, res) => {
             { $pull: { inscritos: { userId: String(discordID) } } }
         );
 
+        // Retirar rol temporal en Discord si existe
+        if (clase.discordRoleId && client) {
+            try {
+                let guild = null;
+                if (clase.salonId) {
+                    const canal = client.channels.cache.get(clase.salonId) || await client.channels.fetch(clase.salonId).catch(() => null);
+                    if (canal) guild = canal.guild;
+                }
+                if (!guild) guild = client.guilds.cache.first();
+                if (guild) {
+                    const member = await guild.members.fetch(String(discordID)).catch(() => null);
+                    if (member) {
+                        await member.roles.remove(clase.discordRoleId).catch(() => null);
+                    }
+                }
+            } catch (errRem) {
+                console.warn('Error retirando rol al cancelar inscripción:', errRem.message);
+            }
+        }
+
         // Quitar en Personajes
         await dbRol.collection("Personajes").updateOne(
             { _id: charDoc._id },
@@ -4767,6 +5314,34 @@ app.post('/api/instituto/clases/:id/cancelar-profesor', async (req, res) => {
             { $set: { estado: 'cancelada', canceladaEn: new Date().toISOString() } }
         );
 
+        // Eliminar rol temporal en Discord (una sola llamada al API)
+        if (clase.discordRoleId) {
+            let eliminado = false;
+            if (client) {
+                try {
+                    let guild = null;
+                    if (clase.salonId) {
+                        const canal = client.channels.cache.get(clase.salonId) || await client.channels.fetch(clase.salonId).catch(() => null);
+                        if (canal) guild = canal.guild;
+                    }
+                    if (!guild) guild = client.guilds.cache.first();
+                    if (guild) {
+                        await guild.roles.delete(clase.discordRoleId, `Clase cancelada por el profesor (${clase._id})`).catch(err => {
+                            if (err.code === 10011) return null;
+                            throw err;
+                        });
+                        eliminado = true;
+                    }
+                } catch (errDelRole) {
+                    console.error('Error eliminando rol al cancelar clase:', errDelRole.message);
+                }
+            }
+            await clasesCol.updateOne(
+                { _id: clase._id },
+                { $set: { rolEliminado: eliminado } }
+            );
+        }
+
         // Liberar el salón para que vuelva a estar disponible
         if (clase.salonId) {
             try {
@@ -4782,6 +5357,23 @@ app.post('/api/instituto/clases/:id/cancelar-profesor', async (req, res) => {
             } catch (errSalon) {
                 console.error("Error liberando salón en cancelación:", errSalon);
             }
+        }
+
+        // Si habia mensaje de aviso en MD al docente, actualizarlo para reflejar la cancelacion
+        if (clase.docenteMensajeId && client) {
+            try {
+                const docenteUser = client.users.cache.get(clase.profesorUserId) || await client.users.fetch(clase.profesorUserId).catch(() => null);
+                if (docenteUser) {
+                    const dm = docenteUser.dmChannel || await docenteUser.createDM();
+                    const msg = await dm.messages.fetch(clase.docenteMensajeId).catch(() => null);
+                    if (msg) {
+                        await msg.edit({
+                            content: `🚫 **Clase cancelada:** Has cancelado la clase **${clase.titulo || ""}.**`,
+                            components: []
+                        }).catch(() => null);
+                    }
+                }
+            } catch (errDmCancel) {}
         }
 
         res.json({
@@ -4806,7 +5398,9 @@ clientdb.iniciarServidorWeb = () => {
             ttl: 7 * 24 * 60 * 60 // 7 días en segundos
         }),
         cookie: {
-            secure: false,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días en ms
         }
     });
