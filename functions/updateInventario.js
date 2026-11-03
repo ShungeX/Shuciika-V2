@@ -8,6 +8,7 @@ const transaccionCache = require("../utils/cache");
 const getXPSoul = require("./getXPSoul.js");
 const levelsEmitter = require("./emitterShuciika.js");
 const dbobjetos = db2.collection("Objetos_globales")
+const { moverLumens } = require("./Economia/lumens")
             /**
              * 
              * @param {Client} client
@@ -42,11 +43,9 @@ module.exports = async(client, interaction, characterId, data) => {
         if (data.typeLoot === "lumens") {
             if (isNaN(data.cantidad)) return `Hubo un error al asignar este valor: ${data.cantidad} - No es un numero`;
 
-            await personajes.updateOne(pjFilter, {
-                $inc: {
-                    "economia.Lumens": Number(data.cantidad),
-                    Dinero: Number(data.cantidad)
-                }
+            await moverLumens({
+                personajeId: personaje._id, delta: Number(data.cantidad), motivo: data.motivo || "exploracion",
+                opId: data.opId, ref: data.ref || {},
             });
         } else if (data.typeLoot === "xp" || data.typeLoot === "polvoEstelar" || data.typeLoot === "polvo") {
             if (isNaN(data.cantidad)) return `Hubo un error al asignar este valor: ${data?.cantidad} - No es un numero`;

@@ -6,6 +6,7 @@ const {
     esSelect,
     accionDeComponente,
     marcarPasoResuelto,
+    enviarRespuestaDePlantilla,
     ejecutarAccionDialogo
 } = require("../../dialogoAcciones");
 
@@ -65,7 +66,7 @@ module.exports = crearModal({
             return interaction.reply({ content: "Este diálogo ya no está activo o ha expirado 〒▽〒", flags: ["Ephemeral"] });
         }
 
-        const { currentDialogue } = obtenerPasoActual(userData);
+        const { dialogue, currentDialogue } = obtenerPasoActual(userData);
 
         // El paso se cierra aquí, no al abrir el modal: si el usuario lo
         // cancela, el diálogo sigue esperando su respuesta.
@@ -87,6 +88,11 @@ module.exports = crearModal({
         if (!boton) boton = botones.find(b => b.modal);
 
         const { actionType, actionParam } = accionDeComponente(boton);
+
+        // Después de volcar los campos: las variantes pueden reaccionar a lo escrito
+        if (boton?.respuesta) {
+            await enviarRespuestaDePlantilla({ interaction, userData, dialogue, plantillaId: boton.respuesta });
+        }
 
         await ejecutarAccionDialogo({
             interaction,

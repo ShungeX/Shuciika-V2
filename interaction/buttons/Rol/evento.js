@@ -1,8 +1,38 @@
+const fs = require('fs');
+const path = require('path');
 const { crearBoton } = require('../../../utils/constructores/crearComponente');
-const dialogoManager = require('../../../functions/dialogoManager');
+const { responderEfimero } = require('../../eventos/_comun');
+
+// Cada evento vive en su propio archivo de interaction/eventos (fuera de buttons/, para que el loader no lo tome por un botón):
+//   module.exports = { id: "campana_resonancia", acciones: { tocar: async (ctx) => {}, observar: async (ctx) => {} } }
+// customId: evento-<userId>-<characterId>-<idEvento>-<accion>-<extras...>
+// Si el customId no trae acción se ejecuta acciones.default. Los archivos que empiezan por "_" son utilidades, no eventos.
+const EVENTOS_DIR = path.join(__dirname, '..', '..', 'eventos');
+
+function cargarEventos() {
+    const eventos = new Map();
+    for (const archivo of fs.readdirSync(EVENTOS_DIR)) {
+        if (!archivo.endsWith('.js') || archivo.startsWith('_')) continue;
+        try {
+            const evento = require(path.join(EVENTOS_DIR, archivo));
+            if (!evento?.id || typeof evento.acciones !== 'object') {
+                console.error(`⚠️ [evento] '${archivo}' no exporta { id, acciones }`);
+                continue;
+            }
+            if (eventos.has(evento.id)) console.error(`⚠️ [evento] id duplicado '${evento.id}' en '${archivo}'`);
+            eventos.set(evento.id, evento);
+        } catch (err) {
+            console.error(`⚠️ [evento] Error al cargar '${archivo}':`, err.message);
+        }
+    }
+    return eventos;
+}
+
+const eventos = cargarEventos();
 
 module.exports = crearBoton({
     customId: "evento",
+    // Los botones de evento enviados a un canal no llevan userId: manejarComponente solo aplica soloAutor si lo llevan
     soloAutor: true,
     requirements: {
         character: { obtener: true, required: false },
@@ -10,43 +40,16 @@ module.exports = crearBoton({
         cachepj: { obtener: true, required: false }
     },
 
-    ejecutar: async ({ client, interaction, character, componentData: { userId, characterId, extras } }) => {
-        const eventoTipo = extras && extras.length > 0 ? extras[0] : null;
+    ejecutar: async (ctx) => {
+        const [idEvento, accion, ...extras] = ctx.componentData.extras || [];
+        const acciones = eventos.get(idEvento)?.acciones || {};
+        const nombreAccion = accion || 'default';
+        const ejecutarAccion = Object.hasOwn(acciones, nombreAccion) ? acciones[nombreAccion] : null;
 
-        if (eventoTipo === "bienvenida_rol") {
-            // Deshabilitar el botón en el mensaje original para evitar clics duplicados
-            try {
-                if (interaction.message?.components?.length > 0) {
-                    const clonedComponents = JSON.parse(JSON.stringify(interaction.message.components));
-                    for (const row of clonedComponents) {
-                        if (row.components && Array.isArray(row.components)) {
-                            for (const comp of row.components) {
-                                if (comp.type === 2) comp.disabled = false;
-                            }
-                        }
-                    }
-                    const updatePayload = { components: clonedComponents };
-                    if (interaction.message.flags?.has?.("IsComponentsV2") || interaction.message.flags?.toArray?.()?.includes("IsComponentsV2")) {
-                        updatePayload.flags = ["IsComponentsV2"];
-                    }
-                    await interaction.update(updatePayload).catch(() => {});
-                }
-            } catch (err) {
-                console.error("[evento] Error desactivando botón en mensaje:", err.message);
-            }
-
-            const charId = characterId || character?._id;
-            await dialogoManager.startDialogue("events", "bienvenida_instituto", interaction, interaction.user, {
-                charId: charId,
-                context: {
-                    characterId: charId
-                }
-            });
-            return;
+        if (typeof ejecutarAccion !== 'function') {
+            return responderEfimero(ctx.interaction, "Este evento ya no se encuentra disponible 〒▽〒");
         }
 
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: "Este evento ya no se encuentra disponible 〒▽〒", flags: ["Ephemeral"] });
-        }
+        await ejecutarAccion({ ...ctx, evento: { id: idEvento, accion, extras } });
     }
 });

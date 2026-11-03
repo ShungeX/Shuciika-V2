@@ -47,6 +47,44 @@ async function esUsuarioAdminOMod(discordID) {
     }
 }
 
+/**
+ * ¿El usuario pertenece al servidor del Instituto?
+ * Se le pregunta al bot, que ya vive dentro del gremio: así el dato sigue
+ * siendo cierto aunque alguien se salga después de iniciar sesión.
+ * Devuelve null cuando no se puede saber (bot aún sin arrancar), para no
+ * echar a nadie por un fallo nuestro.
+ * @returns {Promise<boolean|null>}
+ */
+async function esMiembroDelServidor(discordID) {
+    if (!discordID || !client) return null;
+
+    try {
+        const guild = client.guilds.cache.get(GUILD_ID) || (await client.guilds.fetch(GUILD_ID).catch(() => null));
+        if (!guild) return null;
+        const member = await guild.members.fetch(String(discordID)).catch(() => null);
+        return Boolean(member);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Lo mismo, pero leyendo la lista de gremios del propio OAuth (scope `guilds`).
+ * Sirve de respaldo en el login si el bot todavía no está listo.
+ * @returns {Promise<boolean|null>}
+ */
+async function estaEnGuildSegunOAuth(accessToken) {
+    try {
+        const { data } = await axios.get('https://discord.com/api/v10/users/@me/guilds', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        return Array.isArray(data) && data.some(g => String(g.id) === GUILD_ID);
+    } catch (err) {
+        console.warn('[Auth] No se pudo leer la lista de servidores del usuario:', err.response?.data || err.message);
+        return null;
+    }
+}
+
 async function requireAdminOrMod(req, res, next) {
     if (!req.session?.user) {
         return res.status(401).json({ error: 'No autenticado' });
@@ -334,8 +372,13 @@ app.use((req, res, next) => {
 });
 
 // Ruta de inicio de sesión con Discord (verifica si ya existe sesión activa)
-app.get('/api/auth/discord', (req, res) => {
+app.get('/api/auth/discord', async (req, res) => {
     if (req.session && req.session.user) {
+        if (await esMiembroDelServidor(req.session.user.id) === false) {
+            console.log(`[Auth] ${req.session.user.username} ya no está en el servidor. Redirigiendo a fuera_del_servidor.`);
+            return res.redirect(`${FRONTEND_URL}/index.html?estado=fuera_del_servidor`);
+        }
+
         if (req.session.personaje) {
             console.log(`[Auth] Sesión activa encontrada para ${req.session.user.username}. Redirigiendo directo a dashboard.`);
             return res.redirect(`${FRONTEND_URL}/dashboard.html`);
@@ -406,8 +449,17 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
                 },
             });
 
-            // Ahora sí verás esto en la terminal de Node
-            console.log("Tokens de Discord:", output.data);
+            // Primer filtro: pertenecer al Instituto. El scope `guilds` del
+            // OAuth se pide justo para esto. Se intenta primero con el bot y,
+            // si aún no está listo, con la lista de gremios del propio OAuth.
+            let enServidor = await esMiembroDelServidor(userInfo.data.id);
+            if (enServidor === null) enServidor = await estaEnGuildSegunOAuth(access);
+
+            if (enServidor === false) {
+                console.log(`[Auth] ${userInfo.data.username} no pertenece al servidor. Redirigiendo a fuera_del_servidor.`);
+                return res.redirect(`${FRONTEND_URL}/index.html?estado=fuera_del_servidor`);
+            }
+
             const db = clientdb.db(dbname);
 
             // 2. Buscamos el personaje activo del usuario según usuario.nix.personajeActivo
@@ -787,6 +839,7 @@ app.post('/api/admin/objetos', async (req, res) => {
             },
             inStore: typeof objeto.inStore !== "undefined" ? Boolean(objeto.inStore) : false,
             precio: new Int32(objeto.inStore ? Number(objeto.precio || 0) : 0),
+            en_tienda: require('./functions/mensajesServidor').normalizarTiendas(objeto.en_tienda),
             vendido: new Int32(0),
             fecha: fechaMexico,
             evento_origen: objeto.evento_origen || null,
@@ -828,6 +881,7 @@ app.post('/api/admin/objetos', async (req, res) => {
         };
 
         await collection.updateOne({ _id: region }, { $push: { Objetos: normalizedObjeto } });
+        refrescarTiendasEnSegundoPlano(normalizedObjeto.en_tienda);
         res.json({ success: true, message: 'Objeto creado exitosamente.', objeto: normalizedObjeto });
     } catch (err) {
         console.error(err);
@@ -889,6 +943,8 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
             },
             inStore: typeof objeto.inStore !== "undefined" ? Boolean(objeto.inStore) : false,
             precio: new Int32(objeto.inStore ? Number(objeto.precio || 0) : 0),
+            // Si el formulario no lo manda se conservan las tiendas que ya tenía
+            en_tienda: require('./functions/mensajesServidor').normalizarTiendas(objeto.en_tienda !== undefined ? objeto.en_tienda : targetObj.en_tienda),
             vendido: targetObj.vendido || new Int32(0),
             fecha: targetObj.fecha,
             evento_origen: objeto.evento_origen || null,
@@ -934,6 +990,8 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
             { $set: { "Objetos.$": normalizedObjeto } }
         );
 
+        // Las tiendas donde estaba y donde está ahora (precio, nombre o estantería pueden haber cambiado)
+        refrescarTiendasEnSegundoPlano([...(targetObj.en_tienda || []), ...normalizedObjeto.en_tienda]);
         res.json({ success: true, message: 'Objeto actualizado exitosamente.', objeto: normalizedObjeto });
     } catch (err) {
         console.error(err);
@@ -1633,7 +1691,7 @@ function dlgSanearVariables(variables) {
     for (const v of variables) {
         if (!v || typeof v !== 'object') continue;
         const nombre = dlgTexto(v.name).trim().replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
-        if (!nombre || vistas.has(nombre)) continue;
+        if (!nombre || vistas.has(nombre) || dlgNombreReservado(nombre)) continue;
         vistas.add(nombre);
         limpias.push({
             name: nombre,
@@ -1702,7 +1760,120 @@ function dlgSanearModal(modal) {
     };
 }
 
-function dlgSanearComponente(comp, variablesPorNombre) {
+// ── Condiciones, variantes y plantillas de respuesta ──
+// Estructuras nuevas y completamente definidas por el dashboard, así que aquí sí
+// se sanea con lista blanca (a diferencia de los pasos, que traen campos antiguos).
+// Las reglas deben coincidir con functions/dialogoCondiciones.js.
+
+const DLG_OPERADORES = ['=', '!=', '>', '>=', '<', '<=', 'contiene'];
+const DLG_OPERADORES_ORDEN = ['>', '>=', '<', '<='];
+const DLG_PROFUNDIDAD_MAX = 3;
+const DLG_MAX_ITEMS_GRUPO = 10;
+const DLG_MAX_VARIANTES = 10;
+const DLG_MAX_PLANTILLAS = 50;
+
+// Tags internos de parseTextAsync: una variable con su nombre los eclipsaría,
+// porque el contexto se consulta antes que ellos.
+const DLG_NOMBRES_RESERVADOS = new Set([
+    'user', 'user_name', 'user_id', 'user_avatar',
+    'client', 'client_name', 'client_id', 'client_avatar',
+    'character_id', 'char_id', 'ephemeral'
+]);
+
+function dlgNombreReservado(nombre) {
+    return DLG_NOMBRES_RESERVADOS.has(nombre) || nombre.startsWith('ch_');
+}
+
+// Un nodo inválido se descarta sin tumbar a sus hermanos ni a la variante entera.
+function dlgSanearCondicion(nodo, variablesPorNombre, profundidad = 1) {
+    if (!nodo || typeof nodo !== 'object') return null;
+
+    if (nodo.tipo === 'cond') {
+        const variable = dlgTexto(nodo.variable).trim();
+        const declarada = variablesPorNombre.get(variable);
+        if (!declarada || !DLG_OPERADORES.includes(nodo.operador)) return null;
+        // Mayor/menor solo sobre números
+        if (DLG_OPERADORES_ORDEN.includes(nodo.operador) && declarada.type !== 'number') return null;
+
+        let valor;
+        if (declarada.type === 'number') {
+            valor = Number(nodo.valor);
+            if (!Number.isFinite(valor)) valor = 0;
+        } else if (declarada.type === 'boolean') {
+            valor = nodo.valor === true || nodo.valor === 'true';
+        } else {
+            valor = dlgTexto(nodo.valor, 200);
+        }
+        return { tipo: 'cond', variable, operador: nodo.operador, valor };
+    }
+
+    if (nodo.tipo === 'grupo') {
+        if (profundidad > DLG_PROFUNDIDAD_MAX) return null;
+        const items = (Array.isArray(nodo.items) ? nodo.items : [])
+            .slice(0, DLG_MAX_ITEMS_GRUPO)
+            .map(item => dlgSanearCondicion(item, variablesPorNombre, profundidad + 1))
+            .filter(Boolean);
+        // Un grupo vacío se conserva (puede estar a medio editar); el evaluador lo ignora
+        return { tipo: 'grupo', op: nodo.op === 'O' ? 'O' : 'Y', items };
+    }
+
+    return null;
+}
+
+function dlgSanearVariantes(variantes, variablesPorNombre, { conEmbed = false, conSalto = false } = {}) {
+    if (!Array.isArray(variantes)) return [];
+
+    return variantes
+        .slice(0, DLG_MAX_VARIANTES)
+        .filter(v => v && typeof v === 'object')
+        .map(v => {
+            const limpia = {
+                condicion: dlgSanearCondicion(v.condicion, variablesPorNombre) || { tipo: 'grupo', op: 'Y', items: [] },
+                content: dlgTexto(v.content, 2000)
+            };
+            if (conEmbed) {
+                limpia.embedTitle = dlgTexto(v.embedTitle, 256);
+                limpia.embedDescription = dlgTexto(v.embedDescription, 4096);
+            }
+            if (conSalto) {
+                const salto = Number(v.nextStep);
+                if (v.nextStep !== '' && v.nextStep !== null && v.nextStep !== undefined && Number.isInteger(salto) && salto >= 0) {
+                    limpia.nextStep = salto;
+                }
+            }
+            return limpia;
+        });
+}
+
+function dlgSanearPlantillas(plantillas, variables, embedPresets) {
+    if (!Array.isArray(plantillas)) return [];
+
+    const variablesPorNombre = new Map((variables || []).map(v => [v.name, v]));
+    const presetIds = new Set((Array.isArray(embedPresets) ? embedPresets : []).map(p => p && p.id).filter(Boolean));
+    const vistas = new Set();
+    const limpias = [];
+
+    for (const p of plantillas.slice(0, DLG_MAX_PLANTILLAS)) {
+        if (!p || typeof p !== 'object') continue;
+        const id = dlgTexto(p.id).trim().replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+        if (!id || vistas.has(id)) continue;
+        vistas.add(id);
+
+        limpias.push({
+            id,
+            nombre: dlgTexto(p.nombre, 60) || id,
+            modo: p.modo === 'editar' ? 'editar' : 'nuevo',
+            content: dlgTexto(p.content, 2000),
+            embedPreset: presetIds.has(p.embedPreset) ? p.embedPreset : null,
+            // Las plantillas no navegan: sus variantes solo cambian el texto
+            variantes: dlgSanearVariantes(p.variantes, variablesPorNombre)
+        });
+    }
+
+    return limpias;
+}
+
+function dlgSanearComponente(comp, variablesPorNombre, plantillasIds = new Set()) {
     if (!comp || typeof comp !== 'object') return null;
 
     if (dlgEsSelect(comp)) {
@@ -1725,6 +1896,31 @@ function dlgSanearComponente(comp, variablesPorNombre) {
             });
 
         if (options.length === 0) return null;
+
+        // `respuesta` solo se conserva si la plantilla existe
+        options.forEach(o => { if (!plantillasIds.has(o.respuesta)) delete o.respuesta; });
+
+        // MongoDB guarda `undefined` como null, y discord.js rechaza `emoji: null`:
+        // los opcionales vacíos se quitan en vez de dejarlos sin valor
+        options.forEach(o => {
+            if (!o.description) delete o.description;
+            if (typeof o.emoji === 'string') o.emoji = o.emoji.trim();
+            if (!o.emoji) delete o.emoji;
+        });
+
+        // Discord rechaza el mensaje ENTERO si dos opciones comparten `value`
+        // (COMPONENT_OPTION_VALUE_DUPLICATED), así que se fuerza la unicidad.
+        const valoresUsados = new Set();
+        options.forEach((o, i) => {
+            if (!valoresUsados.has(o.value)) {
+                valoresUsados.add(o.value);
+                return;
+            }
+            let n = i + 1;
+            while (valoresUsados.has(`opt_${n}`)) n++;
+            o.value = `opt_${n}`;
+            valoresUsados.add(o.value);
+        });
 
         const minValues = Math.min(options.length, Math.max(0, Number(comp.minValues) || 0));
         const maxValues = Math.min(options.length, Math.max(minValues || 1, Number(comp.maxValues) || 1));
@@ -1755,15 +1951,16 @@ function dlgSanearComponente(comp, variablesPorNombre) {
 
     if (accion) saneado.actionType = accion;
     if (modal) saneado.modal = modal; else delete saneado.modal;
+    if (plantillasIds.has(comp.respuesta)) saneado.respuesta = comp.respuesta; else delete saneado.respuesta;
 
     return saneado;
 }
 
 // Reparte los componentes respetando los límites de Discord:
 // los botones comparten una fila (máx. 5) y cada select ocupa una entera.
-function dlgSanearComponentesDePaso(lista, variablesPorNombre) {
+function dlgSanearComponentesDePaso(lista, variablesPorNombre, plantillasIds) {
     const saneados = lista
-        .map(c => dlgSanearComponente(c, variablesPorNombre))
+        .map(c => dlgSanearComponente(c, variablesPorNombre, plantillasIds))
         .filter(Boolean);
 
     const botones = saneados.filter(c => c.type === 'BUTTON').slice(0, DLG_MAX_BOTONES);
@@ -1774,9 +1971,10 @@ function dlgSanearComponentesDePaso(lista, variablesPorNombre) {
     return [...selects, ...botones];
 }
 
-function dlgSanearPasos(dialogos, variables) {
+function dlgSanearPasos(dialogos, variables, plantillas = []) {
     if (!Array.isArray(dialogos)) return [];
     const variablesPorNombre = new Map(variables.map(v => [v.name, v]));
+    const plantillasIds = new Set((plantillas || []).map(p => p.id));
 
     return dialogos.map((paso, idx) => {
         if (!paso || typeof paso !== 'object') return paso;
@@ -1788,7 +1986,7 @@ function dlgSanearPasos(dialogos, variables) {
             : (Array.isArray(paso.buttons) ? paso.buttons : null);
 
         if (crudos) {
-            const componentes = dlgSanearComponentesDePaso(crudos, variablesPorNombre);
+            const componentes = dlgSanearComponentesDePaso(crudos, variablesPorNombre, plantillasIds);
             if (componentes.length > 0) {
                 saneado.components = componentes;
             } else {
@@ -1798,8 +1996,107 @@ function dlgSanearPasos(dialogos, variables) {
             delete saneado.buttons;
         }
 
+        // Variantes condicionales del paso (textos del paso y del embed, y salto opcional)
+        const variantes = dlgSanearVariantes(paso.variantes, variablesPorNombre, { conEmbed: true, conSalto: true });
+        if (variantes.length > 0) saneado.variantes = variantes; else delete saneado.variantes;
+
         return saneado;
     });
+}
+
+const DLG_TIPOS_NODO = new Set(['inicio', 'mensaje', 'condicion', 'variable', 'fin', 'nota']);
+
+/**
+ * Sanea el grafo que manda el editor de nodos.
+ *
+ * Los pasos de los nodos Mensaje pasan por el mismo filtro de siempre
+ * (componentes y variantes); lo nuevo son las condiciones de los nodos
+ * Condición y las asignaciones de los nodos Variable, que solo pueden
+ * referirse a variables declaradas en el evento.
+ */
+function dlgSanearGrafo(grafo, variables, plantillas = []) {
+    if (!grafo || typeof grafo !== 'object') return null;
+    const crudos = Array.isArray(grafo.nodes) ? grafo.nodes : [];
+    if (crudos.length === 0) return null;
+
+    const variablesPorNombre = new Map(variables.map(v => [v.name, v]));
+    const plantillasIds = new Set((plantillas || []).map(p => p.id));
+
+    const nodes = [];
+    for (const nodo of crudos) {
+        if (!nodo || typeof nodo !== 'object') continue;
+        if (!nodo.id || !DLG_TIPOS_NODO.has(nodo.type)) continue;
+
+        const pos = nodo.position || {};
+        const saneado = {
+            id: String(nodo.id),
+            type: nodo.type,
+            position: { x: Number(pos.x) || 0, y: Number(pos.y) || 0 },
+            data: {}
+        };
+        const data = nodo.data && typeof nodo.data === 'object' ? nodo.data : {};
+        if (typeof data.titulo === 'string') saneado.data.titulo = data.titulo.slice(0, 48);
+
+        if (nodo.type === 'mensaje') {
+            saneado.data.paso = dlgSanearPasos([data.paso || {}], variables, plantillas)[0];
+            // El índice lo pone el compilador al recorrer el grafo, no el nodo
+            delete saneado.data.paso.step;
+            delete saneado.data.paso.nextStep;
+        } else if (nodo.type === 'condicion') {
+            saneado.data.condicion = dlgSanearCondicion(data.condicion, variablesPorNombre, 1)
+                || { tipo: 'grupo', op: 'Y', items: [] };
+        } else if (nodo.type === 'variable') {
+            saneado.data.setVars = (Array.isArray(data.setVars) ? data.setVars : [])
+                .slice(0, 10)
+                .map(sv => dlgSanearSetVar(sv, variablesPorNombre))
+                .filter(Boolean);
+        } else if (nodo.type === 'fin') {
+            const hook = data.onComplete?.hookId || data.onComplete?.code || '';
+            saneado.data.onComplete = hook ? { hookId: String(hook), code: String(hook) } : null;
+        } else if (nodo.type === 'nota') {
+            saneado.data.texto = String(data.texto || '').slice(0, 600);
+            saneado.data.color = /^#[0-9a-fA-F]{6}$/.test(data.color || '') ? data.color : '#faa61a';
+        }
+
+        nodes.push(saneado);
+    }
+
+    if (nodes.length === 0) return null;
+
+    // Solo un Inicio: el compilador arranca por el primero y los demás
+    // quedarían inalcanzables de todas formas
+    let vistoInicio = false;
+    const definitivos = nodes.filter(n => {
+        if (n.type !== 'inicio') return true;
+        if (vistoInicio) return false;
+        vistoInicio = true;
+        return true;
+    });
+
+    const ids = new Set(definitivos.map(n => n.id));
+    const usadas = new Set();
+    const edges = [];
+    for (const e of Array.isArray(grafo.edges) ? grafo.edges : []) {
+        if (!e || !ids.has(e.source) || !ids.has(e.target)) continue;
+        const salida = String(e.sourceHandle || 'salida');
+        const clave = `${e.source}|${salida}`;
+        // Una salida lleva a un sitio y solo a uno
+        if (usadas.has(clave)) continue;
+        usadas.add(clave);
+        edges.push({
+            id: String(e.id || `${e.source}-${salida}-${e.target}`),
+            source: String(e.source),
+            sourceHandle: salida,
+            target: String(e.target)
+        });
+    }
+
+    const vp = grafo.viewport || {};
+    return {
+        nodes: definitivos,
+        edges,
+        viewport: { x: Number(vp.x) || 0, y: Number(vp.y) || 0, zoom: Number(vp.zoom) || 1 }
+    };
 }
 
 // GET /api/admin/dialogos/hooks (Obtener lista de hooks de evento registrados en data/dialogos/funciones_evento)
@@ -1813,6 +2110,12 @@ app.get('/api/admin/dialogos/hooks', requireAdminOrMod, (req, res) => {
         console.error('[Server] Error obteniendo lista de hooks:', err);
         res.status(500).json({ error: 'Error obteniendo hooks de diálogo' });
     }
+});
+
+// GET /api/admin/dialogos/vinculos (Destinos a los que se puede vincular una variable y si el usuario puede aprobarlos)
+app.get('/api/admin/dialogos/vinculos', requireAdminOrMod, (req, res) => {
+    const { catalogoPublico } = require('./functions/dialogoVinculos');
+    res.json(catalogoPublico(req.session.user.id));
 });
 
 // GET /api/admin/dialogos (Obtener todos los eventos de diálogo - Solo Admins/Mods)
@@ -1848,7 +2151,8 @@ app.get('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
                                         mensajeMDPersonalizado: item.mensajeMDPersonalizado || null,
                                         cooldownEspera: item.cooldownEspera || 5,
                                         dialogos: Array.isArray(item.dialogos) ? item.dialogos : [],
-                                        variables: dlgSanearVariables(item.variables)
+                                        variables: dlgSanearVariables(item.variables),
+                                        plantillas: dlgSanearPlantillas(item.plantillas, dlgSanearVariables(item.variables), item.embedPresets)
                                     });
                                 }
                             }
@@ -1890,18 +2194,24 @@ app.get('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
 // POST /api/admin/dialogos (Crear nuevo diálogo - Solo Admins/Mods)
 app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     try {
-        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos, embedPresets, variables, onComplete } = req.body;
+        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete } = req.body;
         if (!_id) return res.status(400).json({ error: 'El ID del evento es obligatorio.' });
 
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
 
         const variablesSaneadas = dlgSanearVariables(variables);
-        const dialogosSaneados = dlgSanearPasos(dialogos, variablesSaneadas);
+        const plantillasSaneadas = dlgSanearPlantillas(plantillas, variablesSaneadas, embedPresets);
+        const grafoSaneado = dlgSanearGrafo(grafo, variablesSaneadas, plantillasSaneadas);
+        if (!grafoSaneado) return res.status(400).json({ error: 'El evento no trae un grafo válido.' });
 
         const safeId = String(_id).trim();
         const existe = await col.findOne({ _id: safeId });
         if (existe) return res.status(400).json({ error: `Ya existe un diálogo con el ID '${safeId}'.` });
+
+        // Los vínculos de variables al jugador solo los puede crear un aprobador
+        const { fusionarVinculos } = require('./functions/dialogoVinculos');
+        const { variables: variablesConVinculos, rechazados } = fusionarVinculos(variablesSaneadas, variables, [], req.session.user.id);
 
         const nuevoDoc = {
             _id: safeId,
@@ -1910,9 +2220,11 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
             canal: canal || { Objetivo: 'MD', ID: null },
             mensajeMDPersonalizado: mensajeMDPersonalizado ? String(mensajeMDPersonalizado).slice(0, 200) : null,
             cooldownEspera: Math.min(20, Math.max(0, Number(cooldownEspera) || 0)),
-            dialogos: dialogosSaneados,
+            grafo: grafoSaneado,
+            estado: estado === 'publicado' ? 'publicado' : 'borrador',
             embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
-            variables: variablesSaneadas,
+            variables: variablesConVinculos,
+            plantillas: plantillasSaneadas,
             onComplete: onComplete || null
         };
 
@@ -1922,7 +2234,7 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
             dialogoManager.refrescarDialogoLocal(nuevoDoc._id, nuevoDoc);
         } catch (e) { console.error('Error refrescando dialogoManager local:', e.message); }
 
-        res.json({ success: true, message: 'Diálogo creado exitosamente.', data: nuevoDoc });
+        res.json({ success: true, message: 'Diálogo creado exitosamente.', data: nuevoDoc, vinculosRechazados: rechazados });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error creando evento de diálogo' });
@@ -1933,13 +2245,20 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
 app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     try {
         const id = String(req.params.id);
-        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, dialogos, embedPresets, variables, onComplete } = req.body;
+        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete } = req.body;
 
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
 
         const variablesSaneadas = dlgSanearVariables(variables);
-        const dialogosSaneados = dlgSanearPasos(dialogos, variablesSaneadas);
+        const plantillasSaneadas = dlgSanearPlantillas(plantillas, variablesSaneadas, embedPresets);
+        const grafoSaneado = dlgSanearGrafo(grafo, variablesSaneadas, plantillasSaneadas);
+        if (!grafoSaneado) return res.status(400).json({ error: 'El evento no trae un grafo válido.' });
+
+        // Quien no es aprobador conserva los vínculos guardados, mande lo que mande
+        const { fusionarVinculos } = require('./functions/dialogoVinculos');
+        const guardado = await col.findOne({ _id: id }, { projection: { variables: 1 } });
+        const { variables: variablesConVinculos, rechazados } = fusionarVinculos(variablesSaneadas, variables, guardado?.variables, req.session.user.id);
 
         const updateFields = {
             requisitos: requisitos !== undefined ? requisitos : null,
@@ -1947,13 +2266,17 @@ app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
             canal: canal || { Objetivo: 'MD', ID: null },
             mensajeMDPersonalizado: mensajeMDPersonalizado ? String(mensajeMDPersonalizado).slice(0, 200) : null,
             cooldownEspera: Math.min(20, Math.max(0, Number(cooldownEspera) || 0)),
-            dialogos: dialogosSaneados,
+            grafo: grafoSaneado,
+            estado: estado === 'publicado' ? 'publicado' : 'borrador',
             embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
-            variables: variablesSaneadas,
+            variables: variablesConVinculos,
+            plantillas: plantillasSaneadas,
             onComplete: onComplete !== undefined ? onComplete : null
         };
 
-        const result = await col.updateOne({ _id: id }, { $set: updateFields });
+        // `dialogos` era la lista de pasos del editor antiguo: desde el editor
+        // de nodos la fuente de verdad es el grafo y esa copia solo confundiría
+        const result = await col.updateOne({ _id: id }, { $set: updateFields, $unset: { dialogos: '' } });
         if (result.matchedCount === 0) return res.status(404).json({ error: 'Diálogo no encontrado.' });
 
         try {
@@ -1961,7 +2284,7 @@ app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
             dialogoManager.refrescarDialogoLocal(id, { _id: id, ...updateFields });
         } catch (e) { console.error('Error refrescando dialogoManager local:', e.message); }
 
-        res.json({ success: true, message: 'Diálogo actualizado exitosamente.' });
+        res.json({ success: true, message: 'Diálogo actualizado exitosamente.', vinculosRechazados: rechazados, variables: variablesConVinculos });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error actualizando evento de diálogo' });
@@ -1984,6 +2307,266 @@ app.delete('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error eliminando evento de diálogo' });
+    }
+});
+
+// ═══ EDITOR DE EVENTOS: mensajes ComponentsV2 de data/UI_ComponentsV2/eventos ═══
+
+function responderErrorEvento(res, err, contexto) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error(`[Server] ${contexto}:`, err);
+    res.status(500).json({ error: `${contexto}: ${err.message}` });
+}
+
+// GET /api/admin/eventos-mensaje (Lista los eventos con sus componentes ya resueltos - Solo Admins/Mods)
+app.get('/api/admin/eventos-mensaje', requireAdminOrMod, (req, res) => {
+    try {
+        const eventosMensaje = require('./functions/eventosMensaje');
+        res.json(eventosMensaje.listarEventos());
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando eventos');
+    }
+});
+
+// GET /api/admin/eventos-mensaje/destino/:id (Identifica el canal/hilo/foro y lo que necesita para publicar)
+app.get('/api/admin/eventos-mensaje/destino/:id', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const eventosMensaje = require('./functions/eventosMensaje');
+        const { info } = await eventosMensaje.resolverDestino(client, GUILD_ID, req.params.id);
+        res.json(info);
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error comprobando destino');
+    }
+});
+
+// POST /api/admin/eventos-mensaje/enviar (Envía un evento de la carpeta o un ComponentV2 pegado en el dashboard)
+// Body: { canalId, origen: 'evento' | 'json', eventoId?, variante?, json?, tituloForo?, etiquetas? }
+app.post('/api/admin/eventos-mensaje/enviar', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const eventosMensaje = require('./functions/eventosMensaje');
+        const { canalId, origen, eventoId, variante, json, tituloForo, etiquetas } = req.body || {};
+
+        const components = origen === 'json'
+            ? eventosMensaje.componentesDesdeJson(json)
+            : eventosMensaje.obtenerComponentesDeEvento(String(eventoId || ''), variante || null);
+
+        const resultado = await eventosMensaje.enviarEventoMensaje(client, GUILD_ID, { canalId, components, tituloForo, etiquetas });
+        console.log(`[Eventos] ${req.session.user.username || req.session.user.id} envió ${origen === 'json' ? 'un ComponentV2 personalizado' : `'${eventoId}'`} a ${resultado.tipo} ${resultado.channelId}`);
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error enviando evento');
+    }
+});
+
+// ═══ Mensajes del servidor (tiendas y mensajes fijos que el dashboard mantiene al día) ═══
+
+/** Redibuja los paneles de tienda publicados de esos lugares sin hacer esperar a la respuesta HTTP. */
+function refrescarTiendasEnSegundoPlano(lugares) {
+    const lista = (lugares || []).filter(Boolean);
+    if (!client || !lista.length) return;
+    const mensajesServidor = require('./functions/mensajesServidor');
+    mensajesServidor.refrescarPaneles(client, GUILD_ID, clientdb.db("Server_db"), clientdb.db(dbname), { lugares: lista })
+        .catch(err => console.error('[Tiendas] Error refrescando paneles:', err));
+}
+
+// ═══ REGISTRO DE LUMENS (panel de economía) ═══
+// Solo para el dueño del servidor (PERSONAS_AUTORIZADAS): son datos de moderación económica.
+function requireDueño(req, res, next) {
+    if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+    if (!PERSONAS_AUTORIZADAS.includes(String(req.session.user.id))) {
+        return res.status(403).json({ error: 'El registro de Lumens solo está disponible para el dueño del servidor.' });
+    }
+    next();
+}
+
+// GET /api/admin/economia/panel?dias=30 (Resumen, flujos, distribución y ritmo del jugador)
+app.get('/api/admin/economia/panel', requireDueño, async (req, res) => {
+    try {
+        const { fechaMx, contadoresPendientes } = require('./functions/Economia/lumens');
+        const { distribucionActual } = require('./functions/Economia/snapshotEconomia');
+        const { TECHO_TRABAJO } = require('./functions/Economia/analisisEconomia');
+        const db = clientdb.db("Rol_db");
+        const dias = Math.min(Math.max(Number(req.query.dias) || 30, 1), 90);
+        const hoy = fechaMx();
+        const desde = fechaMx(Date.now() - (dias - 1) * 86400_000);
+
+        const [diarios, snaps, actividad, dist] = await Promise.all([
+            db.collection("econ_diario").find({ _id: { $gte: desde } }).sort({ _id: 1 }).toArray(),
+            db.collection("econ_snapshots").find({ _id: { $gte: fechaMx(Date.now() - dias * 86400_000) } },
+                { projection: { top10: 0, negativos: 0 } }).sort({ _id: 1 }).toArray(),
+            db.collection("econ_actividad").aggregate([
+                { $match: { fecha: { $gte: desde } } },
+                { $group: {
+                    _id: "$fecha",
+                    activos: { $sum: 1 },
+                    ingresoTotal: { $sum: "$ingresoTotal" },
+                    ingresoTrabajo: { $sum: "$ingresoTrabajo" },
+                    turnos: { $sum: "$turnos" },
+                    gasto: { $sum: "$gasto" },
+                    conTrabajo: { $sum: { $cond: [{ $gt: ["$turnos", 0] }, 1, 0] } },
+                    sobreTecho: { $sum: { $cond: [{ $gt: ["$ingresoTrabajo", TECHO_TRABAJO] }, 1, 0] } },
+                    sobreTechoMax: { $sum: { $cond: [{ $gt: ["$ingresoTrabajo", TECHO_TRABAJO * 1.1] }, 1, 0] } },
+                } },
+                { $sort: { _id: 1 } },
+            ]).toArray(),
+            distribucionActual(),
+        ]);
+
+        // Los contadores de hoy que aún no se vuelcan (como mucho 1 minuto) se suman en vivo
+        const pendientes = contadoresPendientes(hoy);
+        if (Object.keys(pendientes).length) {
+            let doc = diarios.find(d => d._id === hoy);
+            if (!doc) { doc = { _id: hoy }; diarios.push(doc); }
+            for (const [ruta, valor] of Object.entries(pendientes)) {
+                const partes = ruta.split('.');
+                let nodo = doc;
+                for (const p of partes.slice(0, -1)) nodo = nodo[p] ??= {};
+                nodo[partes.at(-1)] = (nodo[partes.at(-1)] || 0) + valor;
+            }
+        }
+
+        // Nombres de los objetos vendidos, para la vista de Tienda
+        const idsVendidos = [...new Set(diarios.flatMap(d => Object.keys(d.tienda || {})))]
+            .map(Number).filter(n => !Number.isNaN(n));
+        const objetos = idsVendidos.length ? await db.collection("Objetos_globales").aggregate([
+            { $unwind: "$Objetos" },
+            { $match: { "Objetos.ID": { $in: idsVendidos } } },
+            { $project: { _id: 0, region: "$_id", ID: "$Objetos.ID", Nombre: "$Objetos.Nombre", precio: "$Objetos.precio" } },
+        ]).toArray() : [];
+        const nombresObjetos = {};
+        for (const o of objetos) nombresObjetos[o.ID] ??= { nombre: o.Nombre, region: o.region, precio: o.precio };
+
+        res.json({ hoy, desde, dias, techo: TECHO_TRABAJO, diarios, snapshots: snaps, actividad, distribucion: dist, nombresObjetos });
+    } catch (err) {
+        console.error('[Economía] Error armando el panel:', err);
+        res.status(500).json({ error: 'No se pudo cargar el registro de Lumens.' });
+    }
+});
+
+// GET /api/admin/economia/transferencias?dias=30 (Moderación: solo para revisión humana, nunca sanciona sola)
+app.get('/api/admin/economia/transferencias', requireDueño, async (req, res) => {
+    try {
+        const { analizarTransferencias } = require('./functions/Economia/analisisEconomia');
+        const dias = Math.min(Math.max(Number(req.query.dias) || 30, 1), 60);
+        res.json(await analizarTransferencias(new Date(Date.now() - dias * 86400_000)));
+    } catch (err) {
+        console.error('[Economía] Error analizando transferencias:', err);
+        res.status(500).json({ error: 'No se pudieron analizar las transferencias.' });
+    }
+});
+
+// GET /api/admin/economia/movimientos?limit=50&personajeId=&userId=&motivo=&antes=<ISO> (Libro de movimientos)
+app.get('/api/admin/economia/movimientos', requireDueño, async (req, res) => {
+    try {
+        const filtro = {};
+        if (req.query.personajeId) filtro.personajeId = isNaN(Number(req.query.personajeId)) ? String(req.query.personajeId) : Number(req.query.personajeId);
+        if (req.query.userId) filtro.userId = String(req.query.userId);
+        if (req.query.motivo) filtro.motivo = String(req.query.motivo);
+        if (req.query.antes && !isNaN(Date.parse(req.query.antes))) filtro.ts = { $lt: new Date(req.query.antes) };
+        const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+
+        const filas = await clientdb.db("Rol_db").collection("econ_movimientos")
+            .find(filtro).sort({ ts: -1 }).limit(limit).toArray();
+
+        // Nombre del personaje para leer la tabla sin buscar IDs a mano
+        const ids = [...new Set(filas.flatMap(f => [f.personajeId, f.ref?.contrapartePersonajeId]).filter(v => v !== undefined))];
+        const pjs = await clientdb.db("Rol_db").collection("Personajes")
+            .find({ _id: { $in: ids } }, { projection: { "perfil.Nombre": 1 } }).toArray();
+        const nombres = Object.fromEntries(pjs.map(p => [String(p._id), p.perfil?.Nombre ?? null]));
+
+        res.json({ filas: filas.map(f => ({ ...f, nombre: nombres[String(f.personajeId)] ?? null,
+            contraparteNombre: f.ref?.contrapartePersonajeId !== undefined ? nombres[String(f.ref.contrapartePersonajeId)] ?? null : undefined })) });
+    } catch (err) {
+        console.error('[Economía] Error listando movimientos:', err);
+        res.status(500).json({ error: 'No se pudieron leer los movimientos.' });
+    }
+});
+
+// GET /api/admin/mensajes-servidor (Lista los mensajes con su estado en Discord - Solo Admins/Mods)
+app.get('/api/admin/mensajes-servidor', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        res.json(await mensajesServidor.listarMensajes(client, GUILD_ID, clientdb.db("Server_db"), clientdb.db(dbname)));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando mensajes del servidor');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/objetos (Objetos globales con sus tiendas, para el editor de tiendas)
+app.get('/api/admin/mensajes-servidor/objetos', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        res.json(await mensajesServidor.listarObjetosTienda(clientdb.db(dbname)));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando objetos de tienda');
+    }
+});
+
+// PUT /api/admin/mensajes-servidor/objetos (Añade o quita un lugar del en_tienda de varios objetos)
+// Body: { lugar, cambios: [{ region, ID, en }] }
+app.put('/api/admin/mensajes-servidor/objetos', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        const { lugar, cambios } = req.body || {};
+        const resultado = await mensajesServidor.asignarObjetosATienda(clientdb.db(dbname), lugar, cambios);
+        console.log(`[Tiendas] ${req.session.user.username || req.session.user.id} cambió ${resultado.aplicados} objetos de la tienda '${lugar}'`);
+        refrescarTiendasEnSegundoPlano([lugar]);
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error asignando objetos a la tienda');
+    }
+});
+
+// POST /api/admin/mensajes-servidor/vista-previa (Construye un borrador sin guardarlo)
+// Body: { config, eleccion?: { frase, imagen } }
+app.post('/api/admin/mensajes-servidor/vista-previa', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        const { config, eleccion } = req.body || {};
+        // El id solo importa para el custom_id del menú; un borrador nuevo puede no tenerlo aún
+        const normalizada = mensajesServidor.normalizarConfig({ ...config, _id: config?._id || 'borrador' });
+        res.json(await mensajesServidor.construirMensaje(normalizada, clientdb.db(dbname), eleccion || {}));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error construyendo la vista previa');
+    }
+});
+
+// PUT /api/admin/mensajes-servidor/:id (Crea o actualiza la configuración, sin publicar)
+app.put('/api/admin/mensajes-servidor/:id', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        const doc = await mensajesServidor.guardarMensaje(clientdb.db("Server_db"), req.params.id, req.body, req.session.user.id);
+        res.json({ success: true, mensaje: doc });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error guardando el mensaje');
+    }
+});
+
+// POST /api/admin/mensajes-servidor/:id/publicar (Edita el mensaje en Discord o lo envía si no existe)
+// Body: { modo: 'actualizar' | 'reenviar', eleccion?: { frase, imagen } }
+app.post('/api/admin/mensajes-servidor/:id/publicar', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        const { modo, eleccion } = req.body || {};
+        const resultado = await mensajesServidor.publicarMensaje(client, GUILD_ID, clientdb.db("Server_db"), clientdb.db(dbname), req.params.id, { modo, eleccion }, req.session.user.id);
+        console.log(`[Mensajes] ${req.session.user.username || req.session.user.id} ${resultado.accion} '${req.params.id}' en #${resultado.canalNombre}`);
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error publicando el mensaje');
+    }
+});
+
+// DELETE /api/admin/mensajes-servidor/:id?discord=1 (Olvida el mensaje; con discord=1 también lo borra del canal)
+app.delete('/api/admin/mensajes-servidor/:id', requireAdminOrMod, async (req, res) => {
+    try {
+        const mensajesServidor = require('./functions/mensajesServidor');
+        const resultado = await mensajesServidor.eliminarMensaje(client, clientdb.db("Server_db"), req.params.id, req.query.discord === '1');
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error eliminando el mensaje');
     }
 });
 
@@ -2044,9 +2627,12 @@ app.get('/api/me', async (req, res) => {
                 recompensaReclamada: ahora < proximaDisponible
             };
         }
+        // El frontend necesita distinguir "no tiene ficha" de "no está en el
+        // servidor" para mostrar una puerta de acceso u otra.
         res.json({
             user: req.session.user,
-            personaje: req.session.personaje || null
+            personaje: req.session.personaje || null,
+            enServidor: await esMiembroDelServidor(req.session.user.id)
         });
     } catch (err) {
         console.error("Error en /api/me:", err);

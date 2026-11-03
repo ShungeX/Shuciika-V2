@@ -7,6 +7,7 @@ const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
 const updateInventario = require("../../../../functions/updateInventario")
+const { moverLumens } = require("../../../../functions/Economia/lumens")
 
 const bdobjeto = db2.collection("Objetos_globales")
 
@@ -69,10 +70,11 @@ module.exports = {
             return interaction.reply({ content: `El objeto **${objeto.Nombre}** no esta disponible para la compra`, flags: ["Ephemeral"] })
         }
 
-        if (character.Dinero < (objeto.precio * cantidad)) {
+        const saldo = character.economia?.Lumens ?? 0
+        if (saldo < newLumens) {
             return interaction.reply({
                 content: "No tienes suficiente **`Lumens`** para comprar **``" + `${objeto.Nombre} x ${cantidad}` + "``** \n" +
-                    "-# Te hacen falta **``" + `${Math.max(0, newLumens - character.Dinero)}` + " Lumens``** ", flags: ["Ephemeral"]
+                    "-# Te hacen falta **``" + `${Math.max(0, newLumens - saldo)}` + " Lumens``** ", flags: ["Ephemeral"]
             })
         }
 
@@ -91,11 +93,13 @@ module.exports = {
 
         async function comprarObjeto() {
             const charId = character._id ?? character.ID;
-            await characters.updateOne({ _id: charId }, {
-                $inc: {
-                    Dinero: -newLumens
-                }
+            const cobro = await moverLumens({
+                personajeId: charId, delta: -newLumens, motivo: "tienda", opId: `comprar:${interaction.id}`,
+                ref: { itemId: objetoID, qty: cantidad, lugar: region },
             })
+            if (!cobro.ok) {
+                return interaction.reply({ content: "No tienes suficiente **`Lumens`** para esta compra.", flags: ["Ephemeral"] })
+            }
 
             if (objeto.Cantidad) {
                 await bdobjeto.updateOne({ _id: region, "Objetos.ID": objetoID }, {

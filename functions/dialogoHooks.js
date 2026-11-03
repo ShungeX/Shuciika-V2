@@ -39,6 +39,8 @@ class DialogoHooksManager {
                                 nombre: hook.nombre || hook.id,
                                 descripcion: hook.descripcion || '',
                                 archivo: file,
+                                // true: el hook escribe él mismo los vínculos de variables (ver dialogoVinculos)
+                                gestionaVinculos: hook.gestionaVinculos === true,
                                 ejecutar: hook.ejecutar
                             });
                             console.log(`⚡ [dialogoHooks] Hook cargado: '${hook.id}' (${hook.nombre || file})`);
@@ -72,6 +74,13 @@ class DialogoHooksManager {
     existe(hookId) {
         if (!hookId) return false;
         return this.hooks.has(String(hookId));
+    }
+
+    /**
+     * Indica si el hook aplica por su cuenta los vínculos de variables del diálogo
+     */
+    gestionaVinculos(hookId) {
+        return this.hooks.get(String(hookId))?.gestionaVinculos === true;
     }
 
     /**

@@ -1534,15 +1534,11 @@ class Duelv2 {
         caster.HP -= cost.Vida
 
         if (cost.Dinero) {
-            if ((authorDinero.Dinero || 0) < cost.Dinero) return { success: false, message: "No tienes suficiente dinero para lanzar este hechizo" };
-
-            await character.updateOne({ ID: authorDinero.ID },
-                {
-                    $inc: {
-                        "Dinero": -cost.Dinero
-                    }
-                }
-            )
+            const { moverLumens } = require("./Economia/lumens")
+            const cobro = authorDinero
+                ? await moverLumens({ personajeId: authorDinero._id, delta: -Number(cost.Dinero), motivo: "hechizo", ref: { hechizoId: spell._id } })
+                : { ok: false }
+            if (!cobro.ok) return { success: false, message: "No tienes suficientes Lumens para lanzar este hechizo" };
         }
 
         return { success: true }

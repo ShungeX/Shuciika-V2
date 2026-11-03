@@ -1,4 +1,5 @@
 const clientdb = require("../../../../Server");
+const { moverLumens } = require("../../../../functions/Economia/lumens");
 const db2 = clientdb.db("Rol_db");
 const souls = db2.collection("Soul");
 const transaccionCache = require("../../../../utils/cache");
@@ -160,7 +161,7 @@ module.exports = crearBoton({
                     }
 
                     // Fusión de inventario con talismán (evitando duplicados y asegurando descontaminación)
-                    const { sanitizarObjetoInventario } = require("../../../../../functions/catalogoObjetos");
+                    const { sanitizarObjetoInventario } = require("../../../../functions/catalogoObjetos");
                     const currentInventario = [...(freshChar.economia?.Inventario || [])];
                     for (const tItem of rawTalisman) {
                         const tId = Number(tItem.ID);
@@ -179,20 +180,31 @@ module.exports = crearBoton({
                         }
                     }
 
-                    // Actualización atómica en MongoDB
-                    await db2.collection("Personajes").updateOne(
-                        { _id: freshChar._id },
-                        {
-                            $set: {
-                                "economia.Inventario": currentInventario,
-                                "economia.inventarioTalisman": []
-                            },
-                            $inc: {
-                                "economia.Lumens": -costo,
-                                Dinero: -costo
-                            }
+                    // Cobro atómico primero; si el saldo ya no alcanza, no se toca el inventario
+                    if (costo > 0) {
+                        const cobro = await moverLumens({
+                            personajeId: freshChar._id, delta: -costo, motivo: "purificacion", opId: `purificacion:${interaction.id}`,
+                            ref: { qty: rawTalisman.length, profundidad },
+                        });
+                        if (!cobro.ok) {
+                            return interaction.reply({ content: `No tienes suficientes Lumens (${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
                         }
-                    );
+                    }
+
+                    try {
+                        await db2.collection("Personajes").updateOne(
+                            { _id: freshChar._id },
+                            {
+                                $set: {
+                                    "economia.Inventario": currentInventario,
+                                    "economia.inventarioTalisman": []
+                                }
+                            }
+                        );
+                    } catch (err) {
+                        if (costo > 0) await moverLumens({ personajeId: freshChar._id, delta: costo, motivo: "reembolso", opId: `reembolso:${interaction.id}`, ref: { de: "purificacion" } });
+                        throw err;
+                    }
 
                     const json = await interfazCreate.faroExploración(client, interaction, zoneKey, soul);
                     await interaction.deferUpdate().catch(() => { });

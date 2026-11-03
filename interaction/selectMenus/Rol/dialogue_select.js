@@ -7,6 +7,7 @@ const {
     accionDeComponente,
     marcarPasoResuelto,
     aplicarSetVar,
+    enviarRespuestaDePlantilla,
     ejecutarAccionDialogo
 } = require("../../dialogoAcciones");
 
@@ -80,6 +81,13 @@ module.exports = crearStringSelectMenu({
             aplicarSetVar(userData, dialogue, opt.setVar);
         }
         dialogueSystem.activeDialogues.set(userId, userData);
+
+        // La respuesta va DESPUÉS del setVar para que sus variantes ya vean el valor
+        // nuevo. En un select múltiple se usa la primera opción elegida que tenga una.
+        const conRespuesta = elegidas.find(o => o.respuesta);
+        if (conRespuesta) {
+            await enviarRespuestaDePlantilla({ interaction, userData, dialogue, plantillaId: conRespuesta.respuesta });
+        }
 
         // En un select múltiple manda la acción de la primera opción elegida
         const { actionType, actionParam } = accionDeComponente(elegidas[0]);

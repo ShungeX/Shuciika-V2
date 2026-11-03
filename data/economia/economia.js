@@ -16,9 +16,9 @@ const trabajos = {
     limpieza: {
         nombre: "Encargado de limpieza (Heroe no reconocido)",
         img: "https://i.pinimg.com/736x/d2/98/2e/d2982e988f5864c5115b093c6f33ed32.jpg",
-        descripcion: "Los conserjes desaparecieron tras el 'Incidente del Polvo Brillante'. Ahora tú limpias hechizos vomitados, plumas de dragón adolescente, y... ¿es eso un portal en el baño? \n-# Este trabajo no incluye minijuego (en desarrollo), la cantidad de lumens a ganar es reducida significativamente",
+        descripcion: "Los conserjes desaparecieron tras el 'Incidente del Polvo Brillante'. Ahora tú limpias hechizos vomitados, plumas de dragón adolescente, y... ¿es eso un portal en el baño?",
         salario: [5, 10],
-        energia: 0,
+        energia: 2,
         limite: 0,
         dificultad: 1,
         propina: false, // Se puede obtener un extra en propina mediante tu suerte

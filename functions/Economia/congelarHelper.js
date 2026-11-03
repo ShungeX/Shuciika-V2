@@ -2,6 +2,8 @@ const clientdb = require("../../Server");
 const db_rol = clientdb.db("Rol_db");
 const characters = db_rol.collection("Personajes");
 const dbobjetos = db_rol.collection("Objetos_globales");
+// Los Lumens se mueven solo con el libro (lumens.js); aquí solo se tocan objetos
+const { congelarLumens, descongelarLumens } = require("./lumens");
 
 class CongelarHelper {
     /**
@@ -36,10 +38,9 @@ class CongelarHelper {
                 }
             }
 
-            // 3. Aplicar Congelar Lumens
-            if (lumens > 0) {
-                currentLumens -= lumens;
-                congelado.lumens = (congelado.lumens || 0) + lumens;
+            // 3. Congelar Lumens (atómico; si ya no alcanzan, no se congela nada)
+            if (lumens > 0 && !(await congelarLumens(characterId, lumens))) {
+                return false;
             }
 
             // 4. Aplicar Congelar Objetos
@@ -80,13 +81,17 @@ class CongelarHelper {
                 }
             }
 
-            await characters.updateOne({ _id: Number(characterId) }, {
-                $set: {
-                    "economia.Lumens": currentLumens,
-                    "economia.Inventario": inventario,
-                    "economia.congelado": congelado
-                }
-            });
+            try {
+                await characters.updateOne({ _id: Number(characterId) }, {
+                    $set: {
+                        "economia.Inventario": inventario,
+                        "economia.congelado.objetos": congelado.objetos || []
+                    }
+                });
+            } catch (err) {
+                if (lumens > 0) await descongelarLumens(characterId, lumens);
+                throw err;
+            }
             return true;
         } catch (err) {
             console.error(`Error al congelar recursos del personaje ${characterId}:`, err);
@@ -102,16 +107,11 @@ class CongelarHelper {
             const char = await characters.findOne({ _id: Number(characterId) });
             if (!char) return false;
 
-            let currentLumens = char.economia?.Lumens ?? 0;
             let inventario = char.economia?.Inventario || [];
             let congelado = char.economia?.congelado || { lumens: 0, objetos: [] };
 
             // 1. Descongelar Lumens
-            if (lumens > 0) {
-                const aRestaurar = Math.min(congelado.lumens || 0, lumens);
-                congelado.lumens = Math.max(0, (congelado.lumens || 0) - aRestaurar);
-                currentLumens += aRestaurar;
-            }
+            if (lumens > 0) await descongelarLumens(characterId, lumens);
 
             // 2. Descongelar Objetos
             if (objetos && objetos.length > 0) {
@@ -175,9 +175,8 @@ class CongelarHelper {
 
             await characters.updateOne({ _id: Number(characterId) }, {
                 $set: {
-                    "economia.Lumens": currentLumens,
                     "economia.Inventario": inventario,
-                    "economia.congelado": congelado
+                    "economia.congelado.objetos": congelado.objetos || []
                 }
             });
             return true;
@@ -188,19 +187,15 @@ class CongelarHelper {
     }
 
     /**
-     * Remueve del congelado los recursos sin restaurarlos al inventario.
+     * Remueve del congelado los OBJETOS sin restaurarlos al inventario.
+     * Los Lumens congelados que se pierden los cobra rewardCalculator con moverLumens({ desdeCongelado: true }).
      */
-    async removerCongeladoSinRestaurar(characterId, lumens, objetos) {
+    async removerCongeladoSinRestaurar(characterId, objetos) {
         try {
             const char = await characters.findOne({ _id: Number(characterId) });
             if (!char) return false;
 
             let congelado = char.economia?.congelado || { lumens: 0, objetos: [] };
-
-            // 1. Remover lumens del congelado
-            if (lumens > 0) {
-                congelado.lumens = Math.max(0, (congelado.lumens || 0) - lumens);
-            }
 
             // 2. Remover objetos del congelado
             if (objetos && objetos.length > 0) {
@@ -221,7 +216,7 @@ class CongelarHelper {
 
             await characters.updateOne({ _id: Number(characterId) }, {
                 $set: {
-                    "economia.congelado": congelado
+                    "economia.congelado.objetos": congelado.objetos || []
                 }
             });
             return true;

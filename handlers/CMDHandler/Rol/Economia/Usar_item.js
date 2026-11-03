@@ -8,6 +8,7 @@ const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
+const { moverLumens } = require("../../../../functions/Economia/lumens")
 
 const { duelSystem, duelEmitter } = require("../../../../functions/Duelo/duelManager")
 
@@ -163,7 +164,6 @@ module.exports = {
                         }, {
                             $inc: {
                                 "Inventario.$[objeto].Cantidad": 1,
-                                Dinero: lumens,
                                 "Inventario.$[lootbox].Cantidad": -1
                             }
                         }, {
@@ -201,6 +201,11 @@ module.exports = {
                         { _id: interaction.user.id },
                         { $pull: { Inventario: { Cantidad: { $lte: 0 } } } }
                     );
+
+                    await moverLumens({
+                        personajeId: character._id, delta: lumens, motivo: "cofre", opId: `cofre:${interaction.id}`,
+                        ref: { itemId: objfind.ID },
+                    })
 
 
                     const embed = new EmbedBuilder()

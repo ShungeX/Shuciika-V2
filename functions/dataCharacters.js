@@ -291,13 +291,12 @@ module.exports = {
                     if (isNaN(data.cantidad)) {
                         return `Hubo un error al asignar este valor: ${data.cantidad} - No es un numero`;
                     }
-                    // Añadir operación de incremento de dinero a las operaciones bulk
-                    bulkOperations.push({
-                        updateOne: {
-                            filter: { _id: personaje._id }, // Usar _id para apuntar directamente al documento
-                            update: { $inc: { Dinero: data.cantidad } }
-                        }
+                    const { moverLumens } = require("./Economia/lumens");
+                    await moverLumens({
+                        personajeId: personaje._id, delta: Number(data.cantidad), motivo: data.motivo || "exploracion",
+                        opId: data.opId, ref: data.ref || {},
                     });
+                    return { success: true, messages: `Se ha asignado correctamente: ${data.typeLoot} - ${data.cantidad} - ${characterId}` };
                 } else if (data.typeLoot === "xp") {
                     if (isNaN(data.cantidad)) {
                         return `Hubo un error al asignar este valor: ${data?.cantidad} - No es un numero`;

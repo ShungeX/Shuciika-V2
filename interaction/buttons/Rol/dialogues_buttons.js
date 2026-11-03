@@ -17,7 +17,8 @@ module.exports = {
         if(!userData) return interaction.reply({content: "Al parecer estos dialogos son muy antiguos y ya expiraron 〒▽〒", flags: ["Ephemeral"]})
 
         const dialogue = dialogueSystem.dialogues[userData.type].find(d => d.id === userData.dialogueId)
-        const currentDialogue = dialogue.dialogos[userData.currentStep]
+        const { pasosDeDialogo } = require('../../../functions/dialogoGrafo');
+        const currentDialogue = pasosDeDialogo(dialogue)[userData.currentStep]
         if(code !== userData.datems) return interaction.reply({content: "Esta interacción corresponde a un dialogo diferente o antiguo. Ya no se puede responder 〒▽〒", flags: ["Ephemeral"]})
         const component = currentDialogue.components[Number(selectValue)]
 

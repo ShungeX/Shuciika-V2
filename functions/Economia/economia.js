@@ -2,31 +2,23 @@ const clientdb = require("../../Server")
 const db_rol = clientdb.db("Rol_db")
 const personajes = db_rol.collection("Personajes")
 const souls = db_rol.collection("Soul")
+const { moverLumens } = require("./lumens")
 
 class Economy {
 
     // ─── Lumens ───────────────────────────────────────────────────────────────
 
     /**
-     * Agrega o resta lumens a un personaje
+     * Agrega o resta lumens a un personaje (pasa por el libro de Lumens)
      * @param {Number} characterId - _id del Personaje
      * @param {Number} cantidad - positivo = agregar, negativo = restar
+     * @param {String} motivo - ver MOTIVOS en lumens.js
+     * @param {Object} [opciones] - { ref, opId, tipo }
      */
-    async ajustarLumens(characterId, cantidad) {
+    async ajustarLumens(characterId, cantidad, motivo = "admin", opciones = {}) {
         try {
-            const update = {
-                $inc: {
-                    "economia.Lumens": cantidad,
-                }
-            }
-
-            // Tracker histórico solo sube (solo si es ganancia)
-            if (cantidad > 0) {
-                update.$inc["estado.progresoAcumulativo.lumens"] = cantidad
-            }
-
-            await personajes.updateOne({ _id: characterId }, update)
-            return { success: true }
+            const r = await moverLumens({ personajeId: characterId, delta: cantidad, motivo, ...opciones })
+            return { success: r.ok, ...r }
         } catch (e) {
             console.error("Economy.ajustarLumens error:", e)
             return { success: false }
@@ -155,7 +147,7 @@ class Economy {
             ops.push(this.registrarCombate(c.ID, true))
 
             if (apuestas?.tipo === "lumens" && apuestas.monto > 0) {
-                ops.push(this.ajustarLumens(c.ID, apuestas.monto))
+                ops.push(this.ajustarLumens(c.ID, apuestas.monto, "duelo", { tipo: "transferencia", transferId: sesion.sessionId }))
             }
         }
 
@@ -165,7 +157,7 @@ class Economy {
             ops.push(this.registrarCombate(c.ID, false))
 
             if (apuestas?.tipo === "lumens" && apuestas.monto > 0) {
-                ops.push(this.ajustarLumens(c.ID, -apuestas.monto))
+                ops.push(this.ajustarLumens(c.ID, -apuestas.monto, "duelo", { tipo: "transferencia", transferId: sesion.sessionId }))
             }
         }
 

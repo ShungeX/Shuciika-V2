@@ -8,6 +8,7 @@ const CombatUI = require("../Duelo/combateUI")
 const calculadorPVEstelar = require("./calculadorPVEstelar.js")
 const lootSystem = require("./lootSystem.js")
 const congelarHelper = require("./congelarHelper")
+const { moverLumens } = require("./lumens")
 
 
 class RewardCalculator {
@@ -98,7 +99,11 @@ class RewardCalculator {
 
                 await Promise.all([
                     souls.updateOne({ _id: Number(combatiente.ID) }, { $inc: incSoul }),
-                    characters.updateOne({ _id: Number(combatiente.ID) }, { $inc: { "economia.Lumens": lumens } })
+                    lumens > 0 && moverLumens({
+                        personajeId: Number(combatiente.ID), delta: lumens, motivo: "combate",
+                        opId: `combate:${sesion.sessionId}:${combatiente.ID}`,
+                        ref: { tipo: sesion.type, subtipo: sesion.subtype, enemigo, gano: esGanadorEfectivo },
+                    })
                 ]).catch(err => console.error("[RewardCalculator] Error actualizando DB para combatiente:", err));
 
                 recompensas.set(Number(combatiente.ID), { polvo: polvoEstelar, lumens, loot, isWinner: esGanadorEfectivo });
@@ -194,6 +199,13 @@ class RewardCalculator {
                     }
                 }
             }
+
+            // Libro de Lumens: lo que pasa de perdedores a ganadores es transferencia; lo que el pozo
+            // paga de más (apuestas de admin) es fuente y lo que nadie cobra es sumidero. Así M cuadra.
+            const sid = sesion.sessionId
+            const premioPrevisto = totalGanadores > 0 ? pozoLumens : 0
+            let porTransferir = premioPrevisto   // cupo que los perdedores aún pueden mandar como transferencia
+            let transferido = 0                  // lo que de verdad salió de perdedores como transferencia
 
             // 2. Procesar las pérdidas de los perdedores y acumular objetos de Rareza Equivalente
             for (const loser of equipoPerdedor) {
@@ -293,13 +305,31 @@ class RewardCalculator {
                     const hasFrozen = char.economia?.congelado && 
                         ((char.economia.congelado.lumens || 0) > 0 || (char.economia.congelado.objetos || []).length > 0);
 
+                    // Lumens: del congelado si apostó congelando, si no del saldo activo (sin pasar de lo que tiene)
+                    const disponible = hasFrozen ? (char.economia?.congelado?.lumens ?? 0) : (char.economia?.Lumens ?? 0)
+                    const aCobrar = Math.min(lumensADescontar, Math.max(0, disponible))
+                    const parteTransfer = Math.min(aCobrar, porTransferir)
+                    const parteSumidero = aCobrar - parteTransfer
+                    porTransferir -= parteTransfer
+                    if (parteTransfer > 0) {
+                        const r = await moverLumens({
+                            personajeId: Number(loser.ID), delta: -parteTransfer, tipo: "transferencia", motivo: "duelo",
+                            transferId: sid, opId: `duelo:${sid}:pierde:${loser.ID}`, desdeCongelado: hasFrozen,
+                        })
+                        if (r.ok) transferido += parteTransfer
+                    }
+                    if (parteSumidero > 0) {
+                        await moverLumens({
+                            personajeId: Number(loser.ID), delta: -parteSumidero, motivo: "duelo",
+                            opId: `duelo:${sid}:pierde_sin_ganador:${loser.ID}`, desdeCongelado: hasFrozen,
+                        })
+                    }
+
                     if (hasFrozen) {
-                        // Descongelar y remover de congelados sin restaurar a inventario activo
-                        await congelarHelper.removerCongeladoSinRestaurar(Number(loser.ID), lumensADescontar, objetosADescontar);
+                        // Remover objetos congelados sin restaurarlos al inventario activo
+                        await congelarHelper.removerCongeladoSinRestaurar(Number(loser.ID), objetosADescontar);
                     } else {
-                        // Si no estaba congelado (ej: creador admin), descontar del activo
-                        let currentLumens = char.economia?.Lumens ?? 0;
-                        currentLumens = Math.max(0, currentLumens - lumensADescontar);
+                        // Si no estaba congelado (ej: creador admin), descontar objetos del activo
 
                         const inventario = char.economia?.Inventario || [];
                         for (const o of objetosADescontar) {
@@ -321,7 +351,6 @@ class RewardCalculator {
 
                         await characters.updateOne({ _id: Number(loser.ID) }, {
                             $set: {
-                                "economia.Lumens": currentLumens,
                                 "economia.Inventario": inventario
                             }
                         });
@@ -400,11 +429,28 @@ class RewardCalculator {
                 }
 
                 // Sumar premios ganados del pozo al activo
-                if (prize.lumens > 0 || prize.objetos.length > 0) {
+                // Lumens del pozo: primero lo que mandaron los perdedores (transferencia), el resto es fuente
+                if (prize.lumens > 0) {
+                    const deTransfer = Math.min(prize.lumens, transferido)
+                    const deFuente = prize.lumens - deTransfer
+                    transferido -= deTransfer
+                    if (deTransfer > 0) {
+                        await moverLumens({
+                            personajeId: Number(winner.ID), delta: deTransfer, tipo: "transferencia", motivo: "duelo",
+                            transferId: sid, opId: `duelo:${sid}:gana:${winner.ID}`,
+                        })
+                    }
+                    if (deFuente > 0) {
+                        await moverLumens({
+                            personajeId: Number(winner.ID), delta: deFuente, motivo: "duelo",
+                            opId: `duelo:${sid}:premio:${winner.ID}`, ref: { adminLumens: Boolean(apuestas.adminLumens) },
+                        })
+                    }
+                }
+
+                if (prize.objetos.length > 0) {
                     const charActualizado = await characters.findOne({ _id: Number(winner.ID) });
                     if (charActualizado) {
-                        let currentLumens = charActualizado.economia?.Lumens ?? 0;
-                        currentLumens += prize.lumens;
 
                         const inventario = charActualizado.economia?.Inventario || [];
                         for (const o of prize.objetos) {
@@ -450,7 +496,6 @@ class RewardCalculator {
 
                         await characters.updateOne({ _id: Number(winner.ID) }, {
                             $set: {
-                                "economia.Lumens": currentLumens,
                                 "economia.Inventario": inventario
                             }
                         });

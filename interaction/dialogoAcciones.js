@@ -7,14 +7,70 @@
 
 const { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const dialogueSystem = require('../functions/dialogoManager');
+const { pasoConVariante, obtenerPlantilla, construirPasoDePlantilla } = require('../functions/dialogoCondiciones');
+const { pasosDeDialogo } = require('../functions/dialogoGrafo');
 
 const ACCIONES_VALIDAS = ['next', 'jump', 'prev', 'inventory', 'perfil', 'item'];
 
-/** Devuelve el diálogo en curso y el paso en el que está el usuario. */
+/**
+ * Devuelve el diálogo en curso y el paso en el que está el usuario, con la
+ * variante que se eligió al renderizarlo (userData.varianteActiva). No se
+ * reevalúan las condiciones: el contexto puede haber cambiado desde entonces.
+ */
 function obtenerPasoActual(userData) {
     const dialogue = dialogueSystem.obtenerDialogoPorId(userData.type, userData.dialogueId);
-    const stepsList = dialogue?.dialogos || dialogue?.steps || [];
-    return { dialogue, stepsList, currentDialogue: stepsList[userData.currentStep] };
+    const stepsList = pasosDeDialogo(dialogue);
+    const currentDialogue = pasoConVariante(stepsList[userData.currentStep], userData.varianteActiva);
+    return { dialogue, stepsList, currentDialogue };
+}
+
+/**
+ * Envía la plantilla de respuesta asociada a una opción o un botón.
+ *
+ * Debe llamarse DESPUÉS de aplicar el setVar de la opción: así las variantes de
+ * la plantilla ya ven el valor nuevo (una opción que suma afinidad puede
+ * disparar en el acto una variante "afinidad >= 10").
+ *
+ * Modo `nuevo`: mensaje aparte, con el mismo renderizado que un paso.
+ * Modo `editar`: sustituye al mensaje de la pregunta y le quita sus componentes.
+ *
+ * Devuelve true si respondió a la interacción.
+ */
+async function enviarRespuestaDePlantilla({ interaction, userData, dialogue, plantillaId }) {
+    const plantilla = obtenerPlantilla(dialogue, plantillaId);
+    if (!plantilla) return false;
+
+    const paso = construirPasoDePlantilla(plantilla, dialogue, userData.context);
+    const texto = paso?.embeds?.[0]?.description ?? paso?.content ?? '';
+    if (!paso || !String(texto).trim()) {
+        // Discord rechaza los mensajes vacíos: mejor no enviar nada que romper el diálogo
+        console.warn(`[dialogoAcciones] La plantilla '${plantillaId}' no tiene texto; se omite.`);
+        return false;
+    }
+
+    // Un submit de modal solo puede editar el mensaje si el modal salió de un componente
+    const puedeEditar = typeof interaction.update === 'function'
+        && (!interaction.isModalSubmit?.() || interaction.isFromMessage?.());
+
+    try {
+        if (plantilla.modo === 'editar' && puedeEditar) {
+            const opts = await dialogueSystem.buildMessageOptions(paso, userData, interaction, interaction.user);
+            await interaction.update({ content: opts.content ?? '', embeds: opts.embeds ?? [], components: [] });
+            return true;
+        }
+
+        await interaction.deferUpdate().catch(() => {});
+        // Clave `guardar` propia: sin ella, sendEditMessage sobrescribiría messageIds[0]
+        // y un paso "edit" posterior editaría esta respuesta en vez del mensaje del diálogo.
+        await dialogueSystem.sendEditMessage(
+            { ...paso, action: { type: 'send', guardar: '__respuesta_plantilla' } },
+            interaction, userData, 0, interaction.user
+        );
+        return true;
+    } catch (err) {
+        console.error(`[dialogoAcciones] Error enviando la plantilla '${plantillaId}':`, err);
+        return false;
+    }
 }
 
 /** Los componentes de un paso, admitiendo el nombre antiguo `buttons`. */
@@ -167,6 +223,17 @@ async function construirModalDeBoton(modalCfg, { indiceBoton, userId, characterI
 }
 
 /**
+ * reply() si la interacción está libre, followUp() si ya se respondió. Hace falta
+ * porque una plantilla de respuesta puede haber respondido ya (update o deferUpdate)
+ * antes de que se ejecute la acción, y un segundo reply() lanzaría error.
+ */
+function responder(interaction, payload) {
+    return (interaction.replied || interaction.deferred)
+        ? interaction.followUp(payload)
+        : interaction.reply(payload);
+}
+
+/**
  * Ejecuta una acción de diálogo. Es la misma lógica que ya usaban los botones,
  * extraída aquí para que los selects y los modals se comporten igual.
  *
@@ -225,9 +292,9 @@ async function ejecutarAccionDialogo({ interaction, userData, accion, param, cha
                 }
                 if (charDoc) {
                     const perfilV2 = construirPerfilV2(charDoc, interaction.user.id);
-                    await interaction.reply({ components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications", "Ephemeral"] });
+                    await responder(interaction, { components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications", "Ephemeral"] });
                 } else {
-                    await interaction.reply({ content: "No se encontró el perfil de tu personaje.", flags: ["Ephemeral"] });
+                    await responder(interaction, { content: "No se encontró el perfil de tu personaje.", flags: ["Ephemeral"] });
                 }
             } catch (err) {
                 console.error('[dialogoAcciones] Error mostrando perfil:', err);
@@ -241,7 +308,7 @@ async function ejecutarAccionDialogo({ interaction, userData, accion, param, cha
         case 'item': {
             try {
                 await dialogueSystem.handleDarItem(param, { interaction, user: interaction.user, userData });
-                await interaction.reply({ content: `🎁 ¡Has recibido el objeto: \`${param}\`!`, flags: ["Ephemeral"] });
+                await responder(interaction, { content: `🎁 ¡Has recibido el objeto: \`${param}\`!`, flags: ["Ephemeral"] });
             } catch (err) {
                 console.error('[dialogoAcciones] Error otorgando item:', err);
                 if (!interaction.replied && !interaction.deferred) {
@@ -262,5 +329,6 @@ module.exports = {
     marcarPasoResuelto,
     aplicarSetVar,
     construirModalDeBoton,
+    enviarRespuestaDePlantilla,
     ejecutarAccionDialogo
 };

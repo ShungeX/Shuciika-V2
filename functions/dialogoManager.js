@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { despertarAlma } = require('../interaction/selectMenus/Rol/Despertar options.js');
 const { crearCustomId } = require('../utils/constructores/customId');
+const { pasosDeDialogo, invalidarCache, esPasoDeControl } = require('./dialogoGrafo');
 
 class DialogueSystem {
 
@@ -72,6 +73,8 @@ class DialogueSystem {
         if (!dialogoId) return;
         if (data) {
             const idKey = String(dialogoId);
+            invalidarCache(this.dbDialogues.get(idKey));
+            invalidarCache(data);
             this.dbDialogues.set(idKey, data);
             console.log(`🔄 [DialogueSystem] Diálogo local '${idKey}' actualizado dinámicamente.`);
         }
@@ -673,6 +676,16 @@ class DialogueSystem {
             return false;
         }
 
+        // Un evento en borrador se puede editar y previsualizar en el dashboard,
+        // pero no se ejecuta: solo los publicados llegan al jugador.
+        if (dialogue.estado === 'borrador') {
+            console.warn(`[dialogoManager] El evento '${dialogueId}' está en borrador: no se ejecuta.`);
+            if (interaction && !interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: "Este evento todavía está en borrador 〒▽〒", flags: ["Ephemeral"] }).catch(() => {});
+            }
+            return { success: false, error: "Diálogo en borrador" };
+        }
+
         // 1. Verificar límite de ejecuciones (limite) vs repetido en personaje activo
         const charDoc = await this.obtenerPersonajeActivo(user.id, options.charId || options.soulId);
 
@@ -728,15 +741,31 @@ class DialogueSystem {
         // Si el objetivo es MD y viene de una interacción en un canal
         if (targetObj === "MD" && interaction) {
             const isAlreadyInDM = !interaction.guildId || Boolean(interaction.channel?.isDMBased?.());
+
+            // El MD se abre ANTES de responder en el canal: así el aviso puede enlazar a
+            // él, y si el usuario tiene los MD cerrados se le avisa en vez de dejarle
+            // esperando un mensaje que nunca llegará.
+            let md, waitMsg;
+            try {
+                md = await user.createDM();
+                waitMsg = await md.send({ content: "-# Dale un instante a la magia para acomodarse." });
+            } catch (errMD) {
+                console.warn(`[dialogoManager] No se pudo abrir el MD de ${user.id}:`, errMD.message);
+                this.activeDialogues.delete(user.id);
+                const aviso = { content: "No puedo enviarte mensajes directos 〒▽〒. Activa los MD de este servidor e inténtalo de nuevo.", flags: ["Ephemeral"] };
+                if (!interaction.replied && !interaction.deferred) await interaction.reply(aviso).catch(() => {});
+                else await interaction.followUp(aviso).catch(() => {});
+                return false;
+            }
+
             if (!isAlreadyInDM) {
-                const customMsg = dialogue.mensajeMDPersonalizado;
-                let replyContent = "";
-                if (customMsg) {
-                    const contextData = { interaction, user, userData: this.activeDialogues.get(user.id), context: options.context || {} };
-                    replyContent = await this.parseTextAsync(customMsg, contextData);
-                } else {
-                    replyContent = "Revisa tus mensajes directos. Alguien tiene algo que decirte. Haz click aquí para ir al mensaje";
-                }
+                const plantillaAviso = dialogue.mensajeMDPersonalizado
+                    || "Revisa tus mensajes directos. Alguien tiene algo que decirte. [Haz click aquí para ir al mensaje].md";
+                // Se enlaza al CANAL del MD, no al mensaje de espera: ese se borra tras el
+                // cooldown y el enlace acabaría apuntando a un mensaje inexistente.
+                const conEnlaces = this.convertirEnlacesMD(plantillaAviso, `https://discord.com/channels/@me/${md.id}`);
+                const contextData = { interaction, user, userData: this.activeDialogues.get(user.id), context: options.context || {} };
+                const replyContent = await this.parseTextAsync(conEnlaces, contextData);
 
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({ content: replyContent, flags: ["Ephemeral"] });
@@ -750,8 +779,6 @@ class DialogueSystem {
             }
 
             const waitSeconds = Number(dialogue.cooldownEspera) > 0 ? Number(dialogue.cooldownEspera) : 5;
-            const md = await user.createDM();
-            const waitMsg = await md.send({ content: "-# Dale un instante a la magia para acomodarse." });
 
             if (waitMsg?.id) {
                 const currentActive = this.activeDialogues.get(user.id);
@@ -782,6 +809,17 @@ class DialogueSystem {
         return true;
     }
 
+    /**
+     * Convierte la sintaxis [texto].md del mensaje de inicio en un enlace markdown al
+     * MD del usuario. Se aplica ANTES de resolver los {tags}, para que solo cuenten los
+     * enlaces que escribe el admin y no lo que pueda aportar un jugador en una variable.
+     * Un [texto](url) normal no lleva ".md" detrás, así que se respeta tal cual.
+     */
+    convertirEnlacesMD(texto, url) {
+        if (!texto || typeof texto !== 'string' || !url) return texto || '';
+        return texto.replace(/\[([^\]\n]+)\]\.md\b/g, (_, etiqueta) => `[${etiqueta}](${url})`);
+    }
+
     async processNextStep(interaction, member) {
         const user = interaction?.user || member;
         const userData = this.activeDialogues.get(user.id);
@@ -794,8 +832,40 @@ class DialogueSystem {
         }
 
         const dialogue = this.obtenerDialogoPorId(userData.type, userData.dialogueId);
-        const stepsList = dialogue?.dialogos || dialogue?.steps || [];
-        const currentDialogue = stepsList[userData.currentStep];
+        const stepsList = pasosDeDialogo(dialogue);
+        let currentDialogue = stepsList[userData.currentStep];
+
+        // Pasos de control: los nodos Condición, Variable y Fin del editor no
+        // envían nada a Discord, solo deciden por dónde sigue el diálogo. Se
+        // encadenan aquí hasta dar con un paso que sí tenga mensaje.
+        let saltosDeControl = 0;
+        while (esPasoDeControl(currentDialogue)) {
+            if (++saltosDeControl > 100) {
+                console.error(`[dialogoManager] Bucle de nodos de control en '${userData.dialogueId}': se corta el diálogo.`);
+                userData.currentStep = stepsList.length;
+                currentDialogue = undefined;
+                break;
+            }
+
+            if (currentDialogue.control === 'variable') {
+                const { aplicarSetVar } = require('../interaction/dialogoAcciones');
+                for (const setVar of currentDialogue.setVars || []) {
+                    aplicarSetVar(userData, dialogue, setVar);
+                }
+                userData.currentStep = Number(currentDialogue.nextStep);
+            } else if (currentDialogue.control === 'condicion') {
+                const { evaluarCondicion } = require('./dialogoCondiciones');
+                const cumple = evaluarCondicion(currentDialogue.condicion, userData.context, dialogue?.variables);
+                userData.currentStep = Number(cumple ? currentDialogue.siStep : currentDialogue.noStep);
+            } else {
+                // Fin: su hook es el que se ejecuta, no el del evento entero
+                userData.finHook = currentDialogue.onComplete || null;
+                userData.currentStep = stepsList.length;
+            }
+
+            this.activeDialogues.set(user.id, userData);
+            currentDialogue = stepsList[userData.currentStep];
+        }
 
         if (!currentDialogue) {
             console.log(`[dialogoManager] Finalizando diálogo '${userData.dialogueId}' para usuario ${user.id}`);
@@ -830,12 +900,29 @@ class DialogueSystem {
             }
 
             this.activeDialogues.delete(user.id);
-            if (dialogue?.onComplete) {
-                this.executeActions(dialogue.onComplete, interaction, userData.context, user);
+            const hookFinal = userData.finHook !== undefined ? userData.finHook : dialogue?.onComplete;
+
+            const charDoc = userData.charDoc || await this.obtenerPersonajeActivo(
+                user.id,
+                userData.context?.characterId || userData.charId || userData.soulId
+            );
+            const vinculos = await this.persistirVinculos(dialogue, userData, charDoc, hookFinal);
+
+            if (hookFinal) {
+                this.executeActions(hookFinal, interaction, userData.context, user, { charDoc, vinculos });
             }
             await this.recordDialogueCompletion(user.id, userData.dialogueId, userData.currentStep, true, userData.charId || userData.soulId);
             return true;
         }
+
+        // Variantes condicionales: se elige UNA vez, al renderizar, y se guarda el índice.
+        // Al hacer clic el handler relee el paso, y para entonces el contexto puede haber
+        // cambiado (el setVar se aplica en el propio clic); reevaluar podría escoger otra
+        // variante y desviar su nextStep. Con el índice, render y clic ven el mismo paso.
+        const { resolverVariante, pasoConVariante } = require('./dialogoCondiciones');
+        userData.varianteActiva = resolverVariante(currentDialogue.variantes, userData.context, dialogue?.variables);
+        currentDialogue = pasoConVariante(currentDialogue, userData.varianteActiva);
+        this.activeDialogues.set(user.id, userData);
 
         // 1. Mostrar/Enviar/Editar inmediatamente el mensaje del paso ACTUAL (Step N)
         if (currentDialogue.multipleMessages) {
@@ -1220,13 +1307,21 @@ class DialogueSystem {
                     .setDisabled(component.disabled || false);
 
                 if (component.options) {
-                    const options = await Promise.all(component.options.map(async option => ({
-                        label: await this.parseTextAsync(option.label, contextData),
-                        value: option.value,
-                        description: option.description ? await this.parseTextAsync(option.description, contextData) : undefined,
-                        emoji: option.emoji,
-                        default: option.default || false
-                    })));
+                    // Los campos opcionales solo se incluyen si tienen contenido: el builder
+                    // rechaza `emoji: null` / `''` y una descripción vacía tumba el select entero
+                    const options = await Promise.all(component.options.map(async option => {
+                        const label = String(await this.parseTextAsync(option.label, contextData) || '').trim();
+                        const opcion = {
+                            label: (label || String(option.value || 'Opción')).slice(0, 100),
+                            value: option.value,
+                            default: option.default || false
+                        };
+                        const description = option.description ? String(await this.parseTextAsync(option.description, contextData) || '').trim() : '';
+                        if (description) opcion.description = description.slice(0, 100);
+                        const emoji = typeof option.emoji === 'string' ? option.emoji.trim() : option.emoji;
+                        if (emoji && (typeof emoji === 'string' || emoji.id || emoji.name)) opcion.emoji = emoji;
+                        return opcion;
+                    }));
                     selectMenu.addOptions(options);
                 }
 
@@ -1383,34 +1478,63 @@ class DialogueSystem {
         return resultText;
     }
 
-    async executeActions(actions, interaction, context, user) {
-        if (!actions) return;
-        const actionsList = Array.isArray(actions) ? actions : [actions];
+    /** IDs de los hooks de un onComplete (string, objeto o lista de ambos) */
+    idsDeHooks(actions) {
+        if (!actions) return [];
         const dialogoHooks = require('./dialogoHooks');
 
-        for (const act of actionsList) {
-            let hookId = null;
-            if (typeof act === 'string') hookId = act;
-            else if (act?.hookId) hookId = act.hookId;
-            else if (act?.code) hookId = act.code;
-
-            if (!hookId) continue;
-
+        return (Array.isArray(actions) ? actions : [actions])
+            .map(act => typeof act === 'string' ? act : (act?.hookId || act?.code || null))
+            .filter(Boolean)
             // Compatibilidad retroactiva si se especificó 'despertar'
-            if (hookId === 'despertar' && !dialogoHooks.existe('despertar') && dialogoHooks.existe('despertar_alma')) {
-                hookId = 'despertar_alma';
-            }
+            .map(hookId => (hookId === 'despertar' && !dialogoHooks.existe('despertar') && dialogoHooks.existe('despertar_alma')) ? 'despertar_alma' : hookId);
+    }
 
+    /**
+     * @param {Object} [extra]
+     * @param {Object} [extra.charDoc] - Personaje del diálogo (el diálogo ya no está en activeDialogues al terminar)
+     * @param {{ aplicados: object[], pendientes: object[] }} [extra.vinculos] - Resultado de persistirVinculos
+     */
+    async executeActions(actions, interaction, context, user, extra = {}) {
+        const dialogoHooks = require('./dialogoHooks');
+
+        for (const hookId of this.idsDeHooks(actions)) {
             const payload = {
                 client: this.client || interaction?.client,
                 interaction,
                 context: context || {},
                 user: user || interaction?.user,
-                charDoc: this.activeDialogues.get(user?.id)?.charDoc || null,
+                charDoc: extra.charDoc || this.activeDialogues.get(user?.id)?.charDoc || null,
+                vinculos: extra.vinculos || { aplicados: [], pendientes: [] },
                 dialogueSystem: this
             };
 
             await dialogoHooks.ejecutar(hookId, payload);
+        }
+    }
+
+    /**
+     * Vínculos de variables (ver dialogoVinculos): lleva el valor final de las
+     * variables aprobadas por staff al Soul del jugador. Si algún hook del final
+     * declara `gestionaVinculos`, aquí no se aplican: le llegan como pendientes
+     * para que los escriba él (p. ej. cuando el Soul aún no existe).
+     */
+    async persistirVinculos(dialogue, userData, charDoc, hookFinal) {
+        const { resolverVinculos, aplicarVinculos } = require('./dialogoVinculos');
+        const dialogoHooks = require('./dialogoHooks');
+
+        const vinculos = resolverVinculos(dialogue, userData.context);
+        if (vinculos.length === 0) return { aplicados: [], pendientes: [] };
+
+        if (this.idsDeHooks(hookFinal).some(id => dialogoHooks.gestionaVinculos(id))) {
+            return { aplicados: [], pendientes: vinculos };
+        }
+
+        try {
+            return await aplicarVinculos(vinculos, charDoc?._id);
+        } catch (err) {
+            console.error(`[dialogoManager] Error aplicando los vínculos de '${userData.dialogueId}':`, err);
+            return { aplicados: [], pendientes: vinculos };
         }
     }
 
@@ -1427,7 +1551,7 @@ class DialogueSystem {
         }
 
         const dialogue = this.obtenerDialogoPorId(userData.type, userData.dialogueId);
-        const stepsList = dialogue?.dialogos || dialogue?.steps || [];
+        const stepsList = pasosDeDialogo(dialogue);
         if (!dialogue || step >= stepsList.length || step < 0) {
             console.error(`Paso inválido: ${step} para diálogo: ${userData.dialogueId}`);
             return false;

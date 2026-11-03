@@ -57,6 +57,8 @@ module.exports = async(client, member) => {
                 console.log("El personaje del usuario aun no despertaba", e)
             })
 
+            // Los Lumens del personaje salen del sistema: el libro lo registra como sumidero
+            require("../../functions/Economia/lumens").registrarBaja(profile)
             await character.deleteOne({_id: user}).catch(e => {
                 console.log("El usuario no tenia un personaje inscrito", e)
             })

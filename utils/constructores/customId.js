@@ -4,7 +4,7 @@ const SEPARATOR = "-" // usa el que ya tengas en tu splitCustomId actual
 /**
  * @typedef {Object} CrearCustomIdParams
  * @property {string} action - Igual al customId del handler (ej. "inventario")
- * @property {string} userId - ID de Discord del autor, para soloAutor
+ * @property {string} [userId] - ID de Discord del autor, para soloAutor. Se omite en botones públicos (eventos): cualquiera puede pulsarlos
  * @property {string|number} [characterId] - Se guarda vacío si se omite
  * @property {Array<string|number>} [extras] - Máximo 4, en el orden que los vas a leer del lado del handler
  */
@@ -16,10 +16,9 @@ const SEPARATOR = "-" // usa el que ya tengas en tu splitCustomId actual
  */
 function crearCustomId({ action, userId, characterId, extras = [] }) {
     if (!action) throw new Error("[crearCustomId] Falta 'action'")
-    if (!userId) throw new Error("[crearCustomId] Falta 'userId'")
     if (extras.length > 6) throw new Error(`[crearCustomId] Máximo 6 extras, llegaron ${extras.length}`)
 
-    const customId = [action, userId, characterId ?? "", ...extras].join(SEPARATOR)
+    const customId = [action, userId ?? "", characterId ?? "", ...extras].join(SEPARATOR)
     if (customId.length > 100) throw new Error(`[crearCustomId] Excede 100 chars: ${customId}`)
     return customId
 }

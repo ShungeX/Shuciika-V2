@@ -7,6 +7,7 @@ const {
     accionDeComponente,
     marcarPasoResuelto,
     construirModalDeBoton,
+    enviarRespuestaDePlantilla,
     ejecutarAccionDialogo
 } = require('../../dialogoAcciones');
 
@@ -53,7 +54,7 @@ module.exports = {
         const action = extras[0] || 'next';
         const param = extras.slice(1).join('-');
 
-        const { currentDialogue } = obtenerPasoActual(userData);
+        const { dialogue, currentDialogue } = obtenerPasoActual(userData);
 
         // ¿Qué botón del paso se ha pulsado? El customId solo lleva la acción,
         // así que se busca el que coincide en acción y parámetro.
@@ -101,6 +102,11 @@ module.exports = {
         if (!ACCIONES_VALIDAS.includes(action)) {
             console.warn(`[dialogue_act] Acción no reconocida: '${action}'`);
             return interaction.deferUpdate().catch(() => {});
+        }
+
+        // Plantilla de respuesta del botón (los botones con modal la envían al enviar el formulario)
+        if (boton?.respuesta) {
+            await enviarRespuestaDePlantilla({ interaction, userData, dialogue, plantillaId: boton.respuesta });
         }
 
         await ejecutarAccionDialogo({ interaction, userData, accion: action, param, characterId });

@@ -27,7 +27,8 @@ async function manejarComponente(client, interaction, handlers, tipo) {
         return interaction.reply({ content: "Esta interacción no tiene ninguna función!", flags: ["Ephemeral"] })
     }
 
-    if (handler.soloAutor && userId !== interaction.user.id) {
+    // Un customId sin userId es un botón público (p. ej. un evento enviado al canal): no tiene autor que proteger
+    if (handler.soloAutor && userId && userId !== interaction.user.id) {
         const embed = new EmbedBuilder()
             .setDescription(`<@!${userId}> Solo puede responder a esta interacción /(ㄒoㄒ)/~~`)
             .setColor("Red")

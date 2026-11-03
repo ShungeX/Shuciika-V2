@@ -1,3 +1,4 @@
+const { moverLumens } = require('../functions/Economia/lumens');
 const { generarPayloadDocenteFinalizada } = require('../data/UI_ComponentsV2/notificacionDocente');
 const {
     guardarYFinalizarSesion,
@@ -156,31 +157,19 @@ async function finalizarClase({ client, dbRol, dbServer, claseId, finalizadoPorP
         try {
             const profeChar = await personajesCol.findOne({ _id: clase.profesorId });
             const deudaActual = profeChar?.economia?.deuda || 0;
-            if (deudaActual > 0) {
-                if (pagoTotal >= deudaActual) {
-                    const sobrante = pagoTotal - deudaActual;
-                    await personajesCol.updateOne(
-                        { _id: clase.profesorId },
-                        {
-                            $set: { "economia.deuda": 0 },
-                            $inc: { "economia.Lumens": sobrante, "estado.Reputacion": 2 }
-                        }
-                    );
-                } else {
-                    await personajesCol.updateOne(
-                        { _id: clase.profesorId },
-                        {
-                            $inc: { "economia.deuda": -pagoTotal, "estado.Reputacion": 2 }
-                        }
-                    );
-                }
-            } else {
-                await personajesCol.updateOne(
-                    { _id: clase.profesorId },
-                    {
-                        $inc: { "economia.Lumens": pagoTotal, "estado.Reputacion": 2 }
-                    }
-                );
+            // La deuda no es dinero en circulación: solo lo que sobra después de saldarla entra como Lumens
+            const aDeuda = Math.min(deudaActual, pagoTotal);
+            const sobrante = pagoTotal - aDeuda;
+
+            await personajesCol.updateOne(
+                { _id: clase.profesorId },
+                { $inc: { "economia.deuda": -aDeuda, "estado.Reputacion": 2 } }
+            );
+            if (sobrante > 0) {
+                await moverLumens({
+                    personajeId: clase.profesorId, delta: sobrante, motivo: "clase", opId: `clase:${clase._id}:pago`,
+                    ref: { claseId: String(clase._id), deudaSaldada: aDeuda },
+                });
             }
         } catch (errPago) {
             console.error("[clasesService] Error procesando pago del profesor:", errPago);

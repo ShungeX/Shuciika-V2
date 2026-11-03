@@ -348,7 +348,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Elige tu respuesta...",
             "options": [
               {
@@ -493,7 +493,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Elige tu respuesta...",
             "options": [
               {
@@ -732,7 +732,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "A) Perder el control y dañar el orden que te rodea",
             "disabled": true,
             "options": [
@@ -796,7 +796,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Es tu momento de tomar una decision...",
             "disable": false,
             "options": [
@@ -882,7 +882,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "A) Proteger la belleza y la certeza de lo que ya existea",
             "disabled": true,
             "options": [
@@ -935,7 +935,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Selecciona tu respuesta...",
             "disabled": false,
             "options": [
@@ -984,7 +984,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "A) Una verdad útil que construye mundos y da propósito",
             "disabled": true,
             "options": [
@@ -1037,7 +1037,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Selecciona tu respuesta...",
             "disabled": false,
             "options": [
@@ -1088,7 +1088,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "A) Una herramienta para mantener la armonía y proteger a los demás.",
             "disabled": true,
             "options": [
@@ -1141,7 +1141,7 @@
         "components": [
           {
             "type": "SELECT_MENU",
-            "customId": "despertarOptions-{user_id}-{message.id}",
+            "customId": "despertarOptions-{user_id}-{character_id}",
             "placeholder": "Selecciona tu respuesta...",
             "disabled": false,
             "options": [

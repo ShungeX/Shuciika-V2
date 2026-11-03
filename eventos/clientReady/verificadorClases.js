@@ -1,4 +1,6 @@
 const clientdb = require('../../Server');
+const { moverLumens } = require('../../functions/Economia/lumens');
+const { resolveActivePjFilter } = require('../../utils/getDataCharacters');
 const { crearCustomId } = require('../../utils/constructores/customId');
 const {
     eliminarRolClase,
@@ -296,19 +298,25 @@ module.exports = async (client) => {
                                 let deudaGenerada = 0;
                                 let aCobrar = penalizacion;
 
-                                if (saldoActual >= aCobrar) {
+                                // Se cobra lo que alcance (atómico) y el resto pasa a deuda. Si el saldo cambia
+                                // entre la lectura y el cobro, se vuelve a intentar con el saldo nuevo.
+                                let cobrado = 0;
+                                for (let intento = 0; intento < 3 && aCobrar > 0; intento++) {
+                                    const saldo = intento === 0 ? saldoActual
+                                        : ((await personajesCol.findOne({ _id: clase.profesorId }, { projection: { "economia.Lumens": 1 } }))?.economia?.Lumens ?? 0);
+                                    const monto = Math.min(aCobrar, Math.max(0, saldo));
+                                    if (monto <= 0) break;
+                                    const r = await moverLumens({
+                                        personajeId: clase.profesorId, delta: -monto, motivo: "clase", opId: `clase:${clase._id}:penalizacion`,
+                                        ref: { claseId: String(clase._id), penalizacion: aCobrar },
+                                    });
+                                    if (r.ok) { cobrado = monto; break; }
+                                }
+                                deudaGenerada = aCobrar - cobrado;
+                                if (deudaGenerada > 0) {
                                     await personajesCol.updateOne(
                                         { _id: clase.profesorId },
-                                        { $inc: { "economia.Lumens": -aCobrar } }
-                                    );
-                                } else {
-                                    deudaGenerada = aCobrar - saldoActual;
-                                    await personajesCol.updateOne(
-                                        { _id: clase.profesorId },
-                                        {
-                                            $set: { "economia.Lumens": 0 },
-                                            $inc: { "economia.deuda": deudaGenerada }
-                                        }
+                                        { $inc: { "economia.deuda": deudaGenerada } }
                                     );
                                 }
 
@@ -328,10 +336,14 @@ module.exports = async (client) => {
                                 if (cantPresentes > 0 && bolsa > 0) {
                                     porAlumno = Math.min(Math.floor(bolsa / cantPresentes), 40);
                                     for (const stId of presentes) {
-                                        await personajesCol.updateOne(
-                                            { userId: String(stId), activo: true },
-                                            { $inc: { "economia.Lumens": porAlumno } }
-                                        );
+                                        // El dinero va al personaje activo del alumno, nunca por su ID de Discord
+                                        const { pjFilter } = await resolveActivePjFilter(String(stId));
+                                        const pj = pjFilter ? await personajesCol.findOne(pjFilter, { projection: { _id: 1 } }) : null;
+                                        if (!pj) continue;
+                                        await moverLumens({
+                                            personajeId: pj._id, userId: String(stId), delta: porAlumno, motivo: "clase",
+                                            opId: `clase:${clase._id}:compensacion:${stId}`, ref: { claseId: String(clase._id) },
+                                        });
                                     }
                                 }
 

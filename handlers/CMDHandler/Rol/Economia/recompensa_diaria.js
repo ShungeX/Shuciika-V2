@@ -6,6 +6,7 @@ const characters = db2.collection("Personajes")
 const userdb = db.collection("usuarios_server")
 const updateInventario = require("../../../../functions/updateInventario")
 const utilidadesTexto = require("../../../../utils/utilidadesTexto")
+const { moverLumens } = require("../../../../functions/Economia/lumens")
 const SEGUNDOS_DIA   = 86_400
 
 module.exports = {
@@ -101,9 +102,14 @@ module.exports = {
                 }
             }
 
-            if (bonus > 0) updateOps.$inc = { "economia.lumens": bonus }
-
             await characters.updateOne({ _id: character._id }, updateOps, { upsert: true })
+
+            if (bonus > 0) {
+                await moverLumens({
+                    personajeId: character._id, delta: bonus, motivo: "cofre", opId: `diaria:${interaction.id}`,
+                    ref: { racha: nuevaRacha },
+                })
+            }
 
             await interaction.reply({ embeds: [embed] })
 
