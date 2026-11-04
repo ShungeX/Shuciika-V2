@@ -10,14 +10,23 @@ const { duelSystem } = require("../../../functions/Duelo/duelManager");
 const estadosMascota = require("../../../functions/petsStatus");
 const dbobjetos = db2.collection("Objetos_globales")
 const pets = db2.collection("Mascotas")
+const { splitCustomId } = require("../../../utils/constructores/customId")
 
 
 module.exports = {
     customId: "pets",
-    selectAutor: true,
+    soloAutor: true,
+    requirements: {
+        character: { obtener: true }
+    },
 
 
-    ejecutar: async (client, interaction, char, action) => {
+    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
+    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
+    ejecutar: async ({ client, interaction, character: personaje }) => {
+        // pets-<userId>-<characterId>-<accion>
+        const [, , charId, action] = splitCustomId(interaction.customId)
+        const char = personaje ?? { ID: Number(charId) || charId }
         const id = interaction.values[0]
 
 

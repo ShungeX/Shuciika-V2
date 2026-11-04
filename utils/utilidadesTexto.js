@@ -139,6 +139,7 @@ function buildActionMessage({ actor, item, efectos, objetivos, perspectiva = 'el
     const healingGroup = [];
     const manaGroup = [];
     const statusGroups = {};
+    const customGroup = []; // frases ya redactadas (efectos de objeto: buffs, limpia, inmunidad, maná perdido...)
     for (const ef of (efectos || [])) {
         const tipoEf = String(ef.tipo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const statEf = String(ef.stat || '').toLowerCase();
@@ -146,6 +147,11 @@ function buildActionMessage({ actor, item, efectos, objetivos, perspectiva = 'el
         const targetName = ef.objetivos?.[0] || objetivos?.[0] || 'objetivo';
         const targetId = ef.targetId || null;
         const targetObj = { ID: targetId, Nombre: targetName };
+
+        if (tipoEf === 'custom' && ef.clausula) {
+            customGroup.push({ target: targetObj, clausula: ef.clausula });
+            continue;
+        }
 
         if (tipoEf === 'danio' || tipoEf === 'dano' || tipoEf === 'damage') {
             damageGroup.push({ target: targetObj, valor: value });
@@ -363,8 +369,9 @@ function buildActionMessage({ actor, item, efectos, objetivos, perspectiva = 'el
             const tgtDisplay = colorized ? colorizeText(tgtName, colores.red) : tgtName;
 
             if (isSelf) {
-                textWithTargets = `ha quedado con ${stateNameText} durante ${durationText}`;
-                textWithoutTargets = `ha quedado con ${stateNameText} durante ${durationText}`;
+                const auxSelf = perspectiva === 'tu' ? 'has' : 'ha';
+                textWithTargets = `${auxSelf} quedado con ${stateNameText} durante ${durationText}`;
+                textWithoutTargets = `${auxSelf} quedado con ${stateNameText} durante ${durationText}`;
             } else {
                 textWithTargets = `${tgtDisplay} ha quedado con ${stateNameText} durante ${durationText}`;
                 textWithoutTargets = `ha quedado con ${stateNameText} durante ${durationText}`;
@@ -380,6 +387,19 @@ function buildActionMessage({ actor, item, efectos, objetivos, perspectiva = 'el
             targetsKey,
             textWithTargets,
             textWithoutTargets
+        });
+    }
+
+    // 5. Frases redactadas: "has ganado 5 de Fuerza durante 3 turno(s)", "X ha quedado libre de Veneno"...
+    for (const c of customGroup) {
+        const propio = isActor(c.target);
+        const aux = propio && perspectiva === 'tu' ? 'has' : 'ha';
+        const tgtDisplay = colorized ? colorizeText(c.target.Nombre, colores.green) : c.target.Nombre;
+        generatedClauses.push({
+            type: 'custom',
+            targetsKey: getTargetsKey([c.target]),
+            textWithTargets: propio ? `${aux} ${c.clausula}` : `${tgtDisplay} ha ${c.clausula}`,
+            textWithoutTargets: `${aux} ${c.clausula}`
         });
     }
 
@@ -647,7 +667,38 @@ module.exports = {
      * @param {import('discord.js').Message} messageObj - Objeto mensaje a editar.
      * @param {Object} payload - Contenido a enviar o editar.
      */
+    /**
+     * Responde de forma segura: reply si la interacción aún no tiene acuse, followUp si ya lo tiene.
+     * Evita "InteractionAlreadyReplied" y que los avisos se pierdan tras un deferUpdate.
+     */
+    async responder(interaction, payload) {
+        try {
+            if (interaction.deferred || interaction.replied) return await interaction.followUp(payload);
+            return await interaction.reply(payload);
+        } catch (error) {
+            console.error("[responder] No se pudo responder la interacción:", error?.message || error);
+            return null;
+        }
+    },
+
     async editarOMandarMensaje(interaction, exploracionCache, messageObj, payload) {
+        // Si la interacción de componente aún no tiene acuse y apunta al mismo mensaje,
+        // usar interaction.update(): edita Y responde a Discord en una sola llamada.
+        // Antes solo se hacía message.edit(), Discord nunca recibía respuesta y mostraba
+        // "La aplicación no ha respondido" aunque el mensaje sí cambiara.
+        const esComponente = typeof interaction?.isMessageComponent === 'function' && interaction.isMessageComponent();
+        const mismoMensaje = !messageObj?.id || !interaction?.message?.id || messageObj.id === interaction.message.id;
+        if (esComponente && !interaction.deferred && !interaction.replied && mismoMensaje) {
+            try {
+                await interaction.update(payload);
+                const actualizado = interaction.message ?? messageObj;
+                if (exploracionCache && actualizado) exploracionCache.message = actualizado;
+                return actualizado;
+            } catch (error) {
+                console.error("[editarOMandarMensaje] interaction.update falló, se intenta editar el mensaje:", error?.message || error);
+            }
+        }
+
         try {
             if (messageObj && typeof messageObj.edit === 'function') {
                 const updated = await messageObj.edit(payload);

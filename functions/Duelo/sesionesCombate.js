@@ -357,7 +357,9 @@ class sesionesCombate extends EventEmitter{
                     // Curación demorada (de hechizos)
                     turnProcessor._aplicarCuracion({ base: eff.base }, caster, target, { Elemento: "Neutro" });
                 } else {
-                    // Efectos de estado persistentes
+                    // Efectos de estado persistentes (una inmunidad ganada durante la ronda los bloquea)
+                    const { esInmune } = require("./efectosObjeto");
+                    if (esInmune(target, eff.id) || esInmune(target, eff.nombre)) return;
                     target.statusEffect ??= [];
                     const existente = target.statusEffect.find(e => e.id === eff.id || e.Nombre === eff.nombre || e.nombre === eff.nombre);
                     if (existente) {

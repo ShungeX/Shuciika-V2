@@ -6,30 +6,39 @@ const characters = db2.collection("Personajes")
 const updateInventario = require("../updateInventario")
 const { asciiText, buildActionMessage } = require("../../utils/utilidadesTexto")
 const InterfazCreate = require("./combateUI")
+const { normalizarElemento, Personaje } = require("./combatientes")
+const { leerProgreso } = require("../Economia/progresionEstelar")
+const { esFormatoNuevo, aplicarEfectoObjeto, cumpleCondicion, esInmune, revertirModStat } = require("./efectosObjeto")
 
 const PRECISION_MINIMA_BASE = 10;
 const TECHO_ESQUIVE = 0.85;
 const PISO_ESQUIVE = 0.05;
 
+// ─── Balance de daño (ajustable) ─────────────────────────────────────────────
+// La defensa es una REDUCCIÓN PORCENTUAL: puntos / (puntos + K). Así nadie queda inmune
+// (como mínimo entra el 25% del golpe) y las stats altas no se disparan.
+const BALANCE = {
+    ATAQUE_BASE_MIN: 4,            // daño base aleatorio del ataque básico (4-9)
+    ATAQUE_BASE_RANGO: 6,
+    ATAQUE_NIVEL_PLANO: 1.0,       // + nivel × 1.0 de daño plano
+    ATAQUE_NIVEL_ESCALA: 0.05,     // fuerza × (1 + nivel × 0.05)
+    DEF_FISICA_RES: 1.0,           // puntos de defensa física = resFisica × 1.0 + nivel × 0.5
+    DEF_FISICA_NIVEL: 0.5,
+    DEF_MAGICA_RES: 1.0,           // puntos de defensa mágica = resMagica × 1.0 + nivel × 0.3
+    DEF_MAGICA_NIVEL: 0.3,
+    DEF_K: 30,                     // con 30 puntos se reduce el 50%
+    DEF_TECHO: 0.75,               // reducción máxima por stats
+    GUARDIA_POR_PUNTO: 0.04,       // cada punto de "Defenderse" suma +4% de reducción (se consume al recibir un golpe)
+    REDUCCION_TECHO_TOTAL: 0.85,   // stats + guardia nunca bloquean más del 85%
+    CRITICO_TECHO: 0.40,           // probabilidad máxima de crítico
+    CRITICO_MULTI: 1.5,
+};
 
-function romanToInt(roman) {
-    if (!roman) return 0;
-    if (typeof roman === 'number') return roman;
-    const map = { 'i': 1, 'v': 5, 'x': 10, 'l': 50, 'c': 100, 'd': 500, 'm': 1000 };
-    let total = 0;
-    let prev = 0;
-    const str = String(roman).toLowerCase().trim();
-    for (let i = str.length - 1; i >= 0; i--) {
-        const current = map[str[i]] || 0;
-        if (current < prev) {
-            total -= current;
-        } else {
-            total += current;
-        }
-        prev = current;
-    }
-    return total;
+function reduccionPorDefensa(puntos) {
+    const p = Math.max(0, Number(puntos) || 0);
+    return Math.min(BALANCE.DEF_TECHO, p / (p + BALANCE.DEF_K));
 }
+
 
 const CONFUSION_REDUCTIONS = {
     I: 0.15,
@@ -170,8 +179,12 @@ class TurnProcessor {
      * Respeta el caso especial Kryo-Pyros-Lapis
      */
     _getMultiplicadorElemental(elementoAtacante, elementoDefensor) {
+        // Normalizar nombres ("Pyró" → "Pyros", "Ninguno"/null → "Neutro")
+        elementoAtacante = normalizarElemento(elementoAtacante)
+        elementoDefensor = normalizarElemento(elementoDefensor)
+
         // Triángulo especial — se maneja en CombatUI, aquí es neutro
-const esTriangulo =
+        const esTriangulo =
             (elementoAtacante === "Kryo" && (elementoDefensor === "Pyros" || elementoDefensor === "Lapis")) ||
             (elementoAtacante === "Pyros" && elementoDefensor === "Kryo") ||
             (elementoAtacante === "Lapis" && elementoDefensor === "Kryo")
@@ -195,7 +208,7 @@ const esTriangulo =
         let amount = mecanica.base
 
         if (mecanica.scaling) {
-            const statVal = caster.stats[mecanica.scaling.stats] || 0
+            const statVal = caster.stats?.[mecanica.scaling.stats] || 0
             amount += (statVal * mecanica.scaling.multi) * multiplicador
         }
         return Math.max(0, Math.floor(amount))
@@ -206,11 +219,10 @@ const esTriangulo =
      * (Reciclado y adaptado del código anterior)
      */
     _generarAtaqueBasico(atacante) {
-        const arma = atacante.equipamiento?.find(i => i.tipo === "arma")
-        const baseAleatoria = Math.floor(Math.random() * 6) + 2 // 2-8
-        const lvl = atacante.isNPC 
-            ? (atacante.nivelMagico ?? atacante.stats?.nivelMagico ?? 1) 
-            : (atacante.StelarFragmentsTotal ?? atacante.sendero?.StelarFragmentsTotal ?? 1);
+        // El arma (atacante.arma) aún no aporta datos de combate: todos usan el ataque básico
+        const lvl = Number(atacante.nivelCombate) || 1;
+        const baseAleatoria = BALANCE.ATAQUE_BASE_MIN + Math.floor(Math.random() * BALANCE.ATAQUE_BASE_RANGO)
+            + Math.round(lvl * BALANCE.ATAQUE_NIVEL_PLANO);
 
         return {
             _id: "basic_attack",
@@ -223,7 +235,7 @@ const esTriangulo =
                     base: baseAleatoria,
                     scaling: {
                         stats: "fuerza",
-                        multi: 1 + (lvl * 0.2)
+                        multi: 1 + (lvl * BALANCE.ATAQUE_NIVEL_ESCALA)
                     },
                     objetivo: 1,
                     esFisico: true
@@ -276,10 +288,10 @@ const esTriangulo =
 
         switch (codigoObjetivo) {
             case 1: // Enemigo seleccionado o primero disponible
-                if (targetId) return enemigos.filter(e => e.ID === targetId && !e.defeated)
+                if (targetId != null) return enemigos.filter(e => String(e.ID) === String(targetId) && !e.defeated)
                 return enemigos.filter(e => !e.defeated).slice(0, 1)
             case 2: // Aliado seleccionado
-                if (targetId) return aliados.filter(a => a.ID === targetId && !a.defeated)
+                if (targetId != null) return aliados.filter(a => String(a.ID) === String(targetId) && !a.defeated)
                 return aliados.filter(a => a.ID !== caster.ID && !a.defeated).slice(0, 1)
             case 3: // Self
                 return [caster]
@@ -329,27 +341,28 @@ const esTriangulo =
             return { cantidad: 0, esCritico: false, tipoElemental };
         }
 
+        // Resplandor del atacante: multiplicador fuerte de daño (los NPCs devuelven 1)
+        cantidad = Math.floor(cantidad * (Number(caster?.multiplicadorDanio) || 1))
+
         // Crítico: (sabiduria*2 + agilidad*2) / 100
-        const chanceCritico = ((caster.stats.sabiduria * 2) + (caster.stats.agilidad * 2)) / 100
+        const chanceCritico = Math.min(BALANCE.CRITICO_TECHO,
+            (((caster.stats?.sabiduria || 0) * 2) + ((caster.stats?.agilidad || 0) * 2)) / 100)
         const esCritico = Math.random() < chanceCritico
-        if (esCritico) cantidad = Math.floor(cantidad * 1.5)
+        if (esCritico) cantidad = Math.floor(cantidad * BALANCE.CRITICO_MULTI)
 
         // Reducción por resistencia
         const resFis = target.stats?.resFisica ?? target.stats?.resistenciaFisica ?? 0;
         const resMag = target.stats?.resMagica ?? target.stats?.resistenciaMagica ?? 0;
-        const lvlMag = target.isNPC 
-            ? (target.nivelMagico ?? target.stats?.nivelMagico ?? 1) 
-            : (target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 1);
+        const lvlDef = Number(target.nivelCombate) || 1;
 
-        if (mecanica.esFisico) {
-            const defensa = (1 + (target.defenseActual || 0)) *
-                ((resFis * 0.6) + (lvlMag * 0.35));
-            cantidad = Math.max(1, Math.round(cantidad - defensa));
-            target.defenseActual = 0;
-        } else {
-            const resM = resMag * 0.8;
-            cantidad = Math.max(1, Math.round(cantidad - resM));
-        }
+        const puntosDefensa = mecanica.esFisico
+            ? (resFis * BALANCE.DEF_FISICA_RES) + (lvlDef * BALANCE.DEF_FISICA_NIVEL)
+            : (resMag * BALANCE.DEF_MAGICA_RES) + (lvlDef * BALANCE.DEF_MAGICA_NIVEL);
+        const guardia = (target.defenseActual || 0) * BALANCE.GUARDIA_POR_PUNTO;
+        const reduccion = Math.min(BALANCE.REDUCCION_TECHO_TOTAL, reduccionPorDefensa(puntosDefensa) + guardia);
+        cantidad = Math.max(1, Math.round(cantidad * (1 - reduccion)));
+        // La guardia de "Defenderse" se consume con el primer golpe recibido (físico o mágico)
+        if (target.defenseActual) target.defenseActual = 0;
         if (isNaN(cantidad)) {
             console.error("Cantidad de daño es NaN", { cantidad, mecanica, caster, target, hechizo })
             return { cantidad: 0, esCritico, tipoElemental }
@@ -381,7 +394,7 @@ const esTriangulo =
 
         // Curación usa sintonía en lugar de fuerza
         let cantidad = Math.floor(
-            mecanica.base + ((caster?.stats?.sintonia || 1)  * 1.4 * multiElemental)
+            mecanica.base + ((caster?.stats?.sintoniaElemental ?? caster?.stats?.sintonia ?? 1) * 1.4 * multiElemental)
         )
 
         if(isNaN(cantidad)) {
@@ -413,6 +426,7 @@ const esTriangulo =
     _agregarEfectoPendiente(session, efectoDatos, key, target, caster) {
         const probabilidad = efectoDatos.probabilidad ?? 1
         if (Math.random() > probabilidad) return false // no procede
+        if (esInmune(target, key) || esInmune(target, efectoDatos.Nombre)) return false // inmunidad de un objeto
 
         const effectPayload = {
             id: key,
@@ -420,7 +434,7 @@ const esTriangulo =
             Nombre: efectoDatos.Nombre || key,
             base: typeof efectoDatos.base === 'object'
                 ? { ...efectoDatos.base }
-                : Math.round(efectoDatos.base + ((caster?.stats?.poderElemental || 1) * 2)),
+                : Math.round(efectoDatos.base + ((caster?.stats?.poderElemental ?? caster?.stats?.sintoniaElemental ?? 1) * 2)),
             duracion: efectoDatos.duracion,
             objetivo: target.ID,
             fuente: caster.ID,
@@ -587,7 +601,7 @@ const esTriangulo =
 
             caster.statusEffect.forEach(eff => {
                 const id = String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (id === 'veneno' || id === 'quemadura' || id === 'damage' || id === 'danio') {
+                if (id === 'veneno' || id === 'quemadura' || id === 'damage' || id === 'danio' || id === 'degeneracion') {
                     const dmg = Number(eff.base || 0);
                     if (dmg > 0) {
                         caster.aplicarDaño(dmg);
@@ -603,7 +617,7 @@ const esTriangulo =
                             session.emit('jugadorDerrotado', { victima: caster, atacante: session.getCombatiente(eff.fuente) || caster });
                         }
                     }
-                } else if (id === 'curacion' || id === 'heal' || id === 'healing' || id === 'pasive') {
+                } else if (id === 'curacion' || id === 'heal' || id === 'healing' || id === 'pasive' || id === 'regeneracion') {
                     const heal = Number(eff.base || 0);
                     if (heal > 0) {
                         const hpPrev = caster.HP;
@@ -620,7 +634,10 @@ const esTriangulo =
 
             for (let i = caster.statusEffect.length - 1; i >= 0; i--) {
                 caster.statusEffect[i].duracion--;
-                if (caster.statusEffect[i].duracion <= 0) caster.statusEffect.splice(i, 1);
+                if (caster.statusEffect[i].duracion <= 0) {
+                    const [expirado] = caster.statusEffect.splice(i, 1);
+                    revertirModStat(caster, expirado); // los buffs temporales de stat se deshacen al expirar
+                }
             }
         }
 
@@ -823,7 +840,7 @@ const esTriangulo =
             if (c.defeated) return
             if (!c.artefactoMagico) {
                 c.Mana = Math.min(
-                    c.stats.manaMax,
+                    c.stats?.manaMax ?? c.Mana,
                     c.Mana + 2
                 )
             }
@@ -831,6 +848,11 @@ const esTriangulo =
     }
 
     async resolverObjetos(session, caster, itemData, targetIds = null) {
+        // Fuera de combate llega el documento del alma: se usa un combatiente temporal para aplicar efectos
+        if (!session && caster && typeof caster.aplicarCuracion !== 'function') {
+            caster = new Personaje(Number(caster._id ?? caster.ID), caster);
+        }
+
         // Bloquear si el caster está incapacitado
         const incapacitante = obtenerEfectoIncapacitante(caster);
         if (incapacitante) {
@@ -883,14 +905,7 @@ const esTriangulo =
         // Verificar las restricciones del objeto: fe_min, fe_max, resplandor_min, resplandor_max, clase, región y reputación
         const rest = objetoExist.restricciones;
         const soulDoc = await db2.collection("Soul").findOne({ _id: characterId }) || {};
-        const userFE = Number(
-            soulDoc.sendero?.StelarFragmentsTotal 
-            ?? soulDoc.fragmentos?.StelarFragmentsTotal 
-            ?? caster.StelarFragmentsTotal 
-            ?? 0
-        );
-        const userResplandorStr = soulDoc.sendero?.resplandor ?? soulDoc.resplandor ?? 'I';
-        const userResplandor = romanToInt(userResplandorStr);
+        const { ganados: userFE, resplandor: userResplandor } = leerProgreso(soulDoc || {});
 
         const userClass = String(caster.Clase || charDoc.Clase || charDoc.clase || "").toLowerCase();
         const userRegion = String(caster.Region || charDoc.Region || charDoc.perfil?.Region || "").toLowerCase();
@@ -990,56 +1005,46 @@ const esTriangulo =
     }
 
     async añadirEfectos(session, caster, objetoExist, objetivos, characterId) {
-        const efectosAplicadosMap = new Map();
+        const isExploracion = Boolean(session?.type === "exploration" || session?.duelType === "exploration" || session?.isExploracion === true);
 
         // Paso 5 — Aplicar efectos:
+        // Formato nuevo (suma/resta/limpia/aplica/inmuniza) → efectosObjeto; el antiguo se conserva abajo
+        const efectosAplicados = [];
         for (const target of objetivos) {
             for (const efecto of (objetoExist.efectos || [])) {
-                if (efecto.condicion !== null && efecto.condicion !== undefined) {
-                    let conditionMet = true;
-                    try {
-                        if (typeof efecto.condicion === 'string') {
-                            const evalFunc = new Function('caster', 'target', `return ${efecto.condicion}`);
-                            conditionMet = evalFunc(caster, target);
-                        }
-                    } catch (e) {
-                        console.error("Error al evaluar condición del efecto:", e);
-                        conditionMet = false;
-                    }
-                    if (!conditionMet) continue;
+                if (!cumpleCondicion(efecto.condicion, caster, target)) continue;
+
+                if (esFormatoNuevo(efecto)) {
+                    efectosAplicados.push(...aplicarEfectoObjeto({ session, caster, target, efecto, objeto: objetoExist }));
+                    continue;
                 }
 
                 let valorAplicado = efecto.valor;
 
                 if (efecto.duracion !== null && efecto.duracion !== undefined) {
-                    if (session) {
-                        this._agregarEfectoPendiente(session, {
-                            Nombre: objetoExist.Nombre,
-                            base: efecto.valor,
-                            duracion: efecto.duracion,
-                            probabilidad: 1
-                        }, `${objetoExist.ID}_${efecto.tipo}`, target, caster);
-                    } else {
-                        target.statusEffect ??= [];
-                        target.statusEffect.push({
-                            id: `${objetoExist.ID}_${efecto.tipo}`,
-                            nombre: objetoExist.Nombre,
-                            base: efecto.valor,
-                            duracion: efecto.duracion,
-                            objetivo: target.ID,
-                            fuente: caster.ID
-                        });
-                    }
+                    if (!session) continue; // los estados con duración solo existen en combate
+                    const key = String(efecto.tipo || objetoExist.ID).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+                    if (esInmune(target, key)) continue;
+                    target.statusEffect ??= [];
+                    target.statusEffect.push({
+                        id: key,
+                        Nombre: efecto.Nombre || objetoExist.Nombre,
+                        nombre: efecto.Nombre || objetoExist.Nombre,
+                        base: efecto.valor,
+                        duracion: efecto.duracion,
+                        objetivo: target.ID,
+                        fuente: caster.ID
+                    });
                 } else {
-                    const tipoLower = String(efecto.tipo || '').toLowerCase();
+                    const tipoLower = String(efecto.tipo || '').toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
                     const statLower = String(efecto.stat || '').toLowerCase();
 
                     if (tipoLower === 'curacion' || tipoLower === 'heal' || tipoLower === 'hp' || statLower === 'hp' || (tipoLower === 'regeneracion' && statLower === 'hp')) {
                         const hpPrev = target.HP;
-                        const maxHp = target.stats?.hpMax || target.stats?.maxHp || target.hpMax || 99999;
-                        target.HP = Math.min(maxHp, target.HP + Number(efecto.valor || 0));
+                        if (target.aplicarCuracion) target.aplicarCuracion(Number(efecto.valor || 0), true);
+                        else target.HP = Math.min(target.stats?.hpMax || 99999, target.HP + Number(efecto.valor || 0));
                         valorAplicado = target.HP - hpPrev;
-                    } else if (tipoLower === 'daño' || tipoLower === 'damage') {
+                    } else if (tipoLower === 'dano' || tipoLower === 'damage') {
                         const res = this._aplicarDaño({ base: efecto.valor, esFisico: false }, caster, target, { Elemento: 'Neutro' }, session);
                         valorAplicado = res.cantidad;
                     } else if (
@@ -1056,22 +1061,16 @@ const esTriangulo =
                         const maxMana = target.stats?.manaMax || target.stats?.maxMana || target.manaMax || 99999;
                         target.Mana = Math.min(maxMana, target.Mana + Number(efecto.valor || 0));
                         valorAplicado = target.Mana - manaPrev;
-                    } else if (target.stats) {
-                        const statName = efecto.stat || 'HP';
-                        const valPrev = target.stats[statName] || 0;
-                        target.stats[statName] = (target.stats[statName] || 0) + Number(efecto.valor || 0);
-                        valorAplicado = target.stats[statName] - valPrev;
+                    } else {
+                        // Un stat sin duración fuera del formato nuevo no se puede deshacer: se ignora
+                        continue;
                     }
+                    if (!valorAplicado) continue;
                 }
 
-                const key = `${efecto.tipo}_${efecto.stat || ''}`;
-                if (!efectosAplicadosMap.has(key)) {
-                    efectosAplicadosMap.set(key, { ...efecto, valor: valorAplicado });
-                }
+                efectosAplicados.push({ ...efecto, valor: valorAplicado, objetivos: [target.Nombre], targetId: target.ID });
             }
         }
-
-        const efectosAplicados = Array.from(efectosAplicadosMap.values());
 
         // Paso 6 — Registrar en el log:
         if (session) {
@@ -1086,8 +1085,22 @@ const esTriangulo =
             this._verificarYRegistrarDerrotas(session, caster);
         }
 
-        // Paso 7 — Consumir:
-        if (objetoExist.uso?.consumible === true) {
+        if (!session) {
+            // Fuera de combate: si no pasó nada (p. ej. limpia un estado que no tienes) no se gasta el objeto
+            if (efectosAplicados.length === 0) {
+                return {
+                    success: false,
+                    message: buildActionMessage({ actor: caster.Nombre, item: objetoExist, efectos: [], objetivos: [], perspectiva: 'tu' })
+                };
+            }
+            // Guardar en el alma lo que cambió (HP y maná son lo único que persiste fuera de combate)
+            await Promise.all(objetivos.filter(o => !o.isNPC).map(o =>
+                db2.collection("Soul").updateOne({ _id: Number(o.ID) }, { $set: { "nucleo.HP": o.HP, "nucleo.Mana": o.Mana } })
+            ));
+        }
+
+        // Paso 7 — Consumir (por defecto los objetos son consumibles, igual que en el dashboard):
+        if (objetoExist.uso?.consumible !== false) {
             await updateInventario(null, null, characterId, {
                 isItem: true,
                 ID: Number(objetoExist.ID),
@@ -1169,14 +1182,7 @@ const esTriangulo =
                 return { success: false, message: "Personaje no encontrado." };
             }
             
-            const userFE = Number(
-                soulDoc.sendero?.StelarFragmentsTotal 
-                ?? soulDoc.fragmentos?.StelarFragmentsTotal 
-                ?? caster.StelarFragmentsTotal 
-                ?? 0
-            );
-            const userResplandorStr = soulDoc.sendero?.resplandor ?? soulDoc.resplandor ?? 'I';
-            const userResplandor = romanToInt(userResplandorStr);
+            const { ganados: userFE, resplandor: userResplandor } = leerProgreso(soulDoc || {});
             const userClass = String(caster.Clase || charDoc.Clase || charDoc.clase || "").toLowerCase();
             
             const feMin = Number(hechizo.Req.fe_min ?? 0);

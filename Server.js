@@ -775,6 +775,75 @@ app.get('/api/admin/objetos', async (req, res) => {
 });
 
 // POST /api/admin/objetos (Crear)
+/** Entero dentro de [min, max] o null si viene vacío o no es válido. */
+function normalizarEnteroObjeto(valor, min, max) {
+    if (valor === null || valor === undefined || valor === "") return null;
+    const n = Number(valor);
+    return Number.isInteger(n) && n >= min && n <= max ? new Int32(n) : null;
+}
+
+// Solo el equipo tiene durabilidad (igual que functions/Objetos/durabilidad.js)
+const TIPOS_CON_DURABILIDAD = ["artefacto", "herramienta", "contenedor"];
+function esEquipoObjeto(tipo) {
+    const lista = Array.isArray(tipo) ? tipo : (tipo ? [tipo] : []);
+    return lista.some(t => TIPOS_CON_DURABILIDAD.includes(String(t).toLowerCase()));
+}
+
+/** Límite entero positivo o null (sin límite). */
+function normalizarLimiteObjeto(valor) {
+    const n = Number(valor);
+    return valor !== null && valor !== undefined && valor !== "" && Number.isInteger(n) && n > 0 ? new Int32(n) : null;
+}
+
+// Efectos de objeto: suma | resta (stat o duración de efectos), limpia, aplica, inmuniza
+const STATS_EFECTO_OBJETO = ["nucleo.HP", "nucleo.mana", "fuerza", "resFisica", "resMagica", "agilidad", "sabiduria", "inteligencia", "regeneracion", "turnos"];
+const normalizarClaveEfecto = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+function normalizarEfectosObjeto(lista) {
+    if (!Array.isArray(lista)) return [];
+    return lista.map(ef => {
+        const tipo = normalizarClaveEfecto(ef.tipo);
+        const base = {
+            tipo,
+            Nombre: ef.Nombre ? String(ef.Nombre).slice(0, 80) : null,
+            condicion: ef.condicion || null
+        };
+        const duracion = ef.duracion ? new Int32(Math.max(0, Number(ef.duracion) || 0)) : null;
+        const listaEfectos = (Array.isArray(ef.efectos) ? ef.efectos : []).map(normalizarClaveEfecto).filter(Boolean);
+
+        if (tipo === "suma" || tipo === "resta") {
+            const stat = STATS_EFECTO_OBJETO.includes(ef.stat) ? ef.stat : null;
+            return {
+                ...base, stat,
+                valor: new Int32(Math.abs(Number(ef.valor) || 0)),
+                // HP, maná y turnos son instantáneos; los aumentos temporales duran X rondas
+                duracion: stat === "nucleo.HP" || stat === "nucleo.mana" || stat === "turnos" ? null : duracion,
+                // Solo con stat "turnos": a qué efectos se suman/restan rondas (vacío = todos)
+                efectos: stat === "turnos" ? listaEfectos : undefined
+            };
+        }
+        if (tipo === "limpia") return { ...base, efectos: listaEfectos };
+        if (tipo === "inmuniza") return { ...base, efectos: listaEfectos, duracion };
+        if (tipo === "aplica") {
+            return {
+                ...base,
+                efecto: normalizarClaveEfecto(ef.efecto) || null,
+                valor: ef.valor !== null && ef.valor !== undefined && ef.valor !== "" ? new Int32(Number(ef.valor) || 0) : null,
+                duracion
+            };
+        }
+        // Formato antiguo (curacion, veneno...): se conserva para no romper objetos existentes
+        return {
+            ...base,
+            stat: ef.stat || null,
+            valor: typeof ef.valor === "object" && ef.valor !== null ? ef.valor : new Int32(Number(ef.valor || 0)),
+            duracion
+        };
+    })
+        .filter(ef => !((ef.tipo === "suma" || ef.tipo === "resta") && !ef.stat))   // stat desconocido: se descarta
+        .map(ef => Object.fromEntries(Object.entries(ef).filter(([, v]) => v !== undefined)));
+}
+
 app.post('/api/admin/objetos', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
     if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
@@ -845,7 +914,16 @@ app.post('/api/admin/objetos', async (req, res) => {
             evento_origen: objeto.evento_origen || null,
             imagenURL: objeto.imagenURL || null,
             intercambiable: typeof objeto.intercambiable !== "undefined" ? Boolean(objeto.intercambiable) : false,
-            maximoUnoPorPersona: typeof objeto.maximoUnoPorPersona !== "undefined" ? Boolean(objeto.maximoUnoPorPersona) : (typeof objeto.max1PorPersona !== "undefined" ? Boolean(objeto.max1PorPersona) : false),
+            // Límites: compras totales por personaje / unidades a la vez en el inventario (null = sin límite)
+            max_por_persona: normalizarLimiteObjeto(objeto.max_por_persona !== undefined ? objeto.max_por_persona : ((objeto.maximoUnoPorPersona ?? objeto.max1PorPersona) ? 1 : null)),
+            max_inventario: normalizarLimiteObjeto(objeto.max_inventario),
+            vendible: Boolean(objeto.vendible),
+            // Tiendas que lo compran (además de las marcadas «Todos»)
+            vender_en: require('./functions/mensajesServidor').normalizarTiendas(objeto.vender_en),
+            // Venta: valor_base (vacío = precio). Durabilidad (máx. 200) y resistencia (%) solo para equipo
+            valor_base: normalizarEnteroObjeto(objeto.valor_base, 0, 1000000),
+            durabilidad: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.durabilidad, 1, 200) : null,
+            resistencia: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.resistencia, 0, 100) : null,
             contaminable: typeof objeto.contaminable !== "undefined" ? Boolean(objeto.contaminable) : false,
             purificable: typeof objeto.purificable !== "undefined" ? Boolean(objeto.purificable) : false,
             tiempo_limite: objeto.tiempo_limite || null,
@@ -869,15 +947,7 @@ app.post('/api/admin/objetos', async (req, res) => {
                 },
                 cooldown: objeto.uso?.cooldown ? new Int32(Number(objeto.uso.cooldown)) : null
             },
-            efectos: (objeto.efectos || []).map(ef => {
-                return {
-                    tipo: ef.tipo ? ef.tipo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "",
-                    stat: ef.stat || null,
-                    valor: new Int32(Number(ef.valor || 0)),
-                    duracion: ef.duracion ? new Int32(Number(ef.duracion)) : null,
-                    condicion: ef.condicion || null
-                };
-            })
+            efectos: normalizarEfectosObjeto(objeto.efectos)
         };
 
         await collection.updateOne({ _id: region }, { $push: { Objetos: normalizedObjeto } });
@@ -950,7 +1020,16 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
             evento_origen: objeto.evento_origen || null,
             imagenURL: objeto.imagenURL || null,
             intercambiable: typeof objeto.intercambiable !== "undefined" ? Boolean(objeto.intercambiable) : false,
-            maximoUnoPorPersona: typeof objeto.maximoUnoPorPersona !== "undefined" ? Boolean(objeto.maximoUnoPorPersona) : (typeof objeto.max1PorPersona !== "undefined" ? Boolean(objeto.max1PorPersona) : false),
+            // Límites: compras totales por personaje / unidades a la vez en el inventario (null = sin límite)
+            max_por_persona: normalizarLimiteObjeto(objeto.max_por_persona !== undefined ? objeto.max_por_persona : ((objeto.maximoUnoPorPersona ?? objeto.max1PorPersona) ? 1 : null)),
+            max_inventario: normalizarLimiteObjeto(objeto.max_inventario),
+            vendible: Boolean(objeto.vendible),
+            // Tiendas que lo compran (además de las marcadas «Todos»); si no viene, se conservan
+            vender_en: require('./functions/mensajesServidor').normalizarTiendas(objeto.vender_en !== undefined ? objeto.vender_en : targetObj.vender_en),
+            // Venta: valor_base (vacío = precio). Durabilidad (máx. 200) y resistencia (%) solo para equipo
+            valor_base: normalizarEnteroObjeto(objeto.valor_base, 0, 1000000),
+            durabilidad: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.durabilidad, 1, 200) : null,
+            resistencia: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.resistencia, 0, 100) : null,
             contaminable: typeof objeto.contaminable !== "undefined" ? Boolean(objeto.contaminable) : false,
             purificable: typeof objeto.purificable !== "undefined" ? Boolean(objeto.purificable) : false,
             tiempo_limite: objeto.tiempo_limite || null,
@@ -974,15 +1053,7 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
                 },
                 cooldown: objeto.uso?.cooldown ? new Int32(Number(objeto.uso.cooldown)) : null
             },
-            efectos: (objeto.efectos || []).map(ef => {
-                return {
-                    tipo: ef.tipo ? ef.tipo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "",
-                    stat: ef.stat || null,
-                    valor: new Int32(Number(ef.valor || 0)),
-                    duracion: ef.duracion ? new Int32(Number(ef.duracion)) : null,
-                    condicion: ef.condicion || null
-                };
-            })
+            efectos: normalizarEfectosObjeto(objeto.efectos)
         };
 
         await collection.updateOne(
@@ -1279,6 +1350,9 @@ function normalizeNpc(npc) {
             paradoja: new Int32(Number(npc.stats?.paradoja || 0)),
             destino: new Int32(Number(npc.stats?.destino || 0))
         },
+        // Los NPCs sí tienen nivel (los jugadores usan FE + Resplandor)
+        nivel: new Int32(Number(npc.nivel ?? npc.restrictions?.fe_min) || 1),
+        heraldo: npc.heraldo === true || String(npc.Type || "").toLowerCase() === "heraldo",
         restrictions: {
             fe_min: npc.restrictions?.fe_min ? new Int32(Number(npc.restrictions.fe_min)) : new Int32(0),
             fe_max: npc.restrictions?.fe_max ? new Int32(Number(npc.restrictions.fe_max)) : new Int32(0),
@@ -1406,7 +1480,8 @@ function normalizeNpc(npc) {
         })),
         loot: (npc.loot || []).map(l => {
             const normLoot = {
-                typeLoot: l.typeLoot || "lumens",
+                // El Polvo Estelar sustituye a la antigua XP
+                typeLoot: l.typeLoot === "xp" ? "polvo" : (l.typeLoot || "lumens"),
                 dropRate: new Double(Number(l.dropRate || 1.0)),
                 quantity: String(l.quantity || "1")
             };
@@ -3679,7 +3754,7 @@ app.post('/api/combat/create-room', async (req, res) => {
     if (!personajeIdRaw) return res.status(400).json({ error: 'No se especificó personajeId' });
 
     const personajeId = Number(personajeIdRaw);
-    const { nombreSala, privacidad, limiteEquipo1, limiteEquipo2, apuestasOn, lumensActivo, lumensValor, objetosApuesta, imageSala, tipoApuesta, adminObjetos, adminLumens } = req.body;
+    const { nombreSala, privacidad, limiteEquipo1, limiteEquipo2, apuestasOn, lumensActivo, lumensValor, objetosApuesta, imageSala, tipoApuesta, adminObjetos, adminLumens, amistoso } = req.body;
 
     try {
         const dbServer = clientdb.db("Server_db");
@@ -3779,7 +3854,7 @@ app.post('/api/combat/create-room', async (req, res) => {
 
         // Estructura de characterData con la misma exclusión
         const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {};
-        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
+        const { polvoEstelar, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
 
         const characterData = {
             ownerId: req.session.user.id,
@@ -3871,7 +3946,8 @@ app.post('/api/combat/create-room', async (req, res) => {
         const dataSala = {
             autor: req.session.user.id,
             autorCharacter: characterData.perfil.Nombre,
-            duelType: 'PvP',
+            // Amistoso: los efectos no se quedan en los personajes al terminar
+            duelType: amistoso ? 'amistoso' : 'PvP',
             team1: { [personajeId]: characterData },
             team2: {},
             limitTeam1,
@@ -3966,7 +4042,7 @@ app.post('/api/combat/create-npc-room', async (req, res) => {
         }
 
         const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {};
-        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
+        const { polvoEstelar, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {};
 
         const characterData = {
             ownerId: req.session.user.id,
@@ -4113,7 +4189,7 @@ app.post('/api/combat/room/:code/update-npc-teams', async (req, res) => {
     if (!sala.isNPC) return res.status(400).json({ error: 'La sala no es una sala contra NPCs' });
     if (sala.autor !== req.session.user.id) return res.status(403).json({ error: 'No tienes permisos para modificar esta sala' });
 
-    const { team1List, team2List, modeTest } = req.body;
+    const { team1List, team2List, modeTest, amistoso } = req.body;
     if (!Array.isArray(team1List) || !Array.isArray(team2List)) {
         return res.status(400).json({ error: 'Estructuras de equipo no válidas' });
     }
@@ -4209,6 +4285,8 @@ app.post('/api/combat/room/:code/update-npc-teams', async (req, res) => {
         } else {
             sala.modeTest = true;
         }
+        // Amistoso: los efectos no se quedan en los personajes al terminar
+        if (typeof amistoso !== 'undefined') sala.duelType = amistoso ? 'amistoso' : 'NPC';
 
         // Actualizar mensajes en Discord si existen
         if (sala.messageAutor && sala.messageAutor.channel && sala.messageAutor.message) {
@@ -4343,6 +4421,7 @@ app.get('/api/combat/active-room', async (req, res) => {
                         nombreSala: sala.nombreSala,
                         isNPC: !!sala.isNPC,
                         modeTest: !!sala.modeTest,
+                        duelType: sala.duelType,
                         team1: sala.team1,
                         team2: sala.team2
                     });

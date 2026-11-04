@@ -19,7 +19,22 @@ class duelManager {
         console.log("DuelManager conectado al Client exitosamente.");
     }
 
-    crearSesion({sessionId, duelType, teams, apuestas = null, tipoApuesta = null, modeTest = false}) {
+    /**
+     * ID único por combate (alfanumérico, apto para customIds). Antes se usaba el ID
+     * del canal espectador, lo que impedía tener más de un combate a la vez en todo el bot.
+     */
+    generarSessionId(longitud = 10) {
+        const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        let id
+        do {
+            const bytes = crypto.randomBytes(longitud)
+            id = Array.from(bytes, b => caracteres[b % caracteres.length]).join('')
+        } while (this.sesiones.has(id))
+        return id
+    }
+
+    crearSesion({sessionId = null, duelType, teams, apuestas = null, tipoApuesta = null, modeTest = false}) {
+        sessionId = sessionId || this.generarSessionId()
         const sesionExistente = this.sesiones.get(sessionId)
         if (sesionExistente) {
             if (sesionExistente.state === "FINALIZADO") {
@@ -31,11 +46,13 @@ class duelManager {
 
         const sesion = new sesionesCombate({ sessionId, type: duelType, teams, apuestas, tipoApuesta, modeTest })
         sesion.on('jugadorDerrotado', (datos) => {
-            console.log("Jugador derrotado:", datos.victima)
-            console.log("Jugador causante:", datos.atacante)
+            console.log(`[Combate ${sessionId}] ${datos.victima?.Nombre} fue derrotado por ${datos.atacante?.Nombre}`)
         })
 
         sesion.on('combateFinalizado', async (datos) => {
+          // try/finally: si la UI o las recompensas fallan, la sesión se destruye igual
+          // (antes los jugadores quedaban marcados "en combate" hasta reiniciar el bot)
+          try {
             const {sessionId, winners, arrayWinner = [], lossers, arrayLosser = [], typeWin} = datos || {};
 
             // 1. Mostrar estado de 0 HP y log de derrota "sucumbido 💀" en la UI regular
@@ -60,12 +77,18 @@ class duelManager {
 
             await interfazCreate.updateGameOver(sesion, this.client, datos, rewardsMap);
 
+            // Aviso para quien espera las recompensas (p. ej. reanudar la exploración)
+            sesion.emit('recompensasListas', rewardsMap);
+          } catch (error) {
+            console.error(`[duelManager] Error al finalizar el combate ${sessionId}:`, error);
+          } finally {
             // 4. Limpiar y destruir la sesión finalizada
-            this.destruirSesion(sessionId);
+            await this.destruirSesion(sessionId);
+          }
         });
 
         sesion.on('actualizarUI', () => {
-            interfazCreate.update(sesion, this.client)
+            interfazCreate.update(sesion, this.client).catch(e => console.error("[duelManager] Error al actualizar UI:", e))
         })
 
         this.sesiones.set(sessionId, sesion)

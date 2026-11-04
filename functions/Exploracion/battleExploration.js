@@ -6,7 +6,7 @@ const npcs = db2.collection("NPCs");
 const regiones = db2.collection("Regiones");
 const transaccionCache = require("../../utils/cache");
 const configServer = require("../../config");
-const { barrasDeEnergia, editarOMandarMensaje } = require("../../utils/utilidadesTexto");
+const { barrasDeEnergia, editarOMandarMensaje, responder } = require("../../utils/utilidadesTexto");
 const { getEscapeP } = require("./escape");
 const { duelSystem, duelEmitter } = require("../Duelo/duelManager");
 
@@ -38,7 +38,7 @@ function formatRewardsText(rewardsData, charId) {
 
     const lines = [];
     if (rewardObj.polvo) {
-        lines.push(`<:XP:1350575069113352265> **XP (Polvo Estelar):** +${rewardObj.polvo}`);
+        lines.push(`✨ **Polvo Estelar:** +${rewardObj.polvo}`);
     }
     if (rewardObj.lumens) {
         lines.push(`<a:Lumens:1335709991130103910> **Lumens:** +${rewardObj.lumens}`);
@@ -122,7 +122,7 @@ function calcularRescate(talismanArray) {
     return agrupados;
 }
 
-async function resumeExploration(client, interaction, cache, soul, rewards, isWin = false, cacheId, levelUp = null) {
+async function resumeExploration(client, interaction, cache, soul, rewards, isWin = false, cacheId) {
     if (isWin && cache) {
         cache.profundidad = (cache.profundidad || 0) + 1;
     }
@@ -213,7 +213,12 @@ async function resumeExploration(client, interaction, cache, soul, rewards, isWi
         });
 
         const rawTalisman = pj?.economia?.inventarioTalisman || [];
-        const objetosRescatados = calcularRescate(rawTalisman);
+        let objetosRescatados = calcularRescate(rawTalisman);
+
+        // Máximo en inventario: lo que no cabe se pierde con el resto del botín
+        const { limitarEntradas } = require("../Objetos/limiteInventario");
+        const limiteRescate = await limitarEntradas(pj, objetosRescatados);
+        objetosRescatados = limiteRescate.admitidos;
 
         // Guardar objetos rescatados en el inventario permanente (descontaminados)
         const { sanitizarObjetoInventario } = require("../catalogoObjetos");
@@ -318,6 +323,7 @@ async function resumeExploration(client, interaction, cache, soul, rewards, isWi
         } else {
             listaObjetosTexto = `### Rescate de objetos:\n- -# *No lograste rescatar ningún objeto del talismán.*\n-# *Todo tu botín se ha perdido en la penumbra.*`;
         }
+        if (limiteRescate.aviso) listaObjetosTexto += `\n${limiteRescate.aviso.split("\n").map(t => `-# ⟡ ${t}`).join("\n")}`;
 
         const titleText = `# Derrota en el Duelo [Fin de la exploración]`;
         const descriptionText = `-# Has sucumbido ante **${enemyName}**...\n\n-# El \`Talismán de Umbral\` no resistió el impacto y se ha roto\n-# Sin nada que lo sostenga, te arrastra de vuelta al único punto que aún reconoce: **el Instituto**`;
@@ -371,6 +377,9 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
     const channelDuel = await client.channels.fetch("1345239393786527784");
     const exploracionCache = transaccionCache.get(cacheId);
     if (!exploracionCache) return;
+    if (!character || !soul) {
+        return responder(interaction, { content: "No se ha podido obtener tu personaje para iniciar el duelo ＞﹏＜", flags: ["Ephemeral"] });
+    }
 
     exploracionCache.enemy = enemy;
     exploracionCache.MdAuthor = data.MdAuthor;
@@ -381,7 +390,7 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         message = await interaction.channel.messages.fetch(`${exploracionCache.message.id}`);
     } catch (error) {
         if (!interaction.deferred && !interaction.replied) {
-            return interaction.reply({ content: "Error al iniciar el duelo [Mensaje no encontrado]", flags: ["Ephemeral"] }).catch(() => { });
+            return responder(interaction, { content: "Error al iniciar el duelo [Mensaje no encontrado]", flags: ["Ephemeral"] });
         }
         return;
     }
@@ -407,7 +416,6 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         await sleep(2000);
 
         const sesion = duelSystem.crearSesion({
-            sessionId: channelDuel.id,
             duelType: "exploration",
             teams: [[playerInstance], [npcInstance]],
             apuestas: null,
@@ -418,7 +426,7 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         if (!sesion) {
             console.error(`[battleExploration] Error al crear la sesión de combate ${channelDuel.id}.`);
             if (!interaction.deferred && !interaction.replied) {
-                return interaction.reply({ content: "Error al iniciar el duelo [Sesión ocupada o no disponible]", flags: ["Ephemeral"] }).catch(() => { });
+                return responder(interaction, { content: "Error al iniciar el duelo [Sesión ocupada o no disponible]", flags: ["Ephemeral"] });
             }
             return;
         }
@@ -439,15 +447,18 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         sesion.state = "ACTIVO";
         sesion.addLog("inicio", "El duelo de exploración ha comenzado");
 
-        sesion.once("combateFinalizado", async (datos) => {
+        // Reanudar la exploración cuando las recompensas ya estén calculadas.
+        // Antes se esperaba un tiempo fijo (4.5-5.5s) y se leía sesion.rewardsMap, que muchas
+        // veces aún no existía (animación 5s + escritura en BD) → "Sin recompensas adicionales".
+        let reanudado = false;
+        const reanudar = async (datos) => {
+            if (reanudado) return;
+            reanudado = true;
             const uuidCache = transaccionCache.getUser(interaction.user.id);
             const explorationCache = transaccionCache.get(uuidCache?.explorarID);
 
             const charId = character._id ?? character.ID ?? interaction.user.id;
             const isWinner = datos?.arrayWinner?.some(w => String(w.ID || w._id) === String(charId));
-
-            // Si fue derrota contra NPC, esperar los 5s de animación + margen
-            await sleep(isWinner ? 4500 : 5500);
 
             let updatedSoul = await db2.collection("Soul").findOne({
                 $or: [
@@ -463,6 +474,15 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
             if (explorationCache) {
                 await resumeExploration(client, interaction, explorationCache, updatedSoul || soul, rewardText, isWinner, uuidCache?.explorarID);
             }
+        };
+
+        sesion.once("combateFinalizado", (datos) => {
+            // Respaldo por si el cálculo de recompensas falla o tarda demasiado
+            const respaldo = setTimeout(() => reanudar(datos).catch(e => console.error("[battleExploration] Error al reanudar:", e)), 25000);
+            sesion.once("recompensasListas", () => {
+                clearTimeout(respaldo);
+                reanudar(datos).catch(e => console.error("[battleExploration] Error al reanudar:", e));
+            });
         });
 
         await combateUI.update(sesion, client);
@@ -470,7 +490,10 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         const TurnProcessor = require("../Duelo/turnProcessor");
         const firstActor = sesion.getCurrentActor();
         if (firstActor && (firstActor.isNPC || firstActor.activeCast)) {
-            await TurnProcessor.advanceCompas(sesion, client);
+            await TurnProcessor.advanceCompas(sesion, null);
+        } else {
+            // Sin esto el primer turno del jugador no tenía límite de tiempo
+            sesion.iniciarWatchdogTurno(client);
         }
 
     } catch (error) {
@@ -479,7 +502,7 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
         } else {
             console.error("Error en startBattle:", error);
             if (!interaction.deferred && !interaction.replied) {
-                interaction.reply({ content: "Ocurrió un error al intentar iniciar el duelo...", flags: ["Ephemeral"] }).catch(() => { });
+                responder(interaction, { content: "Ocurrió un error al intentar iniciar el duelo...", flags: ["Ephemeral"] });
             }
         }
         transaccionCache.delete(cacheId);
@@ -523,11 +546,30 @@ async function obtenerPersonajeYAlma(interaction, exploracionCache) {
 async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
     const { calcularAmenaza, generateMessage } = require("./exploracionManager");
     const exploracionCache = transaccionCache.get(cache?.explorarID);
-    if (!exploracionCache) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
+    if (!exploracionCache) return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
 
     if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
-        return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+        return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
     }
+
+    // Evitar doble clic mientras corre la secuencia de huida/duelo (incluye esperas de varios segundos)
+    if (exploracionCache.enProceso) {
+        return interaction.deferUpdate().catch(() => { });
+    }
+
+    // Acuse inmediato: lo que sigue (BD, DM de comprobación, fetch del mensaje) puede pasar de 3s.
+    // Sin esto Discord muestra "La aplicación no ha respondido" aunque la acción sí ocurra.
+    await interaction.deferUpdate().catch(() => { });
+    exploracionCache.enProceso = true;
+    try {
+        return await ejecutarBattleSwitch(client, interaction, enemyId, soul, action, cache, exploracionCache);
+    } finally {
+        exploracionCache.enProceso = false;
+    }
+}
+
+async function ejecutarBattleSwitch(client, interaction, enemyId, soul, action, cache, exploracionCache) {
+    const { calcularAmenaza, generateMessage } = require("./exploracionManager");
 
     const region = await regiones.findOne({ _id: exploracionCache.regionSelect });
     const subzonaSelect = region?.areas?.[exploracionCache.zona]?.subzonas?.[exploracionCache.subzona];
@@ -539,22 +581,24 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
 
     try {
         message = await interaction.channel.messages.fetch(`${exploracionCache.message.id}`);
-        if (!message) return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
+        if (!message) return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
 
         await MdAuthor.send({ content: "-# Comprobando DM...\n-# Este mensaje se borra automáticamente", flags: ["SuppressNotifications"] })
-            .then(m => setTimeout(() => m.delete(), 3000));
+            .then(m => setTimeout(() => m.delete().catch(() => { }), 3000));
     } catch (error) {
-        return interaction.reply({ content: "No puedes iniciar un duelo si tienes los **mensajes directos** desactivados.\n-# Intenta activar 'Mensajes directos de otros' o pide ayuda en el foro <#1064054917662265404>", flags: ["Ephemeral"] });
+        return responder(interaction, { content: "No puedes iniciar un duelo si tienes los **mensajes directos** desactivados.\n-# Intenta activar 'Mensajes directos de otros' o pide ayuda en el foro <#1064054917662265404>", flags: ["Ephemeral"] });
     }
 
     if (!enemy) {
-        return interaction.reply({ content: "Hubo un error al cargar el duelo. [Enemigo no encontrado]\n-# Intenta cancelar el encuentro o contacta a soporte...", flags: ["Ephemeral"] });
+        return responder(interaction, { content: "Hubo un error al cargar el duelo. [Enemigo no encontrado]\n-# Intenta cancelar el encuentro o contacta a soporte...", flags: ["Ephemeral"] });
     }
 
+    // generateMessage espera el objeto de la subzona (usa .nombre); antes se pasaba subzonaSelect[0] → "Ubicación: Error"
+    const zonaInfo = subzonaSelect || { nombre: exploracionCache.actualName };
+
     if (action === "runAway") {
-        const agilidad = soul?.stats?.agilidad
-        const inteligencia = soul?.stats?.inteligencia
-        const probObj = getEscapeP(enemy.restrictions?.probabilidadEscape || 100, agilidad, inteligencia);
+        // Misma función y datos que el porcentaje mostrado en el botón "Huir"
+        const probObj = getEscapeP(soul, enemy);
         const roll = Math.random() * 100;
         const isSuccess = (roll < probObj.porcentaje);
         const dificultad = calcularAmenaza(soul, enemy);
@@ -619,7 +663,7 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
             { "type": 12, "items": [{ "media": { "url": gifrunSelect }, "description": null, "spoiler": false }] }
         ];
 
-        const runComponent = await generateMessage(exploracionCache, soul, subzonaSelect[0], jsonEscape, true);
+        const runComponent = await generateMessage(exploracionCache, soul, zonaInfo, jsonEscape, true);
         await editarOMandarMensaje(interaction, exploracionCache, message, { components: runComponent, flags: ["IsComponentsV2"] });
         await sleep(4000);
 
@@ -630,13 +674,15 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
                 { "type": 10, "content": `# Has escapado con éxito` },
                 { "type": 10, "content": `-# **El enemigo no pudo alcanzarte...**\nAl parecer tienes una buena velocidad.\n-# ${barrasDeEnergia(energyVal, configServer.maxEnergy)}` },
                 { "type": 14, "divider": true, "spacing": 1 },
-                { "type": 12, "items": [{ "media": { "url": trueRunArray }, "description": null, "spoiler": false }] }
+                { "type": 12, "items": [{ "media": { "url": trueRunSelect }, "description": null, "spoiler": false }] }
             ];
 
-            const isSuccessComponents = await generateMessage(exploracionCache, soul, subzonaSelect[0], jsonSuccess, true);
+            const isSuccessComponents = await generateMessage(exploracionCache, soul, zonaInfo, jsonSuccess, true);
             await editarOMandarMensaje(interaction, exploracionCache, message, { components: isSuccessComponents, flags: ["IsComponentsV2"] });
 
             await sleep(5000);
+            // Liberar el candado antes de continuar: ejecutarAccionExploracion usa su propio enProceso
+            exploracionCache.enProceso = false;
             const exploracionManager = require("./exploracionManager");
             await exploracionManager.ejecutarAccionExploracion({ client, interaction, character: null, soul, areaSelect: exploracionCache.subzona, interact: "continue" });
         } else {
@@ -650,7 +696,7 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
                 { "type": 12, "items": [{ "media": { "url": gifSelect }, "description": null, "spoiler": false }] }
             ];
 
-            const messagesFailed = await generateMessage(exploracionCache, soul, subzonaSelect[0], JSONFailed, true);
+            const messagesFailed = await generateMessage(exploracionCache, soul, zonaInfo, JSONFailed, true);
             await editarOMandarMensaje(interaction, exploracionCache, message, { components: messagesFailed, flags: ["IsComponentsV2"] });
 
             const data = {
@@ -698,10 +744,10 @@ async function battleSwitch(client, interaction, enemyId, soul, action, cache) {
         if (resolvedSoul) soul = resolvedSoul;
 
         if (!character || !soul) {
-            return interaction.reply({ content: "No se ha podido obtener tu personaje.", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "No se ha podido obtener tu personaje.", flags: ["Ephemeral"] });
         }
 
-        const messageDuel = await generateMessage(exploracionCache, soul, subzonaSelect[0], jsonAccept, true);
+        const messageDuel = await generateMessage(exploracionCache, soul, zonaInfo, jsonAccept, true);
         await editarOMandarMensaje(interaction, exploracionCache, message, { components: messageDuel, flags: ["IsComponentsV2"] });
 
         const data = {

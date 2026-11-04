@@ -56,7 +56,8 @@ module.exports = crearBoton({
                 const accion = {
                     tipo: sesion._accionPendiente?.tipo ?? "attack",
                     spellId: sesion._accionPendiente?.spellId ?? null,
-                    targetId: targetId !== "all" ? Number(targetId) : null
+                    // Preservar IDs de NPC (string); solo convertir si es numérico
+                    targetId: (targetId && targetId !== "all") ? (isNaN(Number(targetId)) ? targetId : Number(targetId)) : null
                 }
 
                 const resultado = await TurnProcessor.resolveAction(sesion, actor.ID, accion)

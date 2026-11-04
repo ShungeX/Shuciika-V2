@@ -14,6 +14,7 @@ const { obtenerTienda } = require("../mensajesServidor")
 const { sanitizarObjetoInventario } = require("../catalogoObjetos")
 const menus = require("../../data/UI_ComponentsV2/menusTienda")
 const { moverLumens } = require("../Economia/lumens")
+const { limitesDe, reservarCompra, liberarCompra, motivoLimite, excedeInventarioTrasEntrega } = require("./limitesCompra")
 
 const CADUCIDAD_MS = 15 * 60 * 1000
 const MAX_CANTIDAD = 99
@@ -71,43 +72,10 @@ async function objetosDeTienda(lugar) {
         Nombre: o.Nombre || "Objeto",
         Rareza: o.Rareza || null,
         precio: Math.max(0, Number(o.precio) || 0),
-        stock: o.Cantidad === null || o.Cantidad === undefined ? null : Number(o.Cantidad),
-        // Límites: los nombres nuevos si existen; si no, los que ya usaba /rol comprar
-        porCompra: o.max_por_compra ?? o.maxStock ?? null,
-        porPersonaje: o.limite_por_personaje ?? (o.maximoUnoPorPersona ? 1 : null),
+        // stock, porCompra, porPersona (compras totales) y porInventario (lo que tiene ahora)
+        ...limitesDe(o),
         definicion: o
     }))
-}
-
-/** Cuántas unidades de ese objeto tiene ya el personaje entre inventario y mochila. */
-function unidadesPoseidas(character, obj) {
-    const listas = [character?.economia?.Inventario || [], character?.economia?.Mochila || []]
-    let total = 0
-    for (const lista of listas) {
-        for (const i of lista) {
-            if (Number(i.ID) !== obj.ID) continue
-            if (i.Region && i.Region !== obj.region) continue
-            total += Number(i.Cantidad ?? i.cantidad ?? 1)
-        }
-    }
-    return total
-}
-
-/** Comprueba si se pueden llevar `cantidad` unidades en total. Devuelve el motivo si no, en la voz de la tienda. */
-function motivoLimite(obj, cantidad, character) {
-    if (obj.stock !== null && cantidad > obj.stock) {
-        return obj.stock <= 0 ? `**${obj.Nombre}** se agotó.` : `Solo quedan ${obj.stock} de **${obj.Nombre}**.`
-    }
-    if (obj.porCompra && cantidad > obj.porCompra) return `No puedes llevar más de ${obj.porCompra} de **${obj.Nombre}** por compra.`
-    if (obj.porPersonaje) {
-        const tiene = unidadesPoseidas(character, obj)
-        if (tiene + cantidad > obj.porPersonaje) {
-            return tiene >= obj.porPersonaje
-                ? `Ya tienes **${obj.Nombre}**; solo se puede tener ${obj.porPersonaje}.`
-                : `Solo puedes tener ${obj.porPersonaje} de **${obj.Nombre}** (ya tienes ${tiene}).`
-        }
-    }
-    return null
 }
 
 /**
@@ -253,10 +221,22 @@ async function entregarObjeto(characterId, obj, cantidad) {
 
 /** Deshace una entrega (solo se usa si algo falla a mitad del pago). */
 async function retirarObjeto(characterId, obj, cantidad) {
-    await personajes.updateOne(
-        { _id: characterId, "economia.Inventario": { $elemMatch: { ID: obj.ID, Region: obj.region } } },
-        { $inc: { "economia.Inventario.$.Cantidad": -cantidad } }
+    // Cada decremento exige que la pila tenga suficiente; si hay varias pilas del mismo objeto
+    // (p. ej. dos compras a la vez) se va quitando de una en una sin dejar ninguna en negativo
+    const quitarDePila = (n) => personajes.updateOne(
+        { _id: characterId, "economia.Inventario": { $elemMatch: { ID: obj.ID, Region: obj.region, Cantidad: { $gte: n } } } },
+        { $inc: { "economia.Inventario.$.Cantidad": -n } }
     )
+    let resto = cantidad
+    if ((await quitarDePila(resto)).modifiedCount > 0) resto = 0
+    for (let intento = 0; resto > 0 && intento < 10; intento++) {
+        const pj = await personajes.findOne({ _id: characterId }, { projection: { "economia.Inventario": 1 } })
+        const pila = (pj?.economia?.Inventario || []).find(i => Number(i.ID) === obj.ID && i.Region === obj.region && Number(i.Cantidad) > 0)
+        if (!pila) break
+        const n = Math.min(resto, Number(pila.Cantidad))
+        if ((await quitarDePila(n)).modifiedCount > 0) resto -= n
+    }
+    if (resto > 0) console.error(`[Tiendas] No se pudieron retirar ${resto} de ${obj.region}:${obj.ID} del personaje ${characterId}`)
     await personajes.updateOne({ _id: characterId }, { $pull: { "economia.Inventario": { Cantidad: { $lte: 0 } } } })
 }
 
@@ -304,8 +284,18 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
     if (!cobro.ok) return redibujar(["No te alcanzan los Lumens para esto."], fresco)
 
     const stockDescontado = []
+    const comprasContadas = []
     const entregados = []
     try {
+        // 2a. Máximo por persona: el contador solo sube si cabe (se revisa otra vez aquí por si hubo otro pago a la vez)
+        for (const l of lineas) {
+            if (!l.obj.porPersona) continue
+            if (!(await reservarCompra(fresco._id, l.obj, l.cantidad))) {
+                throw new ErrorTienda(`Ya llegaste al máximo de **${l.nombre}** por persona (${l.obj.porPersona}).`)
+            }
+            comprasContadas.push(l)
+        }
+
         // 2. Existencias: se descuentan con condición para no vender más de las que quedan
         for (const l of lineas) {
             if (l.obj.stock === null) continue
@@ -322,6 +312,12 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
             await entregarObjeto(fresco._id, l.obj, l.cantidad)
             entregados.push(l)
         }
+
+        // 4. Máximo en inventario: se recuenta lo que tiene de verdad, por si otra compra entró a la vez
+        for (const l of lineas) {
+            const motivo = await excedeInventarioTrasEntrega(fresco._id, l.obj)
+            if (motivo) throw new ErrorTienda(motivo)
+        }
     } catch (err) {
         // Reembolso: se deshace en orden inverso todo lo que llegó a aplicarse
         await moverLumens({
@@ -329,6 +325,7 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
             ref: { shopId, lugar, items },
         }).catch(e => console.error("[Tiendas] Reembolso fallido:", e))
         for (const l of entregados) await retirarObjeto(fresco._id, l.obj, l.cantidad).catch(() => null)
+        for (const l of comprasContadas) await liberarCompra(fresco._id, l.obj, l.cantidad).catch(() => null)
         for (const l of stockDescontado) {
             await objetosGlobales.updateOne({ _id: l.obj.region, "Objetos.ID": l.obj.ID }, { $inc: { "Objetos.$.Cantidad": l.cantidad } }).catch(() => null)
         }
@@ -363,5 +360,8 @@ module.exports = {
     quitarDelPedido,
     vaciarPedido,
     procesarPago,
-    tiendaAbierta
+    tiendaAbierta,
+    desactivarComponentes,
+    entregarObjeto,
+    retirarObjeto
 }

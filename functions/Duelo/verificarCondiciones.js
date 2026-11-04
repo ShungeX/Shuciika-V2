@@ -16,7 +16,7 @@ function verificarCondiciones(characterData, soul) {
     }
     if (soul.nucleo.HP <= 0) {
         console.log(soul.nucleo.HP, soul._id)
-        return { puede: false, razon: "Tu personaje está fuera de combate. Necesita recuperar vida ＞﹏＜\n-# Usa un objeto con `/rol usar_objeto`" }
+        return { puede: false, razon: "Tu personaje está fuera de combate. Necesita recuperar vida ＞﹏＜\n-# Usa un objeto desde `/rol inventario` → **Usar item**" }
     }
 
     return { puede: true, razon: null }

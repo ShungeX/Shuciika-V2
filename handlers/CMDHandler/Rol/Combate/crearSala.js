@@ -10,6 +10,7 @@ const transaccionCache = require("../../../../utils/cache")
 const { v4: uuidv4 } = require('uuid')
 const { duelSystem } = require("../../../../functions/Duelo/duelManager")
 const verificarCondiciones = require("../../../../functions/Duelo/verificarCondiciones")
+const { etiquetaPoder } = require("../../../../functions/Duelo/combatientes")
 const { crearCustomId } = require("../../../../utils/constructores/customId")
 
 
@@ -83,7 +84,11 @@ module.exports = {
                     new StringSelectMenuOptionBuilder()
                         .setLabel("Clasificatoria")
                         .setDescription("Un duelo con reglas especiales para clasificar en el ranking")
-                        .setValue("clasificatoria")
+                        .setValue("clasificatoria"),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel("Amistoso")
+                        .setDescription("Duelo de práctica: los efectos no se quedan en los personajes")
+                        .setValue("amistoso")
                 )
 
             const tipoDueloLabel = new LabelBuilder()
@@ -174,7 +179,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0} [${soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I'}])`
+                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (${etiquetaPoder(soul)})`
                         },
                         {
                             "type": 14,
@@ -276,7 +281,7 @@ module.exports = {
                         },
                         {
                             "type": 10,
-                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (FE: ${soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0} [${soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I'}])`
+                            "content": `**Retadores:**\n- -# ${character.perfil.Nombre} (${etiquetaPoder(soul)})`
                         },
                         {
                             "type": 14,
@@ -309,7 +314,7 @@ module.exports = {
             })
 
             const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {}
-            const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
+            const { polvoEstelar, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
 
             const characterData = {
                 ownerId: interaction.user.id,
@@ -389,11 +394,9 @@ module.exports = {
 
             const gifSelect = gifsDuelo[Math.floor(Math.random() * gifsDuelo.length)]
 
-            const userFE = soul.sendero?.StelarFragmentsTotal ?? soul.fragmentos?.StelarFragmentsTotal ?? 0;
-            const userResp = soul.sendero?.resplandor ?? soul.fragmentos?.resplandor ?? 'I';
             const embed = new EmbedBuilder()
                 .setTitle(`Se aproxima un duelo...`)
-                .setDescription(`**${character.perfil.Nombre} (FE: ${userFE} [${userResp}])** te esta retando a un duelo`)
+                .setDescription(`**${character.perfil.Nombre} (${etiquetaPoder(soul)})** te esta retando a un duelo`)
                 .setThumbnail(`${character.perfil.avatarURL}`)
                 .setImage(gifSelect)
                 .setColor("Red")

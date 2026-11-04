@@ -5,8 +5,6 @@ const db2 = clientdb.db("Rol_db")
 const personajes = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const transaccionCache = require("../utils/cache");
-const getXPSoul = require("./getXPSoul.js");
-const levelsEmitter = require("./emitterShuciika.js");
 const dbobjetos = db2.collection("Objetos_globales")
 const { moverLumens } = require("./Economia/lumens")
             /**
@@ -47,17 +45,13 @@ module.exports = async(client, interaction, characterId, data) => {
                 personajeId: personaje._id, delta: Number(data.cantidad), motivo: data.motivo || "exploracion",
                 opId: data.opId, ref: data.ref || {},
             });
-        } else if (data.typeLoot === "xp" || data.typeLoot === "polvoEstelar" || data.typeLoot === "polvo") {
-            if (isNaN(data.cantidad)) return `Hubo un error al asignar este valor: ${data?.cantidad} - No es un numero`;
-
-
-            return
-            const messageXP = await getXPSoul(interaction, characterId, data.cantidad);
-            
-            if (messageXP) {
-                levelsEmitter.emit('levelUp', client, interaction, personaje, messageXP);
-                return { message: "`Felicidades, tu personaje ha subido de nivel`", embed: messageXP };
-            } 
+        } else if (data.typeLoot === "polvo" || data.typeLoot === "polvoEstelar") {
+            const cantidadPolvo = Math.floor(Number(data.cantidad));
+            if (!Number.isFinite(cantidadPolvo)) return `Hubo un error al asignar este valor: ${data?.cantidad} - No es un numero`;
+            // El Polvo vive en el alma; se condensa en Fragmentos aparte (progresionEstelar.convertirPolvo)
+            if (cantidadPolvo > 0) {
+                await souls.updateOne({ _id: personaje._id }, { $inc: { "nucleo.polvoEstelar": cantidadPolvo } });
+            }
         } else {
             return `No se ha asignado ningun valor, parece ser que este objeto no corresponde a nada: ${data.typeLoot}`;
         }
@@ -98,6 +92,28 @@ module.exports = async(client, interaction, characterId, data) => {
     if (!objfind && (data.Nombre || objinfo?.Nombre)) {
         const nameToSearch = String(data.Nombre || objinfo?.Nombre || '').toLowerCase();
         objfind = inventario.find(obj => obj.Nombre && obj.Nombre.toLowerCase() === nameToSearch);
+    }
+
+    // Máximo en inventario: solo cuando entra algo nuevo al Inventario. No aplica al talismán (temporal),
+    // ni a mover de la mochila al inventario (el total no cambia), ni a restar (cantidad negativa).
+    let avisoLimite = null;
+    const esEntrada = !data.consumir && !isMochila && !isTalisman && !data.esMovimiento && Number(data.cantidad ?? 1) > 0;
+    if (esEntrada) {
+        const { limitarEntradas, motivoNoCabe } = require("./Objetos/limiteInventario");
+        const entrada = { ID: data.ID, Region: data.Region, cantidad: Number(data.cantidad ?? 1), Nombre: data.Nombre || objinfo?.Nombre };
+        if (data.isMailContent) {
+            // Un regalo entra entero o se queda en el buzón
+            const motivo = await motivoNoCabe(personaje, entrada);
+            if (motivo) return { success: false, lleno: true, messages: motivo };
+        } else {
+            const { admitidos, aviso } = await limitarEntradas(personaje, [entrada]);
+            avisoLimite = aviso;
+            if (!admitidos.length) {
+                console.log(`[updateInventario] ${personaje._id} no recibió ${data.Region}:${data.ID}: inventario al máximo`);
+                return { success: false, lleno: true, messages: aviso };
+            }
+            data = { ...data, cantidad: admitidos[0].cantidad };
+        }
     }
 
     try {
@@ -199,7 +215,7 @@ module.exports = async(client, interaction, characterId, data) => {
         });
 
         console.log(`[updateInventario] ${arrayField} actualizado exitosamente`);
-        return { success: true, messages: "Inventario actualizado correctamente" };
+        return { success: true, messages: "Inventario actualizado correctamente", aviso: avisoLimite, recortado: Boolean(avisoLimite) };
 
     } catch (error) {
         console.error(`[updateInventario] Error al actualizar ${arrayField}:`, error);

@@ -1,6 +1,7 @@
 const { flatten } = require("underscore")
 const { characterComponents } = require("../interfazCreate")
 const plantillasDuelo = require("./combatTemplates.js")
+const { etiquetaPoder } = require("./combatientes")
 const { barraCustom, asciiText, pickRandom } = require("../../utils/utilidadesTexto.js")
 const clientdb = require("../../Server")
 const db_rol = clientdb.db("Rol_db")
@@ -346,189 +347,33 @@ class CombatUI {
 
     }
 
-    buildEspectador(sesion, targetActor, isEnd) {
-        if (isEnd) {
-            const { title, descr, gif } = messagesSelects(typeWin, context, win)
-
-            const endMessage = [
-                {
-                    "type": 10,
-                    "content": `# ¡El duelo ha finalizado!`
-                },
-                {
-                    "type": 10,
-                    "content": `${descr}`
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 9,
-                    "accessory": {
-                        "type": 11,
-                        "media": {
-                            "url": `${typeWin === "afk" ? "https://i.pinimg.com/736x/f2/1b/71/f21b710fa12ad372f1776b16437ed966.jpg" : winner.avatarURL}`
-                        },
-                        "description": null,
-                        "spoiler": false
-                    },
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": `# ${winner.Nombre} (${winner.isNPC ? `Lv: ${winner.nivelMagico || 1}` : `FE: ${winner.StelarFragmentsTotal ?? winner.sendero?.StelarFragmentsTotal ?? 0} [${winner.resplandor ?? winner.sendero?.resplandor ?? 'I'}]`}) ${typeWin === "afk" ? "" : "- **Ganador** ✨"}`
-                        },
-                        {
-                            "type": 10,
-                            "content": "*`HP:`*" + ` ${barraCustom(winner.HP, winner.stats.hpMax, 1, 10)}`
-                        }
-                    ]
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 9,
-                    "accessory": {
-                        "type": 11,
-                        "media": {
-                            "url": `${typeWin === "afk" ? "https://i.pinimg.com/736x/f2/1b/71/f21b710fa12ad372f1776b16437ed966.jpg" : defeated.avatarURL}`
-                        },
-                        "description": null,
-                        "spoiler": false
-                    },
-                    "components": [
-                        {
-                            "type": 10,
-                            "content": `# ${defeated.Nombre} (${defeated.isNPC ? `Lv: ${defeated.nivelMagico || 1}` : `FE: ${defeated.StelarFragmentsTotal ?? defeated.sendero?.StelarFragmentsTotal ?? 0} [${defeated.resplandor ?? defeated.sendero?.resplandor ?? 'I'}]`}) ${duel.isNPC ? "[NPC]" : ""}`
-                        },
-                        {
-                            "type": 10,
-                            "content": "`HP:`" + ` ${barraCustom(defeated.HP, defeated.stats.hpMax, 1, 10)}`
-                        }
-                    ]
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 10,
-                    "content": `**Ultimas acciones**\n${lastActions}`
-                },
-                {
-                    "type": 14,
-                    "divider": true,
-                    "spacing": 1
-                },
-                {
-                    "type": 12,
-                    "items": [
-                        {
-                            "media": {
-                                "url": gif
-                            },
-                            "description": null,
-                            "spoiler": false
-                        }
-                    ]
-                },
-                {
-                    "type": 10,
-                    "content": `-# ${duel.ronda - 1 === 1 ? "IMPOSIBLE. ¿Acabó en el primer turno?" : `Finalizo en el turno: ${duel.turnos}`}`
-                }
-            ]
-
-        }
-
-        const team1Components = this.espectadorComponents(sesion, sesion.teams[0], sesion.teams[0].length)
-        const team2Components = this.espectadorComponents(sesion, sesion.teams[1], sesion.teams[1].length)
-        const ultimasAcciones = sesion.log
-            .slice(-6)
-            .map(log => asciiText(log))
-            .join('\n')
-
+    /**
+     * Vista pública del canal espectador mientras el combate está en curso.
+     * 1vs1 → plantilla completa basada en endEspectador1vs1 (avatar por luchador, HP, Mana, efectos).
+     * Equipos → una sección por equipo con el estado de cada integrante.
+     * (El final del combate lo construye buildEndMessage/updateGameOver.)
+     */
+    buildEspectador(sesion, targetActor) {
         const actor = (targetActor && typeof targetActor === 'object' && targetActor.Nombre) ? targetActor : sesion.getCurrentActor();
-        const actorName = actor
+        const actorLabel = actor
             ? (actor.isNPC || !actor.ownerId || String(actor.ownerId).startsWith("NPC_") || isNaN(Number(actor.ownerId))
                 ? `**${actor.Nombre}**`
                 : `<@!${actor.ownerId}>`)
-            : "Final de combate";
-        const headerContent = actor ? `# ¡El duelo está en curso!:\n- *Es el turno de: ${actorName}*` : "# ¡El combate ha finalizado!";
+            : "Nadie";
 
-        const sup = [
-            {
-                "type": 17,
-                "accent_color": null,
-                "spoiler": false,
-                "components": [
-                    {
-                        "type": 10,
-                        "content": headerContent
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": team1Components.image
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": team1Components.teamText
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 9,
-                        "accessory": {
-                            "type": 11,
-                            "media": {
-                                "url": team2Components.image
-                            },
-                            "description": null,
-                            "spoiler": false
-                        },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": team2Components.teamText
-                            }
-                        ]
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
-                    {
-                        "type": 10,
-                        "content": "-# **Ultimas acciones**:\n" + `\`\`\`ansi\n${ultimasAcciones}\`\`\``
-                    }
-                ]
-            }
-        ]
+        const info = {
+            actorLabel,
+            actorId: actor?.ID ?? null,
+            ambiente: this.mensajeAmbiente(sesion, null),
+            ultimasAcciones: sesion.log.slice(-6).map(log => asciiText(log)).join('\n'),
+            efectos: (c) => this.formatEfectos(c, sesion)
+        };
 
-
-        return sup
+        const [equipo1, equipo2] = sesion.teams;
+        if (equipo1.length === 1 && equipo2.length === 1) {
+            return plantillasDuelo.espectadorEnCurso1vs1(sesion, equipo1[0], equipo2[0], info);
+        }
+        return plantillasDuelo.espectadorEnCursoNvsN(sesion, equipo1, equipo2, info);
     }
 
     espectadorComponents(sesion, teams, teamsLength) {
@@ -538,7 +383,7 @@ class CombatUI {
             return { image: imageTeams, teamText: teamsFormat }
         } else {
             const imageTeams = teams[0].avatarURL
-            const levelTag = teams[0].isNPC ? `Lv: ${teams[0].nivelMagico || 1}` : `FE: ${teams[0].StelarFragmentsTotal ?? teams[0].sendero?.StelarFragmentsTotal ?? 0} [${teams[0].resplandor ?? teams[0].sendero?.resplandor ?? 'I'}]`;
+            const levelTag = etiquetaPoder(teams[0], "Lv");
             const teamsFormat = `- **${teams[0].Nombre} \`(${levelTag})\`**` + `\n HP: ${barraCustom(teams[0].HP, teams[0].stats?.hpMax ?? teams[0].HP, 1, 10)}\n`
             return { image: imageTeams, teamText: teamsFormat }
         }
@@ -555,7 +400,7 @@ class CombatUI {
         const labelRivalesFinal = labelRivales ? `### ${labelRivales}` : `### ${(rivales && rivales.length > 1) ? "Tus rivales" : "Tu rival"}`
         const formatStatsRivales = statsRivales ? `${statsRivales}` : rivalesArray
 
-        const playerLevelTag = actor.isNPC ? `Lv: ${actor.nivelMagico || 1}` : `FE: ${actor.StelarFragmentsTotal ?? actor.sendero?.StelarFragmentsTotal ?? 0} [${actor.resplandor ?? actor.sendero?.resplandor ?? 'I'}]`;
+        const playerLevelTag = etiquetaPoder(actor, "Lv");
         const formatStatsPlayer = statsPlayer ? `${statsPlayer}` : `❧ **${actor.Nombre} (${playerLevelTag})**:\n` +
             `-# ${barraCustom(actor.HP, actor.stats?.hpMax ?? actor.HP, 1, 10)}` +
             `\n-# Mana: ${barraCustom(actor.Mana, actor.stats?.manaMax ?? actor.Mana, 2, 5)}` +
@@ -669,7 +514,7 @@ class CombatUI {
 
     _listaPersonajes(arrayPersonajes) {
         return arrayPersonajes.map(pj => {
-            const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+            const levelTag = etiquetaPoder(pj, "Lv");
             return `❧ **${pj.Nombre} (${levelTag})**:\n` +
                 `-# ${barraCustom(pj.HP, pj.stats?.hpMax ?? pj.HP, 1, 10)}`;
         }).join("\n\n")
@@ -1062,7 +907,7 @@ class CombatUI {
     buildTarget(sesion, actor, rivales, action, spellId = null) {
 
         const opciones = rivales.map(target => {
-            const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+            const levelTag = etiquetaPoder(target, "Lv");
             return {
                 label: `${target.Nombre} (${levelTag})`,
                 value: `duel_target*${spellId}*${target.ID}`,
@@ -1074,7 +919,7 @@ class CombatUI {
 
         const rivalesVivos = rivales.filter(t => !t.defeated)
         const rivalesMessage = rivalesVivos.map(t => {
-            const levelTag = t.isNPC ? `Lv: ${t.nivelMagico || 1}` : `FE: ${t.StelarFragmentsTotal ?? t.sendero?.StelarFragmentsTotal ?? 0} [${t.resplandor ?? t.sendero?.resplandor ?? 'I'}]`;
+            const levelTag = etiquetaPoder(t, "Lv");
             return `❧ **${t.Nombre} (${levelTag})**\n` +
                 `-# HP: ${barraCustom(t.HP, t.stats?.hpMax ?? t.HP, 1, 10)}`;
         }).join("\n\n")
@@ -1152,7 +997,7 @@ class CombatUI {
 
             if (candidatosDamage.length > 0) {
                 const options = candidatosDamage.map(target => {
-                    const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+                    const levelTag = etiquetaPoder(target, "Lv");
                     return {
                         label: `${target.Nombre} (${levelTag})`,
                         value: String(target.ID),
@@ -1175,7 +1020,7 @@ class CombatUI {
 
             if (candidatosHealing.length > 0) {
                 const options = candidatosHealing.map(target => {
-                    const levelTag = target.isNPC ? `Lv: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+                    const levelTag = etiquetaPoder(target, "Lv");
                     return {
                         label: `${target.Nombre} (${levelTag})`,
                         value: String(target.ID),
@@ -1230,12 +1075,12 @@ class CombatUI {
 
         if (rivalTeam.length > 1) {
             for (const pj of rivalTeam) {
-                const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+                const levelTag = etiquetaPoder(pj, "Lv");
                 rivalTeams += `- **${pj.Nombre} \`(${levelTag})\`**` + `| HP: ${await this.characterComponents(pj, true, true)}\n`
             }
         } else if (rivalTeam.length === 1) {
             for (const pj of rivalTeam) {
-                const levelTag = pj.isNPC ? `Lv: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`;
+                const levelTag = etiquetaPoder(pj, "Lv");
                 rivalTeams = `- **${pj.Nombre} \`(${levelTag})\` **` + `\n-# HP: ${await this.characterComponents(pj, false, true)}`
             }
 
@@ -1277,7 +1122,7 @@ class CombatUI {
                     },
                     {
                         "type": 10,
-                        "content": `Tu personaje: **${player.Nombre} \`(${player.isNPC ? `Lv: ${player.nivelMagico || 1}` : `FE: ${player.StelarFragmentsTotal ?? player.sendero?.StelarFragmentsTotal ?? 0} [${player.resplandor ?? player.sendero?.resplandor ?? 'I'}]`})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
+                        "content": `Tu personaje: **${player.Nombre} \`(${etiquetaPoder(player, "Lv")})\`**` + `\n-# HP: ${await this.characterComponents(player, false, true)}` +
                             `\n-# Mana: ${barraCustom(player.Mana, player.stats.manaMax, 2, 5)}` + `\n\nEfectos: ${this.formatEfectos(player, duel)}`
                     },
                     {
@@ -1317,6 +1162,7 @@ class CombatUI {
         const codeSala = data.codeSala || data.code;
         const nombreSala = data.nombreSala;
         const modoDuelo = data.modoDuelo || (data.limitTeam1 && data.limitTeam2 ? `${data.limitTeam1} vs ${data.limitTeam2}` : '1 vs 1');
+        const modoDueloTxt = modoDuelo + (String(data.duelType || "").toLowerCase() === "amistoso" ? " (Amistoso)" : "");
         const creatorName = character?.perfil?.Nombre || data.autorCharacter || 'Personaje';
 
         const t1Count = data.team1 ? Object.keys(data.team1).length : 1;
@@ -1398,20 +1244,11 @@ class CombatUI {
             const list = Object.values(data.team1).map(char => {
                 const isNPC = !!(char.isNPC || (typeof char._id === 'string' && char._id.startsWith("NPC-")));
                 const nombre = char.perfil?.Nombre || char.Nombre || 'Combatiente';
-                if (isNPC) {
-                    const nivel = char.nivelMagico || char.stats?.nivelMagico || 1;
-                    return `- -# ${nombre} [NPC] (Lv: ${nivel})`;
-                } else {
-                    const fe = char.sendero?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragmentsTotal ?? char.StelarFragmentsTotal ?? 0;
-                    const resplandor = char.sendero?.resplandor ?? char.fragmentos?.resplandor ?? char.resplandor ?? 'I';
-                    return `- -# ${nombre} (FE: ${fe} [${resplandor}])`;
-                }
+                return `- -# ${nombre}${isNPC ? " [NPC]" : ""} (${etiquetaPoder(char)})`;
             }).join('\n');
             retadoresContent = `**Retadores:**\n${list}`;
         } else {
-            const creatorFE = soul?.sendero?.StelarFragmentsTotal ?? soul?.fragmentos?.StelarFragmentsTotal ?? 0;
-            const creatorResp = soul?.sendero?.resplandor ?? soul?.fragmentos?.resplandor ?? 'I';
-            retadoresContent = `**Retadores:**\n- -# ${creatorName} (FE: ${creatorFE} [${creatorResp}])`;
+            retadoresContent = `**Retadores:**\n- -# ${creatorName} (${etiquetaPoder(soul || {})})`;
         }
 
         let contrincantesContent = "";
@@ -1419,14 +1256,7 @@ class CombatUI {
             const list = Object.values(data.team2).map(char => {
                 const isNPC = !!(char.isNPC || (typeof char._id === 'string' && char._id.startsWith("NPC-")));
                 const nombre = char.perfil?.Nombre || char.Nombre || 'Combatiente';
-                if (isNPC) {
-                    const nivel = char.nivelMagico || char.stats?.nivelMagico || 1;
-                    return `- -# ${nombre} [NPC] (Lv: ${nivel})`;
-                } else {
-                    const fe = char.sendero?.StelarFragmentsTotal ?? char.fragmentos?.StelarFragmentsTotal ?? char.StelarFragmentsTotal ?? 0;
-                    const resplandor = char.sendero?.resplandor ?? char.fragmentos?.resplandor ?? char.resplandor ?? 'I';
-                    return `- -# ${nombre} (FE: ${fe} [${resplandor}])`;
-                }
+                return `- -# ${nombre}${isNPC ? " [NPC]" : ""} (${etiquetaPoder(char)})`;
             }).join('\n');
             contrincantesContent = `**Contrincantes:**\n${list}`;
         } else {
@@ -1452,7 +1282,7 @@ class CombatUI {
                     },
                     {
                         "type": 10,
-                        "content": "-# `Estado:` *En espera...*\n-# `Creador:` " + `${author}` + "\n-# `Codigo de sala:` " + `||${codeSala}||` + `\n-# \`Modo de duelo:\` ${modoDuelo}` + tipoApuestaStr
+                        "content": "-# `Estado:` *En espera...*\n-# `Creador:` " + `${author}` + "\n-# `Codigo de sala:` " + `||${codeSala}||` + `\n-# \`Modo de duelo:\` ${modoDueloTxt}` + tipoApuestaStr
                     }
                 ]
             },
@@ -1495,7 +1325,7 @@ class CombatUI {
                     },
                     {
                         "type": 10,
-                        "content": "-# `Estado:` *En espera...*\n-# `Creador:` " + `${author}` + "\n-# `Codigo de sala:` " + `${isPrivate ? `Privada` : codeSala}` + `\n-# \`Modo de duelo:\` ${modoDuelo}` + tipoApuestaStr
+                        "content": "-# `Estado:` *En espera...*\n-# `Creador:` " + `${author}` + "\n-# `Codigo de sala:` " + `${isPrivate ? `Privada` : codeSala}` + `\n-# \`Modo de duelo:\` ${modoDueloTxt}` + tipoApuestaStr
                     }
                 ]
             },

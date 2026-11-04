@@ -10,12 +10,16 @@ const clientdb = require("../../Server");
 const db_rol = clientdb.db("Rol_db");
 const eventosDB = db_rol.collection("Eventos");
 const sistemaCalor = require("../Economia/sistemaCalor")
+const { resplandorANumero } = require("./progresionEstelar")
+
+// ⚙ El perdedor de un combate recibe esta fracción del Polvo/Lumens
+const MULT_PERDEDOR = 0.1
 
 // ─── 1. TABLAS DE VALORES BASE ──────────────────────────────────────────────
 
 const POLVO_BASE = {
     combate: {
-        pvp: [5, 15, 25, 50, 80, 110, 140],
+        duelo: [40, 60, 85, 115, 150, 190, 240],
         grieta: [90, 130, 175, 230, 295, 370, 460],
         heraldo: [250, 350, 470, 610, 770, 950, 1150]
     },
@@ -31,7 +35,7 @@ const POLVO_BASE = {
 
 const LUMENS_BASE = {
     combate: {
-        pvp: [3, 7, 15, 20, 30, 40, 50],
+        duelo: [3, 7, 15, 20, 30, 40, 50],
         grieta: [90, 130, 175, 230, 295, 370, 460],
         heraldo: [250, 350, 470, 610, 770, 950, 1150]
     },
@@ -89,10 +93,12 @@ class StardustCalculator {
 
         switch (evento.tipoCondicion) {
             case "jugador_nuevo":
-                return (jugador.diasRegistrado || 0) <= (evento.valorCondicion || 7);
+                // Sin fecha de creación conocida no se considera jugador nuevo
+                return Number.isFinite(jugador.diasRegistrado)
+                    && jugador.diasRegistrado <= (evento.valorCondicion || 7);
 
             case "rango_resplandor":
-                return (jugador.resplandor || 1) <= (evento.valorCondicion || 7);
+                return resplandorANumero(jugador.resplandor) <= (evento.valorCondicion || 7);
 
             default:
                 return true;
@@ -151,44 +157,52 @@ class StardustCalculator {
     // ─── ORQUESTADOR PRINCIPAL ──────────────────────────────────────────────
 
     /**
-     * Calcula el Polvo Estelar final que recibe el jugador.
-     * @param {String} tipo - "combate", "exploracion", "mision"
-     * @param {String} subtipo - "duelo", "grieta", "heraldo", etc.
-     * @param {Object} jugador - El documento completo del jugador en la DB
-     * @param {Object} contexto - Documento que incluye datos sobre los datos de acuerdo al tipo y subtipo
-     * @param {Boolean} esGanador - Flag para identificar si el jugador gano el combate o no
-     * @returns {Promise<Number>} Cantidad de Polvo Estelar a otorgar
+     * Normaliza tipo/subtipo a las claves de las tablas base.
+     * "pve"/"npc"/"duelo" → combate. Subtipos de combate: duelo | grieta | heraldo.
      */
-    async calcularRecompensas(tipo, subtipo, jugador, contexto = {}, calcular = { polvo: true, lumens: true }) {
-        const resplandor = Math.min(7, Math.max(1, jugador?.resplandor || 1));
+    _normalizarActividad(tipo, subtipo) {
+        const t = String(tipo || "combate").toLowerCase();
+        const st = String(subtipo || "").toLowerCase();
+        const tipoKey = ["npc", "pve", "pvp", "duelo"].includes(t) ? "combate" : (POLVO_BASE[t] ? t : "combate");
+        const subtipoKey = POLVO_BASE[tipoKey][st] ? st : Object.keys(POLVO_BASE[tipoKey])[0];
+        return { tipoKey, subtipoKey };
+    }
 
-        const tipoNorm = String(tipo || "combate").toLowerCase();
-        const subtipoNorm = String(subtipo || "pvp").toLowerCase();
+    /**
+     * Calcula el Polvo Estelar y los Lumens que recibe el jugador.
+     * @param {String} tipo - "combate" | "exploracion" | "mision" (acepta "pve"/"pvp" como combate)
+     * @param {String} subtipo - combate: "duelo" | "grieta" | "heraldo"; exploracion: "zona_nueva" | "zona_conocida"; mision: "menor" | "mayor"
+     * @param {Object} jugador - { resplandor: 'I'..'VII' | 1..7, calor: Number (0-300), diasRegistrado?: Number, bonuses?: [] }
+     * @param {Object} contexto - combate: { historialAcciones: [], esGanador: Boolean }
+     * @param {Object} calcular - { polvo, lumens } qué valores devolver
+     * @returns {Promise<{polvo?: Number, lumens?: Number}>}
+     */
+    async calcularRecompensas(tipo, subtipo, jugador = {}, contexto = {}, calcular = { polvo: true, lumens: true }) {
+        const resplandor = resplandorANumero(jugador?.resplandor);
+        const { tipoKey, subtipoKey } = this._normalizarActividad(tipo, subtipo);
 
-        const tipoKey = (tipoNorm === "npc" || tipoNorm === "pve" || tipoNorm === "duelo") ? "combate" : (POLVO_BASE[tipoNorm] ? tipoNorm : "combate");
-        const subtipoKey = (subtipoNorm === "npc" || subtipoNorm === "pve" || !POLVO_BASE[tipoKey] || !POLVO_BASE[tipoKey][subtipoNorm]) ? "pvp" : subtipoNorm;
+        const basePolvo = POLVO_BASE[tipoKey][subtipoKey][resplandor - 1];
+        const baseLumens = LUMENS_BASE[tipoKey]?.[subtipoKey]?.[resplandor - 1] ?? basePolvo;
 
-        const base = POLVO_BASE[tipoKey]?.[subtipoKey]?.[resplandor - 1] || 10;
-
-        const multE = this._multiplicadorContexto(tipoNorm, contexto);
-        const multC = sistemaCalor.multiplicadorCalor(jugador?.calor?.puntos || 0);
+        const multE = this._multiplicadorContexto(tipoKey, contexto);
+        const multC = sistemaCalor.multiplicadorCalor(Number(jugador?.calor) || 0);
         const multEv = (calcular.polvo || calcular.lumens)
             ? await this._obtenerMultiplicadorEventos(tipoKey, subtipoKey, jugador)
             : { polvo: 1.0, lumens: 1.0 };
 
         const resultado = {};
-        if (calcular.polvo) resultado.polvo = Math.max(1, Math.round(base * multE * multC * multEv.polvo));
-        if (calcular.lumens) resultado.lumens = Math.max(1, Math.round(base * multE * multC * multEv.lumens));
+        if (calcular.polvo) resultado.polvo = Math.max(1, Math.floor(basePolvo * multE * multC * multEv.polvo));
+        if (calcular.lumens) resultado.lumens = Math.max(1, Math.floor(baseLumens * multE * multC * multEv.lumens));
 
         return resultado;
     }
 
     _multiplicadorContexto(tipo, contexto) {
         const t = String(tipo || "").toLowerCase();
-        if (t === "combate" || t === "npc" || t === "pve" || t === "duelo") {
+        if (t === "combate") {
             const entropia = this._calcularEntropia(contexto.historialAcciones || []);
             const multEnt = this._multiplicadorEntropia(entropia);
-            const multVict = contexto.esGanador ? 1.0 : 0.1; // perdedor recibe menos
+            const multVict = contexto.esGanador ? 1.0 : MULT_PERDEDOR;
             return multEnt * multVict;
         }
         switch (t) {
@@ -202,4 +216,8 @@ class StardustCalculator {
     }
 }
 
-module.exports = new StardustCalculator();
+const calculador = new StardustCalculator();
+calculador.POLVO_BASE = POLVO_BASE;
+calculador.LUMENS_BASE = LUMENS_BASE;
+calculador.MULT_PERDEDOR = MULT_PERDEDOR;
+module.exports = calculador;

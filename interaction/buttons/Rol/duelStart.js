@@ -7,7 +7,6 @@ const characters = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const npcs = db2.collection("NPCs")
 const transaccionCache = require("../../../utils/cache")
-const getXp = require("../../../functions/getXP")
 const { duelSystem } = require("../../../functions/Duelo/duelManager")
 const interfazCreate = require("../../../functions/interfazCreate")
 const verificarCondiciones = require("../../../functions/Duelo/verificarCondiciones")
@@ -120,7 +119,7 @@ module.exports = crearBoton({
                     }
                 }
                 const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil || {}
-                const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
+                const { polvoEstelar, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo || {}
 
                 const characterData = {
                     ownerId: interaction.user.id,
@@ -379,7 +378,7 @@ module.exports = crearBoton({
                     const characterId = playerIds[index]
                     const ownerId = getCache.team1[characterId]?.ownerId
                         ?? getCache.team2[characterId]?.ownerId
-                    const verificar = verificarCondiciones(ownerId, soul)
+                    const verificar = verificarCondiciones({ _id: soul?._id ?? Number(characterId) }, soul)
                     if (!verificar.puede) {
                         const nombre = getCache.team1[characterId]?.perfil?.Nombre ?? getCache.team1[characterId]?.Nombre ?? getCache.team2[characterId]?.perfil?.Nombre ?? getCache.team2[characterId]?.Nombre ?? `Personaje (${characterId})`
                         erroresCondiciones.push(`**${nombre}**: ${verificar.razon}`)
@@ -438,7 +437,6 @@ module.exports = crearBoton({
 
                 console.log("Duelo tipo:", getCache.duelType)
                 const sesion = duelSystem.crearSesion({
-                    sessionId: channelCombate.id,
                     duelType: getCache.duelType,
                     teams: [equipo1, equipo2],
                     apuestas: getCache.apuestas,
@@ -557,35 +555,65 @@ module.exports = crearBoton({
             embed.setDescription("El duelo esta en curso...\n-# puedes ver el duelo en el canal: <#1345239393786527784>")
             let messageError;
 
-            const PlayerSoul = {
-                ...characterAuthor,
-                ...authorSoul,
-            }
-            const RivalSoul = {
-                ...characterRival,
-                ...rivalSoul,
-            }
+            // Reto directo 1vs1: usa el mismo sistema de sesiones que las salas (antes llamaba a
+            // duelSystem.createDuel, que ya no existe, y el duelo nunca arrancaba)
+            try {
+                const { Personaje } = require("../../../functions/Duelo/combatientes")
 
-            const data = {
-                Player: PlayerSoul,
-                Rival: RivalSoul,
-                channel: channelDuel,
-                Mdauthor: MdAuthor,
-                Mdrival: MdRival,
-            }
+                // Almas frescas: el estado guardado en caché puede tener minutos de antigüedad
+                const [soulAutorFresca, soulRivalFresca] = await Promise.all([
+                    souls.findOne({ _id: characterAuthor._id }),
+                    souls.findOne({ _id: characterRival._id })
+                ])
 
-            const duel = await duelSystem.createDuel(client, false, "pvp", data).catch((e) => {
+                const erroresCond = []
+                for (const [pj, alma] of [[characterAuthor, soulAutorFresca], [characterRival, soulRivalFresca]]) {
+                    const verificar = verificarCondiciones({ _id: pj._id }, alma)
+                    if (!verificar.puede) erroresCond.push(`**${pj.perfil?.Nombre ?? pj._id}**: ${verificar.razon}`)
+                }
+                if (erroresCond.length > 0) {
+                    return messagesend.edit({ content: "**No se puede iniciar el duelo:**\n" + erroresCond.join("\n"), embeds: [] })
+                }
+
+                const crearPersonaje = (pj, alma) => new Personaje(Number(pj._id), {
+                    ownerId: pj.ownerId,
+                    perfil: pj.perfil,
+                    nucleo: alma.nucleo,
+                    stats: alma.stats,
+                    dominio: alma.dominio,
+                    sendero: alma.sendero
+                })
+
+                const sesion = duelSystem.crearSesion({
+                    duelType: "pvp",
+                    teams: [[crearPersonaje(characterAuthor, soulAutorFresca)], [crearPersonaje(characterRival, soulRivalFresca)]]
+                })
+
+                if (!sesion) {
+                    return messagesend.edit({ content: "Ocurrió un error al iniciar el duelo. Intenta de nuevo ＞﹏＜", embeds: [] })
+                }
+
+                sesion.state = "ACTIVO"
+                sesion.addLog("inicio", "El duelo ha comenzado")
+
+                await combateUI.update(sesion, client)
+                await messagesend.edit({ embeds: [embed] })
+
+                const TurnProcessor = require("../../../functions/Duelo/turnProcessor")
+                const firstActor = sesion.getCurrentActor()
+                if (firstActor && (firstActor.isNPC || firstActor.activeCast)) {
+                    await TurnProcessor.advanceCompas(sesion, null)
+                } else {
+                    sesion.iniciarWatchdogTurno(client)
+                }
+            } catch (e) {
+                console.error("[preDuel accept] Error al iniciar el duelo:", e)
                 messageError = e.code
-                console.log(e)
-            })
-
-            if (messageError === 50007) {
-                return interaction.channel.send(`No se pudo iniciar el duelo porque alguno de los dos usuarios tiene los MD cerrados...`)
-            } else if (messageError) {
+                if (messageError === 50007) {
+                    return interaction.channel.send(`No se pudo iniciar el duelo porque alguno de los dos usuarios tiene los MD cerrados...`)
+                }
                 return interaction.channel.send(`Ocurrio un error al intentar iniciar el duelo.`)
             }
-
-            messagesend.edit({ embeds: [embed] })
 
 
 

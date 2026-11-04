@@ -156,7 +156,7 @@ function modalAgregar({ tienda, ids, objetos }) {
                         .addOptions(objetos.slice(0, 25).map(o => ({
                             label: o.Nombre.slice(0, 100),
                             value: o.clave,
-                            description: `${o.precio} Lumens${o.Rareza ? ` · ${o.Rareza}` : ""}`.slice(0, 100)
+                            description: `${o.precio} Lumens${o.Rareza ? ` · ${o.Rareza}` : ""}${o.porPersona ? ` · máx. ${o.porPersona} por persona` : ""}`.slice(0, 100)
                         })))
                 ),
             campoCantidad()
@@ -185,7 +185,138 @@ function modalQuitar({ tienda, ids, lineas }) {
         )
 }
 
+/* ═══ Ventas: el pedido al revés ═══ */
+
+const idVenta = (tienda, ids, op, ...extra) => crearCustomId({ action: "tienda_venta", userId: ids.userId, characterId: ids.characterId, extras: [tienda._id, op, ...extra] })
+
+/** Detalle corto de una pila: contaminado y durabilidad. */
+function detallePila(v) {
+    const partes = []
+    if (v.contaminado) partes.push("contaminado")
+    if (v.durabilidad) partes.push(`durabilidad ${v.durabilidad.actual}/${v.durabilidad.max}`)
+    return partes.join(" · ")
+}
+
+const lineaVenta = (l) => {
+    const detalle = detallePila(l.v)
+    return `- -# ${l.nombre}${detalle ? ` *(${detalle})*` : ""} x ${l.cantidad} ── .✦ ${l.subtotal} ${EMOJI_LUMENS} `
+}
+
+/**
+ * Lo que alguien va a vender a una tienda.
+ * @param {Object} p
+ * @param {number} p.vendidoHoy - Lumens ya vendidos hoy
+ * @param {number} p.restante - Lo que queda del tope diario
+ * @param {number} p.tope
+ */
+function ventaTienda({ tienda, lineas, saldo, total, vendidoHoy, restante, tope, hayVendibles = true, avisos = [], ids, bloqueado = false }) {
+    const vacio = lineas.length === 0
+    const cabe = total <= restante
+
+    let listado
+    if (!vacio) listado = lineas.map(lineaVenta).join("\n")
+    else if (!hayVendibles) listado = "-# No tienes nada que esta tienda quiera comprar."
+    else listado = "-# Aún no has elegido qué vender. Agrega algo de tu inventario ♡( ◡‿◡ )"
+
+    const resumen = [
+        `-# Recibirías: **${total}** ${EMOJI_LUMENS}  ── .✦ tendrías **${saldo + total}** ${EMOJI_LUMENS}`,
+        cabe
+            ? `-# Tope de hoy: ${vendidoHoy}/${tope} ${EMOJI_LUMENS}  ── .✦ te quedarían **${restante - total}** ${EMOJI_LUMENS} por vender`
+            : `-# Tope de hoy: ${vendidoHoy}/${tope} ${EMOJI_LUMENS}  ── .✦ solo puedes vender **${restante}** ${EMOJI_LUMENS} más`
+    ].join("\n")
+
+    return [contenedor(tienda, [
+        encabezado(tienda, "Tu venta", `-# Tus lumens: ${saldo} ${EMOJI_LUMENS}\n-# Se paga 75% del valor, 45% si está contaminado, según su durabilidad.`),
+        separador,
+        {
+            type: 9,
+            components: [{ type: 10, content: listado }],
+            accessory: boton(idVenta(tienda, ids, "agregar"), "Agregar a la venta ▾", 2, bloqueado || !hayVendibles)
+        },
+        separador,
+        { type: 10, content: avisos.length ? `${resumen}\n${avisos.map(t => `-# ⟡ ${t}`).join("\n")}` : resumen },
+        separador,
+        {
+            type: 1,
+            components: [
+                boton(idVenta(tienda, ids, "quitar"), "Quitar de la venta ▾", 2, bloqueado || vacio),
+                // El total mostrado viaja en el customId: si al confirmar ya no coincide, se redibuja en vez de pagar otra cifra
+                boton(idVenta(tienda, ids, "confirmar", total), "Confirmar venta", 3, bloqueado || vacio || !cabe || total <= 0),
+                boton(idVenta(tienda, ids, "vaciar"), "Vaciar venta", 4, bloqueado || vacio)
+            ]
+        }
+    ])]
+}
+
+function reciboVenta({ tienda, lineas, total, saldoFinal, restante, ids }) {
+    return [contenedor(tienda, [
+        encabezado(tienda, "Recibo de venta", "-# Ya no está en tu inventario. ¡Un gusto hacer negocios! (◕‿◕✿)"),
+        separador,
+        { type: 10, content: lineas.map(lineaVenta).join("\n") },
+        separador,
+        { type: 10, content: `-# Recibiste: **${total}** ${EMOJI_LUMENS}  ── .✦ ahora tienes **${saldoFinal}** ${EMOJI_LUMENS}\n-# Hoy aún puedes vender **${Math.max(0, restante)}** ${EMOJI_LUMENS}` },
+        separador,
+        { type: 1, components: [boton(idVenta(tienda, ids, "seguir"), "Seguir vendiendo", 2)] }
+    ])]
+}
+
+function ventaDesvanecida({ tienda, ids }) {
+    const hijos = [{ type: 10, content: "Tu venta se desvaneció, ábrela de nuevo ♡( ◡‿◡ )" }]
+    if (tienda) hijos.push({ type: 1, components: [boton(idVenta(tienda, ids, "seguir"), "Abrir de nuevo", 2)] })
+    return [contenedor(tienda, hijos)]
+}
+
+/** @param {Array<{ clave, nombre, cantidad, unitario, contaminado, durabilidad }>} vendibles - Máximo 25 */
+function modalAgregarVenta({ tienda, ids, vendibles }) {
+    return new ModalBuilder()
+        .setCustomId(crearCustomId({ action: "tienda_venta_modal", userId: ids.userId, characterId: ids.characterId, extras: [tienda._id, "agregar"] }))
+        .setTitle("Agregar a la venta")
+        .addLabelComponents(
+            new LabelBuilder()
+                .setLabel("Objeto")
+                .setDescription("Lo que esta tienda compraría de tu inventario")
+                .setStringSelectMenuComponent(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("objeto")
+                        .setPlaceholder("Elige un objeto...")
+                        .setRequired(true)
+                        .addOptions(vendibles.slice(0, 25).map(v => {
+                            const detalle = detallePila(v)
+                            return {
+                                label: v.nombre.slice(0, 100),
+                                value: v.clave,
+                                description: `${v.unitario} Lumens c/u · tienes ${v.cantidad}${detalle ? ` · ${detalle}` : ""}`.slice(0, 100)
+                            }
+                        }))
+                ),
+            campoCantidad()
+        )
+}
+
+function modalQuitarVenta({ tienda, ids, lineas }) {
+    return new ModalBuilder()
+        .setCustomId(crearCustomId({ action: "tienda_venta_modal", userId: ids.userId, characterId: ids.characterId, extras: [tienda._id, "quitar"] }))
+        .setTitle("Quitar de la venta")
+        .addLabelComponents(
+            new LabelBuilder()
+                .setLabel("Objeto")
+                .setStringSelectMenuComponent(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("objeto")
+                        .setPlaceholder("Elige qué quitar...")
+                        .setRequired(true)
+                        .addOptions(lineas.slice(0, 25).map(l => ({ label: l.nombre.slice(0, 100), value: l.clave, description: `Vas a vender ${l.cantidad}` })))
+                ),
+            campoCantidad("Si quitas más de las que hay, se quita todo")
+        )
+}
+
 module.exports = {
+    ventaTienda,
+    reciboVenta,
+    ventaDesvanecida,
+    modalAgregarVenta,
+    modalQuitarVenta,
     pedidoTienda,
     reciboTienda,
     pedidoDesvanecido,

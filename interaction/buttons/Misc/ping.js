@@ -1,16 +1,18 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, } = require(`discord.js`)
-let buttonAuthor;
+const { splitCustomId } = require("../../../utils/constructores/customId")
 
 module.exports = {
     customId: "ping_button",
-    buttonAuthor: true,
+    soloAutor: true,
 
     /**
      * 
      * @param {*} client 
      * @param {ChatInputCommandInteraction} interaction 
      */
-    ejecutar: async (client, interaction, authorId) => {
+    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
+    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
+    ejecutar: async ({ client, interaction }) => {
 
                 
                 const interactionPing = interaction.createdTimestamp
@@ -27,7 +29,7 @@ module.exports = {
                 .setDescription(`[T. Respuesta] ${Date.now() - interactionPing}ms\n[Websocket] ${client.ws.ping}ms`)
                 .setColor("Random")
 
-                interaction.update({embeds: [embed], components: [row], flags: ["Ephemeral"]})
+                await interaction.update({ embeds: [embed], components: [row] })
         
     }
 };

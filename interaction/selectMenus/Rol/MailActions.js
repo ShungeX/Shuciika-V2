@@ -8,6 +8,7 @@ const transaccionCache = require("../../../utils/cache")
 const { v4: uuidv4} = require('uuid')
 const { ejecutar, getMails } = require("../../../handlers/CMDHandler/Rol/Personajes/buzon")
 const updateInventario = require("../../../functions/updateInventario")
+const { motivoNoCabe } = require("../../../functions/Objetos/limiteInventario")
 const getXP = require("../../../functions/getXP")
 const newGetXP = require("../../../functions/newGetXP")
 
@@ -220,6 +221,14 @@ module.exports = {
 
 
                         if(!contenido) return interaction.editReply({content: "No se pudo encontrar el objeto... 〒▽〒\n-# Seguramente se trate de algun error o este ya fue reclamado", flags: ["Ephemeral"]})
+
+                        // Máximo en inventario: si no cabe entero, el regalo se queda en el buzón sin marcarse como reclamado
+                        {
+                            const idNum = Number(interaction.user.id)
+                            const destino = await characters.findOne({ $or: [{ _id: idNum }, { _id: interaction.user.id }] })
+                            const motivo = destino ? await motivoNoCabe(destino, { ID: contenido.ID, Region: contenido.Region, cantidad: Number(contenido.Cantidad ?? 1), Nombre: contenido.Nombre }) : null
+                            if (motivo) return interaction.editReply({ content: `${motivo}\n-# El regalo sigue en tu buzón; reclámalo cuando tengas espacio.` })
+                        }
 
                         if(contenido?.instanciaID) {                            
 

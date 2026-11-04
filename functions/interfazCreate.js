@@ -9,7 +9,7 @@ const npcs = db2.collection("NPCs")
 const habilidades = db2.collection("Hechizos_globales")
 const cacheGlobal = require("../utils/cache")
 const transaccionCache = cacheGlobal
-const getXp = require("../functions/getXP")
+const { etiquetaPoder } = require("./Duelo/combatientes")
 const tokenManager = require('./Tokens/Ticket');
 const PayloadBuilder = require('./Tokens/payloads');
 const { crearCustomId } = require("../utils/constructores/customId")
@@ -116,7 +116,7 @@ class InterfazCreate {
                 teamJSON.push(
                     {
                         "type": 10,
-                        "content": `**${pj.Nombre} (${pj.isNPC ? `LV: ${pj.nivelMagico || 1}` : `FE: ${pj.StelarFragmentsTotal ?? pj.sendero?.StelarFragmentsTotal ?? 0} [${pj.resplandor ?? pj.sendero?.resplandor ?? 'I'}]`})**`
+                        "content": `**${pj.Nombre} (${etiquetaPoder(pj, "LV")})**`
                     },
                     {
                         "type": 10,
@@ -243,7 +243,7 @@ class InterfazCreate {
         }
 
         const textTarget = validTargets.map(target => {
-            const labelNivel = target.isNPC ? `LV: ${target.nivelMagico || 1}` : `FE: ${target.StelarFragmentsTotal ?? target.sendero?.StelarFragmentsTotal ?? 0} [${target.resplandor ?? target.sendero?.resplandor ?? 'I'}]`;
+            const labelNivel = etiquetaPoder(target, "LV");
             selectOptions.components[0].options.push({
                 "label": `-# ${target.Nombre} (${labelNivel})`,
                 "value": `${target.ID}`,
@@ -278,22 +278,22 @@ class InterfazCreate {
         const db2 = clientdb.db("Rol_db");
         const regiones = db2.collection("Regiones");
         const configServer = require("../config");
-        const { barrasDeEnergia, editarOMandarMensaje } = require("../utils/utilidadesTexto");
+        const { barrasDeEnergia, editarOMandarMensaje, responder } = require("../utils/utilidadesTexto");
 
         const userCache = transaccionCache.getUser(interaction.user.id);
         const exploracionCache = transaccionCache.get(userCache?.explorarID);
 
         if (!exploracionCache) {
-            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         const regionDoc = await regiones.findOne({ _id: exploracionCache.regionSelect });
         if (!regionDoc) {
-            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
         }
 
         let zonaKey = key || exploracionCache.zona;
@@ -310,7 +310,7 @@ class InterfazCreate {
         }
 
         if (!zonaSelect) {
-            return interaction.reply({ content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "Al parecer ese lugar ya no aparece en el mapa...", flags: ["Ephemeral"] });
         }
 
         exploracionCache.zona = zonaKey;
@@ -418,7 +418,7 @@ class InterfazCreate {
             await editarOMandarMensaje(interaction, exploracionCache, msg, { components: v2Exploracion, flags: ["IsComponentsV2"] });
         } catch (error) {
             console.error("Error en zonaMessage [interfazCreate]:", error);
-            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] }).catch(() => { });
+            return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] }).catch(() => { });
         }
     }
 
@@ -1181,6 +1181,37 @@ class InterfazCreate {
         const filtrosTexto = activeFiltros.map(f => filterMap[f] || f).join(", ");
         const filtrosJoined = activeFiltros.join("_");
 
+        const resumenTexto = {
+            "type": 10,
+            "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}\n-# Filtros aplicados: ${filtrosTexto}`
+        };
+
+        // Botón "Usar item" (solo en /rol inventario, no en la mochila de exploración):
+        // se deshabilita si en la lista visible no hay nada que se pueda usar fuera de combate
+        const listaTexto = { "type": 10, "content": itemsContent };
+        let listaInventario = listaTexto;
+        if (ctxAction === "inventario") {
+            const { tipoDeUso } = require("./Objetos/usarObjeto");
+            const hayUsables = itemsPagina.some(item => tipoDeUso(item));
+            listaInventario = {
+                "type": 9,
+                "components": [listaTexto],
+                "accessory": {
+                    "type": 2,
+                    "style": 1,
+                    "label": "Usar item",
+                    "emoji": null,
+                    "disabled": !hayUsables,
+                    "custom_id": crearCustomId({
+                        action: ctxAction,
+                        userId: interaction.user.id,
+                        characterId: character._id,
+                        extras: ["usar", currentPagina, filtrosJoined]
+                    })
+                }
+            };
+        }
+
         return [
             {
                 "type": 17,
@@ -1204,7 +1235,7 @@ class InterfazCreate {
                             },
                             {
                                 "type": 10,
-                                "content": "-# Consume un item con /usar\n-# Compra nuevos items con /tienda\n\n**Un espacio que no está aquí ni en ninguna otra parte.**"
+                                "content": "-# Compra nuevos items con /tienda\n\n**Un espacio que no está aquí ni en ninguna otra parte.**"
                             }
                         ]
                     },
@@ -1213,14 +1244,8 @@ class InterfazCreate {
                         "divider": true,
                         "spacing": 1
                     },
-                    {
-                        "type": 10,
-                        "content": itemsContent
-                    },
-                    {
-                        "type": 10,
-                        "content": `-# Tienes un total de ${totalItems} objetos | Pagina ${currentPagina}/${totalPages}\n-# Filtros aplicados: ${filtrosTexto}`
-                    },
+                    listaInventario,
+                    resumenTexto,
                     {
                         "type": 14,
                         "divider": true,

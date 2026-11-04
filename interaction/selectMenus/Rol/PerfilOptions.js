@@ -9,6 +9,7 @@ const pets = db2.collection("Mascotas")
 
 const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente")
 const { construirPerfilV2 } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { construirAlmaMain, construirAlmaStats, construirAlmaEquipamiento, filaNavegacionPerfil } = require("../../../data/UI_ComponentsV2/menuAlma")
 
 module.exports = crearStringSelectMenu({
     customId: "selectPerfil",
@@ -42,7 +43,13 @@ module.exports = crearStringSelectMenu({
                 mascotas(character)
                 break;
             case "stats":
-                stats(character)
+                await stats(character)
+                break;
+            case "equipamiento":
+                await equipamiento(character)
+                break;
+            case "heraldo":
+                await heraldo(character)
                 break;
             default:
                 break;
@@ -442,319 +449,57 @@ module.exports = crearStringSelectMenu({
 
         }
 
+        /** Fila con el selector principal del perfil (debajo de las vistas del alma) */
+        function filaNavegacion(pjuser) {
+            return filaNavegacionPerfil(interaction.user.id, pjuser._id)
+        }
+
+        /** El alma solo la ve su dueño y solo si ya despertó */
+        function puedeVerAlma(pjuser) {
+            if (interaction.user.id !== pjuser.ownerID) {
+                interaction.reply({ content: "No puedes revisar el alma de este personaje ＞﹏＜", flags: ["Ephemeral"] })
+                return false
+            }
+            if (!soul) {
+                interaction.reply({ content: "Este personaje aún no despierta su poder (´･ω･`)?", flags: ["Ephemeral"] })
+                return false
+            }
+            return true
+        }
+
         async function stats(pjuser) {
-            console.log(interaction.values[0])
-            if (key) {
-                if (soul.sendero.StelarFragments < 1) return interaction.reply({ content: "No puedes mejorar esta habilidad porque no tienes los fragmentos estelares suficientes", flags: ["Ephemeral"] })
-
-                await souls.updateOne({ _id: pjuser._id }, {
-                    $inc: {
-                        [`stats.${key}`]: +1,
-                        "sendero.StelarFragments": -1
-                    }
-                })
-
-
-                soul.stats[key] += + 1
-                soul.sendero.StelarFragments -= 1
-            }
-
-
-            const getst = getStats(soul.stats)
-
-            const statsV2 = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": "https://i.pinimg.com/originals/29/d5/c4/29d5c4bce4419d9a16d83dcf3d4a7b93.gif"
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": "# Estadisticas de ShungeX"
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "<a:PurpleCrystalHeart:1356497588131729458> `Fragmentos estelares:` " + soul.sendero.StelarFragments +
-                                        "\n-# Los fragmentos estelares se obtienen subiendo de nivel\n\n-# **¡Una vez asignes los fragmentos no los podras cambiar a menos que compres un item que aún está en desarrollo!**\n\n-# No todos los stats se pueden mejorar mediante fragmentos estelares. \n-# Algunos aún no están disponibles para mejorar"
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "**Stats principales:**\n- `❤️` **HP Max:** " + soul.stats.hpMax +
-                                "      `🔷` **Mana Max:** " + soul.stats.manaMax + "\n- `💪` **Fuerza:** " + soul.stats.fuerza +
-                                "\n- `💨` **Agilidad:** " + soul.stats.agilidad + "\n- `🔍` **Sabiduria:** " + soul.stats.sabiduria +
-                                "\n- `🧠` **Inteligencia:** " + soul.stats.inteligencia +
-                                "\n- `🪄` **SE:** " + soul.stats.sintoniaElemental + "\n- `🥊` **RF:** " + soul.stats.resFisica +
-                                "\n- `🔥` **RM:** " + `${soul.stats.resMagica}\n`
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 1,
-                            "components": getst
-                        },
-                        {
-                            "type": 10,
-                            "content": `-# Stats consultados hace: <t:${Math.floor(new Date().getTime() / 1000)}:R>`
-                        }
-                    ]
-                },
-                {
-                    "type": 1,
-                    "components": [
-                        {
-                            "type": 3,
-                            "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
-                            "options": [
-                                {
-                                    "label": "Perfil principal",
-                                    "value": "perfil",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "d9056043c1e148e38efd10e4515e33d2",
-                                        "id": "1356111301859868823"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Apariencia [Galeria]",
-                                    "value": "galeria",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "EmuNui",
-                                        "id": "1370631281028890727"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Historia [Lore]",
-                                    "value": "historia",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "BunnyBook",
-                                        "id": "1356111194997395496"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Alma [Núcleo]",
-                                    "value": "alma",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "KrisJojos",
-                                        "id": "1350664814414004395"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Mascotas [Nuevo]",
-                                    "value": "mascota",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "pets",
-                                        "id": "1356111134758932510"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                }
-                            ],
-                            "placeholder": "Selecciona una opción",
-                            "min_values": 1,
-                            "max_values": 1,
-                            "disabled": false
-                        }
-                    ]
-                },
-            ]
-
-            await interaction.update({ components: statsV2 })
-
-            if (key) {
-                await interaction.followUp({ content: "Puntos estelares aplicados correctamente", flags: ["Ephemeral"] })
-            }
-
+            if (!puedeVerAlma(pjuser)) return
+            const vista = construirAlmaStats({ character: pjuser, soul, userId: interaction.user.id, filaNavegacion: filaNavegacion(pjuser) })
+            return interaction.update({ components: vista })
         }
 
         async function alma(pjuser) {
+            if (!puedeVerAlma(pjuser)) return
+            const vista = construirAlmaMain({ character: pjuser, soul, userId: interaction.user.id, filaNavegacion: filaNavegacion(pjuser) })
+            return interaction.update({ components: vista })
+        }
 
+        async function equipamiento(pjuser) {
+            if (!puedeVerAlma(pjuser)) return
+            const vista = construirAlmaEquipamiento({
+                character: pjuser,
+                userId: interaction.user.id,
+                textoEquipamiento: await getequipamiento(),
+                filaNavegacion: filaNavegacion(pjuser)
+            })
+            return interaction.update({ components: vista })
+        }
 
-            if (interaction.user.id !== pjuser.ownerID) {
-                return interaction.reply({ content: "No puedes revisar el alma de este personaje ＞﹏＜", flags: ["Ephemeral"] })
-            }
-
-            if (!soul) {
-                return interaction.reply({ content: "Este personaje aún no despierta su poder (´･ω･`)?", flags: ["Ephemeral"] })
-            }
-            const soulV2 = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": "https://res.cloudinary.com/dn1cubayf/image/upload/v1737346978/idk3_v2s9hr.jpg"
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": `# Alma de ${pjuser.perfil.Nombre}`
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "-# 𝑻𝒖 𝒕𝒓𝒂𝒚𝒆𝒄𝒕𝒐 𝒉𝒂𝒄𝒊𝒂 𝒍𝒂𝒔 𝒆𝒔𝒕𝒓𝒆𝒍𝒍𝒂𝒔 \n\n" +
-                                        "`[💜] 𝙷𝙿:` " + `${soul.nucleo.HP}/${soul.stats.hpMax}` +
-                                        "     `[💧] Mana:` " + `${soul.nucleo.Mana}/${soul.stats.manaMax}` +
-                                        "\n\n`[✨] Nivel:` " + soul.nucleo.nivelMagico + "\n`[🍪] XP:` " + `${soul.nucleo.XP}/${soul?.sendero?.xpRequired || 1}` +
-                                        "\n`[🌱] Elemento:` " + soul.nucleo.Elemento + "\n`[🔮] Resonancia:` " + (soul.nucleo.artefactoMagico === true ? "Lienzo en blanco" : "Magia Elemental")
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": await getequipamiento()
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `selectPerfil-${interaction.user.id}-${character._id}-extra`,
-                                    "options": [
-                                        {
-                                            "label": "Ver stats",
-                                            "value": "stats",
-                                            "description": null,
-                                            "emoji": {
-                                                "name": "XP",
-                                                "id": "1350575069113352265"
-                                            },
-                                            "default": false
-                                        }
-                                    ],
-                                    "placeholder": "Opciones extras",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-
-                    ]
-                },
-                {
-                    "type": 1,
-                    "components": [
-                        {
-                            "type": 3,
-                            "custom_id": `selectPerfil-${interaction.user.id}-${pjuser._id}`,
-                            "options": [
-                                {
-                                    "label": "Perfil principal",
-                                    "value": "perfil",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "d9056043c1e148e38efd10e4515e33d2",
-                                        "id": "1356111301859868823"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Apariencia [Galeria]",
-                                    "value": "galeria",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "EmuNui",
-                                        "id": "1370631281028890727"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Historia [Lore]",
-                                    "value": "historia",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "BunnyBook",
-                                        "id": "1356111194997395496"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Alma [Núcleo]",
-                                    "value": "alma",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "KrisJojos",
-                                        "id": "1350664814414004395"
-                                    },
-                                    "default": true,
-                                    "disabled": false
-                                },
-                                {
-                                    "label": "Mascotas [Nuevo]",
-                                    "value": "mascota",
-                                    "description": null,
-                                    "emoji": {
-                                        "name": "pets",
-                                        "id": "1356111134758932510"
-                                    },
-                                    "default": false,
-                                    "disabled": false
-                                }
-                            ],
-                            "placeholder": "Selecciona una opción",
-                            "min_values": 1,
-                            "max_values": 1,
-                            "disabled": false
-                        }
-                    ]
-                },
-            ]
-
-            return interaction.update({ components: soulV2 })
+        async function heraldo(pjuser) {
+            if (!puedeVerAlma(pjuser)) return
+            const h = soul.sendero?.heraldo
+            const nombre = h?.Nombre || h?.nombre || (typeof h === "string" ? h : null)
+            return interaction.reply({
+                content: nombre
+                    ? `\`[🌠]\` Tu alma sigue al Heraldo **${nombre}**.`
+                    : "`[🌠]` Tu alma aún no ha elegido un Heraldo. Ese camino se revelará más adelante...",
+                flags: ["Ephemeral"]
+            })
         }
 
 
@@ -814,66 +559,6 @@ module.exports = crearStringSelectMenu({
 
             return resultado.trim();
         }
-        function getStats(stats) {
-            const nombresLegibles = {
-                hpMax: "HP Máx",
-                manaMax: "Mana Máx",
-                fuerza: "Fuerza",
-                resistenciaFisica: "Resistencia Física",
-                agilidad: "Agilidad",
-                sabiduria: "Sabiduría",
-                inteligencia: "Inteligencia",
-                resistenciaMagica: "Resistencia Mágica",
-                poderElemental: "Poder Elemental",
-                percepcion: "Percepción",
-                determinacion: "Determinación",
-                regeneracion: "Regeneración",
-                paradoja: "Paradoja",
-                destino: "Destino"
-            };
-
-
-
-            const clavesMostrar = ["hpMax", "manaMax", "fuerza", "inteligencia", "agilidad", "sabiduria", "inteligencia", "resFisica", "resMagica",
-                "sintoniaElemental", "determinación"
-            ];
-
-            const clavesMejorar = ["fuerza", "inteligencia", "sabiduria", "agilidad", "inteligencia",
-                "sintoniaElemental", "voluntad", "resFisica", "resMagica"
-            ];
-
-
-
-            const optionsSelects = []
-
-
-            Object.entries(stats)
-                .filter(([key]) => clavesMejorar.includes(key))
-                .map(([key, value]) => {
-                    optionsSelects.push({
-                        "label": `+ 1 ${nombresLegibles[key] || key}`,
-                        "value": `stats*${key}`,
-                        "description": null,
-                        "emoji": null,
-                        "defualt": false
-                    });
-                })
-
-            const selectMenu = [{
-                "type": 3,
-                "custom_id": `selectPerfil-${interaction.user.id}-${character._id}-extras`,
-                "options": optionsSelects,
-                "placeholder": "Selecciona un stat para mejorar",
-                "min_values": 1,
-                "max_values": 1,
-                "disabled": false
-            }]
-
-
-            return selectMenu
-        }
-
-
         function NumRomano(num) {
             const romanos = [
                 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',

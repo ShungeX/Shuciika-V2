@@ -5,7 +5,7 @@ const souls = db2.collection("Soul");
 const transaccionCache = require("../../../../utils/cache");
 const interfazCreate = require("../../../../functions/interfazCreate");
 const { battleSwitch } = require("../../../../functions/Exploracion/battleExploration");
-const { barrasDeEnergia } = require("../../../../utils/utilidadesTexto");
+const { barrasDeEnergia, responder } = require("../../../../utils/utilidadesTexto");
 const { crearBoton } = require("../../../../utils/constructores/crearComponente");
 const { crearCustomId } = require('../../../../utils/constructores/customId');
 
@@ -24,19 +24,26 @@ module.exports = crearBoton({
         const userCache = transaccionCache.getUser(interaction.user.id);
 
         if (!userCache) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         const exploracionCache = transaccionCache.get(userCache.explorarID);
         if (!exploracionCache) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
-            return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+            return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
         }
 
         const exploracionManager = require("../../../../functions/Exploracion/exploracionManager");
+
+        // Acuse inmediato (salvo "zona", que responde por sí misma): varias acciones consultan la BD,
+        // piden gifs o esperan segundos antes de editar, y Discord exige respuesta en 3s.
+        // Los avisos posteriores usan responder() → followUp efímero.
+        if (state !== "zona") {
+            await interaction.deferUpdate().catch(() => { });
+        }
 
         switch (state) {
             case "zona":
@@ -77,7 +84,7 @@ module.exports = crearBoton({
                     await interaction.deferUpdate().catch(() => { });
                     if (!exploracionCache || !exploracionCache?.regionSelect || !exploracionCache?.zona) {
                         if (!interaction.replied && !interaction.deferred) {
-                            return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
+                            return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
                         }
                         return;
                     }
@@ -111,10 +118,14 @@ module.exports = crearBoton({
                         $or: [{ _id: charIdNum }, { _id: character._id }]
                     });
 
-                    const rawTalisman = freshChar?.economia?.inventarioTalisman || [];
-                    if (rawTalisman.length === 0) {
-                        return interaction.reply({ content: "Tu talismán está vacío, no hay nada que purificar.", flags: ["Ephemeral"] });
+                    const talismanCompleto = freshChar?.economia?.inventarioTalisman || [];
+                    if (talismanCompleto.length === 0) {
+                        return responder(interaction, { content: "Tu talismán está vacío, no hay nada que purificar.", flags: ["Ephemeral"] });
                     }
+                    // Máximo en inventario: solo se purifica (y se cobra) lo que cabe; lo que no, se queda en el talismán
+                    const { limitarEntradas } = require("../../../../functions/Objetos/limiteInventario");
+                    const limitePurificar = await limitarEntradas(freshChar, talismanCompleto);
+                    const rawTalisman = limitePurificar.admitidos;
 
                     const { getObjetoPorId } = require("../../../../functions/catalogoObjetos");
                     const base = 1.6;
@@ -157,7 +168,7 @@ module.exports = crearBoton({
                     const currentLumens = Number(freshChar?.economia?.Lumens ?? 0);
 
                     if (currentLumens < costo) {
-                        return interaction.reply({ content: `No tienes suficientes Lumens (${currentLumens}/${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
+                        return responder(interaction, { content: `No tienes suficientes Lumens (${currentLumens}/${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
                     }
 
                     // Fusión de inventario con talismán (evitando duplicados y asegurando descontaminación)
@@ -187,7 +198,7 @@ module.exports = crearBoton({
                             ref: { qty: rawTalisman.length, profundidad },
                         });
                         if (!cobro.ok) {
-                            return interaction.reply({ content: `No tienes suficientes Lumens (${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
+                            return responder(interaction, { content: `No tienes suficientes Lumens (${costo} :lumens:) para purificar estos objetos.`, flags: ["Ephemeral"] });
                         }
                     }
 
@@ -197,7 +208,7 @@ module.exports = crearBoton({
                             {
                                 $set: {
                                     "economia.Inventario": currentInventario,
-                                    "economia.inventarioTalisman": []
+                                    "economia.inventarioTalisman": limitePurificar.sobrantes
                                 }
                             }
                         );
@@ -208,7 +219,11 @@ module.exports = crearBoton({
 
                     const json = await interfazCreate.faroExploración(client, interaction, zoneKey, soul);
                     await interaction.deferUpdate().catch(() => { });
-                    return await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
+                    const editado = await editarOMandarMensaje(interaction, exploracionCache, exploracionCache.message, { components: json, flags: ["IsComponentsV2"] });
+                    if (limitePurificar.aviso) {
+                        await interaction.followUp({ content: `${limitePurificar.aviso}\n-# Eso no se purificó ni se cobró: sigue en tu talismán.`, flags: ["Ephemeral"] }).catch(() => { });
+                    }
+                    return editado;
                 }
                 break;
             }

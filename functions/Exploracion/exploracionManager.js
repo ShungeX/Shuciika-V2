@@ -10,8 +10,10 @@ const util = require("util");
 const updateInventario = require("../updateInventario");
 const interfazCreate = require("../interfazCreate");
 const { getEscapeP } = require("./escape");
-const { barrasDeEnergia, editarOMandarMensaje } = require("../../utils/utilidadesTexto");
+const { barrasDeEnergia, editarOMandarMensaje, responder } = require("../../utils/utilidadesTexto");
 const { recargarEnergia } = require("../dataCharacters");
+const { nivelNPC } = require("../Duelo/combatientes");
+const { leerProgreso } = require("../Economia/progresionEstelar");
 const getGifs = require("../getGifs");
 const { crearCustomId } = require("../../utils/constructores/customId");
 const sleep = util.promisify(setTimeout);
@@ -53,14 +55,14 @@ class ExploracionManager {
         const exploracionCache = transaccionCache.get(userCache?.explorarID);
         if (!exploracionCache || !exploracionCache?.regionSelect || !exploracionCache?.zona) {
             if (!interaction.replied && !interaction.deferred) {
-                return interaction.reply({ content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
+                return responder(interaction, { content: "Esta interacción ya no es válida o el mensaje ya no existe. Vuelve a usar el comando... ＞﹏＜", flags: ["Ephemeral"] });
             }
             return;
         }
 
         if (exploracionCache.message?.id && interaction.message?.id && exploracionCache.message.id !== interaction.message.id) {
             if (!interaction.replied && !interaction.deferred) {
-                return interaction.reply({ content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
+                return responder(interaction, { content: "No puedes interactuar con esta opción porque ya ha caducado ＞﹏＜", flags: ["Ephemeral"] });
             }
             return;
         }
@@ -102,8 +104,11 @@ class ExploracionManager {
 
                 if (rawTalisman.length > 0) {
                     const { sanitizarObjetoInventario } = require("../catalogoObjetos");
+                    // Máximo en inventario: lo que no cabe se queda fuera
+                    const { limitarEntradas } = require("../Objetos/limiteInventario");
+                    const limiteTalisman = await limitarEntradas(pj, rawTalisman);
                     const currentInventario = [...(pj?.economia?.Inventario || [])];
-                    for (const tItem of rawTalisman) {
+                    for (const tItem of limiteTalisman.admitidos) {
                         const tId = Number(tItem.ID);
                         const tCant = Number(tItem.Cantidad || tItem.cantidad || 1);
                         const tRegion = tItem.Region || "Global";
@@ -130,7 +135,9 @@ class ExploracionManager {
                         }
                     );
 
-                    transferInfo = "\n-# Todos los objetos de tu talismán se han transferido correctamente a tu inventario.";
+                    transferInfo = limiteTalisman.aviso
+                        ? `\n-# Los objetos de tu talismán se transfirieron a tu inventario, salvo lo que no cabía:\n${limiteTalisman.aviso.split("\n").map(t => `-# ⟡ ${t}`).join("\n")}`
+                        : "\n-# Todos los objetos de tu talismán se han transferido correctamente a tu inventario.";
                 }
 
                 const messages = [
@@ -261,7 +268,7 @@ class ExploracionManager {
                 if (interaction.deferred) {
                     return interaction.followUp({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] })
                 }
-                return interaction.reply({ content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
+                return responder(interaction, { content: "Tu personaje se encuentra cansado para poder explorar esa área (¬_¬')\n-# Necesitas recuperar energía antes de explorar esta área", flags: ["Ephemeral"] });
             }
 
             const faroEvent = subzonaSelect?.eventos?.find(e => e.tipo === "faro");
@@ -364,7 +371,6 @@ class ExploracionManager {
 
     async procesarEventoSwitch({ eventSelect, subzonaSelect, soul, areaSelect, client, interaction, exploracionCache }) {
         let eventMessage;
-        let levelMessage;
         const components = [];
 
         switch (eventSelect.tipo) {
@@ -372,7 +378,7 @@ class ExploracionManager {
                 const enemy = await this.selectEnemy(subzonaSelect.enemigos);
                 const itemfilter = enemy.loot.filter(item => item.typeLoot === "item");
                 const itemscoins = enemy.loot.find(item => item.typeLoot === "lumens");
-                const itemsxp = enemy.loot.find(item => item.typeLoot === "xp");
+                const itemsPolvo = enemy.loot.find(item => item.typeLoot === "polvo");
                 const items = await this.getObjInfo(itemfilter);
                 const messageRewards = [];
                 const enemyDefeat = soul?.npcDefeated?.[enemy._id];
@@ -384,8 +390,8 @@ class ExploracionManager {
                     messageRewards.push(`-# <a:Lumens:1335709991130103910> **Lumens** *(${itemscoins.quantity})* - **${(itemscoins.dropRate * 100)}%**`);
                 }
 
-                if (itemsxp) {
-                    messageRewards.push(`-# <:XP:1350575069113352265> **XP** *(${itemsxp.quantity})* - **${(itemsxp.dropRate * 100)}%**`);
+                if (itemsPolvo) {
+                    messageRewards.push(`-# ✨ **Polvo Estelar** *(${itemsPolvo.quantity})* - **${(itemsPolvo.dropRate * 100)}%**`);
                 }
 
                 items.forEach((item, index) => {
@@ -408,7 +414,7 @@ class ExploracionManager {
                         "components": [
                             {
                                 "type": 10,
-                                "content": "**Los hilos del destino se tensan… ¡una batalla se aproxima!**\n\n" + "**Enemigo:** " + `${enemy.Nombre}` + `\n- **Salud:** ${mostrarHp}\n- **Aura de amenaza:** ${amenazaLevel.nombre} *(LV: ${enemy.nivelMagico})*\n-# *${enemy.Descripcion}*\n** ** `
+                                "content": "**Los hilos del destino se tensan… ¡una batalla se aproxima!**\n\n" + "**Enemigo:** " + `${enemy.Nombre}` + `\n- **Salud:** ${mostrarHp}\n- **Aura de amenaza:** ${amenazaLevel.nombre} *(LV: ${nivelNPC(enemy)})*\n-# *${enemy.Descripcion}*\n** ** `
                             }
                         ]
                     },
@@ -443,7 +449,7 @@ class ExploracionManager {
                             {
                                 "type": 2,
                                 "style": 2,
-                                "label": `Huir (${getEscapeP(enemy.restrictions?.probabilidadEscape || 100, soul.stats?.agilidad ?? soul.agilidad ?? 10, soul.stats?.inteligencia ?? soul.inteligencia ?? 10).porcentaje} %)`,
+                                "label": `Huir (${getEscapeP(soul, enemy).porcentaje} %)`,
                                 "emoji": {
                                     "name": "EeveeRun",
                                     "id": "1350663840349687941"
@@ -469,8 +475,7 @@ class ExploracionManager {
                 console.log(subzonaSelect)
                 exploracionCache.profundidad = (exploracionCache.profundidad || 0) + 1;
                 const charId = soul?._id ?? soul?.id ?? soul?.ID;
-                const { recompensas, levelMessage: levMsg } = await this.getRewardsLoot(subzonaSelect.loot, charId, client, interaction);
-                levelMessage = levMsg;
+                const { recompensas } = await this.getRewardsLoot(subzonaSelect.loot, charId, client, interaction);
                 const gifsHappyArray = [
                     "https://klipy.com/gifs/himouto-umaru-chan-sylphynford-tachibana-17",
                     "https://klipy.com/gifs/saint-cecilia-and-pastor-lawrence-waku-waku",
@@ -507,7 +512,7 @@ class ExploracionManager {
                 const lootJSON = [
                     {
                         "type": 10,
-                        "content": `# ${this.getRandomMessage(TitleMessages).message} \n\n-# ${this.getRandomMessage(descripciones).message}\n${levelMessage?.message ? levelMessage.message : ""}`
+                        "content": `# ${this.getRandomMessage(TitleMessages).message} \n\n-# ${this.getRandomMessage(descripciones).message}`
                     },
                     {
                         "type": 10,
@@ -722,8 +727,6 @@ class ExploracionManager {
         const catalogoObjetos = require("../catalogoObjetos");
         const { duelSystem } = require("../Duelo/duelManager");
         const recompensas = [];
-        let levelMessage = null;
-
         for (const recompensa of loot) {
             const isItem = recompensa.tipo === "item";
             const happens = recompensa.probabilidad >= 1 || Math.random() < recompensa.probabilidad;
@@ -766,10 +769,7 @@ class ExploracionManager {
                     purificable: typeof obj?.purificable !== "undefined" ? Boolean(obj.purificable) : false
                 };
 
-                const isLevel = await updateInventario(client, interaction, characterId, objData);
-                if (isLevel?.message) {
-                    levelMessage = isLevel;
-                }
+                await updateInventario(client, interaction, characterId, objData);
                 recompensas.push(obj);
             }
         }
@@ -778,8 +778,8 @@ class ExploracionManager {
             switch (reward.tipo) {
                 case "item":
                     return `${reward.cantidad} **${reward.Nombre}**`;
-                case "xp":
-                    return `<:XP:1350575069113352265> **XP: ** ${reward.cantidad}`;
+                case "polvo":
+                    return `✨ **Polvo Estelar:** ${reward.cantidad}`;
                 case "lumens":
                     return `<a:Lumens:1335709991130103910> **Lumens:** ${reward.cantidad} `;
                 default:
@@ -787,7 +787,7 @@ class ExploracionManager {
             }
         }).join("\n- -# ");
 
-        return { recompensas: textoRecompensas, levelMessage };
+        return { recompensas: textoRecompensas };
     }
 
     async selectEnemy(enemies) {
@@ -866,18 +866,9 @@ class ExploracionManager {
             "imposible"
         ];
 
-        const fragmentosGanados = Number(
-            characterData?.fragmentos?.ganados
-            ?? characterData?.sendero?.StelarFragmentsTotal
-            ?? characterData?.fragmentos?.StelarFragmentsTotal
-            ?? characterData?.sendero?.StelarFragments
-            ?? characterData?.fragmentos?.StelarFragments
-            ?? characterData?.StelarFragmentsTotal
-            ?? characterData?.StelarFragments
-            ?? 0
-        );
+        const { ganados: fragmentosGanados } = leerProgreso(characterData || {});
 
-        const npcLvl = Number(enemy.nivelMagico ?? enemy.stats?.nivelMagico ?? enemy.restrictions?.fe_min ?? 1);
+        const npcLvl = nivelNPC(enemy);
         const diferenciaPorcentual = ((npcLvl - fragmentosGanados) / Math.max(1, fragmentosGanados)) * 100;
 
         const hpActual = Number(characterData.HP ?? characterData.nucleo?.HP ?? 0);
@@ -940,7 +931,7 @@ class ExploracionManager {
                 "accessory": {
                     "type": 11,
                     "media": {
-                        "url": ch.perfil.avatarURL || "https://cdn.discordapp.com/attachments/738874841783992351/1369868063633051668/Aya_Osawa.jpg?ex=681d6c8d&is=681c1b0d&hm=e05440b310bfc171f4a670032f5a3fe93033fed96da9c4ece7790ee4afea53b8&"
+                        "url": ch?.perfil?.avatarURL || "https://cdn.discordapp.com/attachments/738874841783992351/1369868063633051668/Aya_Osawa.jpg?ex=681d6c8d&is=681c1b0d&hm=e05440b310bfc171f4a670032f5a3fe93033fed96da9c4ece7790ee4afea53b8&"
                     },
                     "description": null,
                     "spoiler": false

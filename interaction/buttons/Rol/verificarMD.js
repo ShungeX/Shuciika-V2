@@ -12,18 +12,23 @@ const transaccionCache = require("../../../utils/cache")
 const { v4: uuidv4 } = require('uuid');
 const { procesarFoto } = require("./ActualizarFoto");
 const { errorMessage } = require("../../../functions/verifMD.js");
+const { splitCustomId } = require("../../../utils/constructores/customId")
 
 
 module.exports = {
     customId: "verifMD",
-    buttonAuthor: true,
+    soloAutor: true,
 
     /**
     * @param {Client} client 
     * @param {ChatInputCommandInteraction} interaction
     */
 
-    ejecutar: async (client, interaction, select) => {
+    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
+    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
+    ejecutar: async ({ client, interaction }) => {
+        // verifMD-<userId>-<pctutorial|celtutorial|verifStatus>
+        const [, , select] = splitCustomId(interaction.customId)
 
         try {
             const guild = client.guilds.cache.get("716342375303217285")
@@ -34,7 +39,6 @@ module.exports = {
             const member = guild.members.cache.get(interaction.user.id)
 
 
-            console.log(select)
 
             if (select === "pctutorial") {
                 const messagePC = [

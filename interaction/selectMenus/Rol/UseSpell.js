@@ -22,14 +22,18 @@ module.exports = crearStringSelectMenu({
     ejecutar: async ({ client, interaction, character, componentData: { extras }, options: { dataString } }) => {
 
         const sesionID = extras[0];
-        const [Type, idSpell, targetId] = dataString?.split("*")
-        console.log("UseSpell.js", extras)
-        console.log("useSpell.js", Type, idSpell, targetId);
+        const [Type, idSpell, targetId] = String(dataString || "").split("*")
 
         const sesion = duelSystem.getSesion(sesionID)
 
-        if (!sesion) {
+        if (!sesion || sesion.state === "FINALIZADO") {
             return interaction.reply({ content: "No se ha podido realizar la acción porque el duelo ya no es válido", flags: ["Ephemeral"] })
+        }
+
+        // Un selector viejo no debe permitir lanzar hechizos en el turno de otro combatiente
+        const actorTurno = sesion.getCurrentActor()
+        if (!actorTurno || String(actorTurno.ownerId) !== String(interaction.user.id)) {
+            return interaction.reply({ content: "No es tu turno ＞﹏＜", flags: ["Ephemeral"] })
         }
 
         if (Type === "duelo") {

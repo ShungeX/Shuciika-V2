@@ -28,6 +28,7 @@ const ID_VALIDO = /^[a-z0-9_]{3,40}$/   // sin "-": es el separador de crearCust
 // Lo que se puede hacer en cada lugar desde el menú del panel; cada tienda elige las suyas en el dashboard
 const ACCIONES_TIENDA = {
     comprar: { label: "Comprar objetos", descripcion: "Abre tu pedido con lo que hay en la estantería" },
+    vender: { label: "Vender objetos", descripcion: "Ofrece a la tienda objetos de tu inventario" },
     enfermera: { label: "Solicitar una enfermera", descripcion: "Pide que alguien te atienda" },
     observar: { label: "Observar", descripcion: "Mira con calma a tu alrededor" }
 }
@@ -106,7 +107,9 @@ function normalizarConfig(entrada, idForzado = null) {
             imagenes: (Array.isArray(t.imagenes) ? t.imagenes : []).map(u => String(u ?? "").trim()).filter(u => /^https?:\/\/\S+$/i.test(u)).slice(0, MAX_IMAGENES),
             nota: String(t.nota ?? NOTA_TIENDA_DEFECTO).trim().slice(0, 300),
             accent_color: Number.isInteger(color) && color >= 0 && color <= 0xFFFFFF ? color : null,
-            acciones: normalizarAcciones(t.acciones)
+            acciones: normalizarAcciones(t.acciones),
+            // «Todos»: compra cualquier objeto vendible, no solo los que tienen este lugar en `vender_en`
+            compra_todo: Boolean(t.compra_todo)
         }
     } else {
         const components = componentesDesdeJson(datos.components ?? [])

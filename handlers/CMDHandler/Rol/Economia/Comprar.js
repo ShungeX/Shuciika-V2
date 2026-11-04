@@ -6,7 +6,8 @@ const db2 = clientdb.db("Rol_db")
 const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
-const updateInventario = require("../../../../functions/updateInventario")
+const { limitesDe, reservarCompra, liberarCompra, motivoLimite, excedeInventarioTrasEntrega } = require("../../../../functions/Tiendas/limitesCompra")
+const { ErrorTienda, entregarObjeto, retirarObjeto } = require("../../../../functions/Tiendas/pedidos")
 const { moverLumens } = require("../../../../functions/Economia/lumens")
 
 const bdobjeto = db2.collection("Objetos_globales")
@@ -57,77 +58,72 @@ module.exports = {
         const cantidad = interaction.options.getNumber("cantidad")
         const [region, idob] = objetoSelect.split("_")
         const objetoID = Number(idob)
+        const responderError = (content) => interaction.reply({ content, flags: ["Ephemeral"] })
 
-        const objeto = await bdobjeto.findOne({ _id: region, "Objetos.ID": objetoID }, { projection: { _id: 0, "Objetos.$": 1 } }).then(obj => obj.Objetos[0])
+        const objeto = await bdobjeto.findOne({ _id: region, "Objetos.ID": objetoID }, { projection: { _id: 0, "Objetos.$": 1 } }).then(obj => obj?.Objetos?.[0])
+        if (!objeto) return responderError(`El objeto con la ID: ${objetoSelect} no existe (╥﹏╥)`)
+        if (objeto?.inStore === false) return responderError(`El objeto **${objeto.Nombre}** no esta disponible para la compra`)
 
+        // Los mismos límites que el panel de tiendas: stock, por compra, por persona y en inventario
+        const obj = { region, ID: objetoID, Nombre: objeto.Nombre || "Objeto", definicion: objeto, ...limitesDe(objeto) }
+        const charId = character._id ?? character.ID
+        const fresco = await characters.findOne({ _id: charId })
+        if (!fresco) return responderError("No encuentro a tu personaje (╥﹏╥)")
 
-        if (!objeto) {
-            return interaction.reply({ content: `El objeto con la ID: ${objetoSelect} no existe (╥﹏╥)`, flags: ["Ephemeral"] })
-        }
-        const newLumens = (objeto.precio * cantidad)
+        const motivo = motivoLimite(obj, cantidad, fresco)
+        if (motivo) return responderError(motivo)
 
-        if (objeto?.inStore === false) {
-            return interaction.reply({ content: `El objeto **${objeto.Nombre}** no esta disponible para la compra`, flags: ["Ephemeral"] })
-        }
-
-        const saldo = character.economia?.Lumens ?? 0
+        const newLumens = (Math.max(0, Number(objeto.precio) || 0) * cantidad)
+        const saldo = fresco.economia?.Lumens ?? 0
         if (saldo < newLumens) {
-            return interaction.reply({
-                content: "No tienes suficiente **`Lumens`** para comprar **``" + `${objeto.Nombre} x ${cantidad}` + "``** \n" +
-                    "-# Te hacen falta **``" + `${Math.max(0, newLumens - saldo)}` + " Lumens``** ", flags: ["Ephemeral"]
-            })
+            return responderError("No tienes suficiente **`Lumens`** para comprar **``" + `${objeto.Nombre} x ${cantidad}` + "``** \n" +
+                "-# Te hacen falta **``" + `${Math.max(0, newLumens - saldo)}` + " Lumens``** ")
         }
 
-        if (objeto.Cantidad < cantidad && objeto.Cantidad !== null) {
-            return interaction.reply({ content: `No hay suficiente stock de **${objeto.Nombre}** para comprar **${cantidad}** unidades`, flags: ["Ephemeral"] })
-        }
+        // 1. Cobro atómico
+        const ref = { itemId: objetoID, qty: cantidad, lugar: region }
+        const cobro = await moverLumens({ personajeId: charId, userId: interaction.user.id, delta: -newLumens, motivo: "tienda", opId: `comprar:${interaction.id}`, ref })
+        if (!cobro.ok) return responderError("No tienes suficiente **`Lumens`** para esta compra.")
 
-        if (cantidad >= objeto?.maxStock) {
-            return interaction.reply({ content: `No puedes comprar mas de **${objeto.maxStock}** unidades de **${objeto.Nombre}**`, flags: ["Ephemeral"] })
-        }
-
-
-
-        comprarObjeto()
-
-
-        async function comprarObjeto() {
-            const charId = character._id ?? character.ID;
-            const cobro = await moverLumens({
-                personajeId: charId, delta: -newLumens, motivo: "tienda", opId: `comprar:${interaction.id}`,
-                ref: { itemId: objetoID, qty: cantidad, lugar: region },
-            })
-            if (!cobro.ok) {
-                return interaction.reply({ content: "No tienes suficiente **`Lumens`** para esta compra.", flags: ["Ephemeral"] })
+        let compraContada = false, stockDescontado = false, entregado = false
+        try {
+            // 2. Máximo por persona: el contador solo sube si cabe
+            if (obj.porPersona) {
+                if (!(await reservarCompra(charId, obj, cantidad))) throw new ErrorTienda(`Ya llegaste al máximo de **${obj.Nombre}** por persona (${obj.porPersona}).`)
+                compraContada = true
             }
-
-            if (objeto.Cantidad) {
-                await bdobjeto.updateOne({ _id: region, "Objetos.ID": objetoID }, {
-                    $inc: {
-                        "Objetos.$.Cantidad": -cantidad
-                    }
-                })
+            // 3. Existencias, descontadas solo si quedan
+            if (obj.stock !== null) {
+                const r = await bdobjeto.updateOne(
+                    { _id: region, Objetos: { $elemMatch: { ID: objetoID, Cantidad: { $gte: cantidad } } } },
+                    { $inc: { "Objetos.$.Cantidad": -cantidad } }
+                )
+                if (r.modifiedCount === 0) throw new ErrorTienda(`**${obj.Nombre}** se agotó justo ahora.`)
+                stockDescontado = true
             }
-
-            const objdata = {
-                ID: objetoID,
-                Region: region,
-                cantidad: cantidad,
-                Tipo: objeto.Tipo,
-                isItem: true,
-            }
-
-            await updateInventario(interaction, interaction.user.id, character.ID, objdata)
-
-            const embed = new EmbedBuilder()
-                .setTitle("Muchas gracias por tu compra")
-                .setDescription(`Has comprado **${objeto.Nombre} x ${cantidad}** por **${newLumens} Lumens**`)
-                .setColor("Green")
-
-            interaction.reply({ embeds: [embed] })
-
-
+            // 4. Entrega y recuento del inventario real
+            await entregarObjeto(charId, obj, cantidad)
+            entregado = true
+            const excede = await excedeInventarioTrasEntrega(charId, obj)
+            if (excede) throw new ErrorTienda(excede)
+        } catch (err) {
+            await moverLumens({ personajeId: charId, userId: interaction.user.id, delta: newLumens, motivo: "reembolso", opId: `reembolso:${interaction.id}`, ref })
+                .catch(e => console.error("[Comprar] Reembolso fallido:", e))
+            if (entregado) await retirarObjeto(charId, obj, cantidad).catch(() => null)
+            if (stockDescontado) await bdobjeto.updateOne({ _id: region, "Objetos.ID": objetoID }, { $inc: { "Objetos.$.Cantidad": cantidad } }).catch(() => null)
+            if (compraContada) await liberarCompra(charId, obj, cantidad).catch(() => null)
+            if (!(err instanceof ErrorTienda)) console.error(`[Comprar] Error en la compra de ${interaction.user.id}:`, err)
+            return responderError(err instanceof ErrorTienda ? err.message : "Algo salió mal al entregarte el objeto; te devolví los Lumens.")
         }
+
+        bdobjeto.updateOne({ _id: region, "Objetos.ID": objetoID }, { $inc: { "Objetos.$.vendido": cantidad } }).catch(() => null)
+
+        const embed = new EmbedBuilder()
+            .setTitle("Muchas gracias por tu compra")
+            .setDescription(`Has comprado **${objeto.Nombre} x ${cantidad}** por **${newLumens} Lumens**`)
+            .setColor("Green")
+
+        return interaction.reply({ embeds: [embed] })
     }
 
 }

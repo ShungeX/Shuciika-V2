@@ -75,7 +75,7 @@ module.exports = {
     const currentHP = soul.nucleo?.HP ?? soul.HP ?? 0;
     if (currentHP === 0) {
       return interaction.reply({
-        content: "Te sientes muy débil para ir a explorar. =.=\n-# Recupera algo de **`HP`** usando `/rol usar_objeto [id]`",
+        content: "Te sientes muy débil para ir a explorar. =.=\n-# Recupera algo de **`HP`** desde `/rol inventario` → **Usar item**",
         flags: ["Ephemeral"]
       });
     }

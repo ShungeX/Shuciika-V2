@@ -13,12 +13,15 @@ const { buildSalaMessage } = require("../../../functions/Duelo/combateUI")
 
 module.exports = {
     customId: "crearSala",
+    // Los campos (selects y texto) se leen de interaction.fields: no hay mapeo fijo
+    camposDinamicos: true,
     /**
      * @param {Client} client 
      * @param {ChatInputCommandInteraction} interaction
      */
 
-    ejecutar: async (client, interaction, selectOption, messageIds) => {
+    // manejarComponente llama con un objeto ({ client, interaction, ... })
+    ejecutar: async ({ client, interaction }) => {
         const userId = interaction.user.id
         const userData = await userdb.findOne({ _id: interaction.user.id })
         const codeSala = await duelSystem.createCode(6)
@@ -44,7 +47,7 @@ module.exports = {
 
 
 
-        const messagesSala = buildSalaMessage(interaction.user, privacidad === "privada", { character, soul, codeSala, nombreSala, modoDuelo: nombre })
+        const messagesSala = buildSalaMessage(interaction.user, privacidad === "privada", { character, soul, codeSala, nombreSala, modoDuelo: nombre, duelType: tipoDuelo })
 
         const messageS = await interaction.reply({ components: messagesSala.serverMessage, flags: ["IsComponentsV2"], withResponse: true })
 
@@ -57,7 +60,7 @@ module.exports = {
         
 
         const { aspiracion, Historia, Cumpleaños, Peso, Estatura, Descripcion, Familia, CiudadOrg, Sexo, ...infoperfil } = character.perfil
-        const { XP, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
+        const { polvoEstelar, energy, lastEnergyUpdate, energiaAlmica, ...infoNucleo } = soul.nucleo
         const { hilosLunares, StelarFragments, ...infoSendero } = soul.sendero
 
         const characterData = {

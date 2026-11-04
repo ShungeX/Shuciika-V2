@@ -1,18 +1,97 @@
+// ─── Escalado de poder y normalización de datos del alma ─────────────────────
+// Los jugadores no tienen nivel: su poder sale de los Fragmentos Estelares totales
+// (peso bajo, escala logarítmica) y del Resplandor (multiplicador fuerte de daño).
+// Los NPCs sí usan nivel (campo `nivel`).
+const { resplandorANumero } = require("../Economia/progresionEstelar")
+const { cargarEfectos } = require("./efectosPersistentes")
+
+const ESCALADO = {
+    BONUS_DANIO_RESPLANDOR_POR_RANGO: 0.12, // ⚙ I = ×1.00, II = ×1.12 ... VII = ×1.72
+}
+
+/**
+ * Nivel de combate interno del jugador a partir de sus FE totales (escala logarítmica,
+ * crece poco). Solo se usa en las fórmulas de daño/defensa; no se muestra ni se guarda.
+ * 0 FE → 1 | 20 FE → ~5.4 | 100 FE → ~7.7 | 480 FE → ~9.9
+ */
+function calcularNivelJugador(fe) {
+    return Math.round((1 + Math.log2(Math.max(0, Number(fe) || 0) + 1)) * 100) / 100
+}
+
+/** Multiplicador de daño saliente por Resplandor (I..VII). */
+function multiplicadorResplandor(resplandor) {
+    return 1 + (resplandorANumero(resplandor) - 1) * ESCALADO.BONUS_DANIO_RESPLANDOR_POR_RANGO
+}
+
+/** Nivel de un NPC: `nivel`; los NPCs sin nivel usan su FE mínima como referencia. */
+function nivelNPC(data = {}) {
+    return Number(data.nivel ?? data.restrictions?.fe_min) || 1
+}
+
+/**
+ * Etiqueta de poder para la UI. Jugador: "FE: 120 [III]" (FE totales + Resplandor).
+ * NPC: "Lv: 12". Acepta combatientes ya construidos o documentos crudos de BD.
+ */
+function etiquetaPoder(c = {}, prefijoNPC = "Lv") {
+    const esNPC = !!(c.isNPC || (typeof c._id === "string" && c._id.startsWith("NPC-")))
+    if (esNPC) return `${prefijoNPC}: ${c.nivel ?? nivelNPC(c)}`
+    const sendero = c.sendero || {}
+    const fe = Number(c.StelarFragmentsTotal ?? sendero.StelarFragmentsTotal ?? sendero.StelarFragments ?? 0) || 0
+    const resplandor = c.resplandor ?? sendero.resplandor ?? "I"
+    return `FE: ${fe} [${resplandor}]`
+}
+
+/** "Pyró", "pyros", "Ninguno", null... → nombre canónico usado en la tabla elemental */
+function normalizarElemento(elemento) {
+    if (!elemento) return "Neutro"
+    const limpio = String(elemento).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase()
+    const mapa = {
+        pyro: "Pyros", pyros: "Pyros", aqua: "Aqua", lapis: "Lapis", rakau: "Rakau",
+        electro: "Electro", kryo: "Kryo", wind: "Wind", lux: "Lux",
+        neutro: "Neutro", ninguno: "Neutro", none: "Neutro",
+    }
+    return mapa[limpio] ?? elemento
+}
+
+/**
+ * Copia las stats y rellena los nombres que el combate usa a partir de los campos
+ * de las almas nuevas (sintoniaElemental, percepcion) o de los antiguos (resistenciaFisica...).
+ */
+function normalizarStats(stats = {}) {
+    const s = { ...stats }
+    s.resFisica = s.resFisica ?? s.resistenciaFisica ?? 1
+    s.resMagica = s.resMagica ?? s.resistenciaMagica ?? 1
+    s.sintoniaElemental = s.sintoniaElemental ?? s.sintonia ?? 1
+    s.sintonia = s.sintonia ?? s.sintoniaElemental
+    s.poderElemental = s.poderElemental ?? s.sintoniaElemental
+    s.percepcion = s.percepcion ?? 1
+    s.precision = s.precision ?? (100 + (s.percepcion - 1) * 2)
+    return s
+}
+
+/** Reconoce un arma equipada sin importar el formato ({Type: 1}, {Type: "arma"}, {tipo: "arma"}, {Tipo: ["Arma"]}) */
+function esArma(item) {
+    if (!item) return false
+    const t = item.tipo ?? item.Type ?? item.type ?? item.Tipo
+    if (Array.isArray(t)) return t.some(x => String(x).toLowerCase() === "arma")
+    return t === 1 || String(t).toLowerCase() === "arma"
+}
+
 class Combatiente {
     constructor(id, data = {}) {
-        console.log(data)
         this.ID = id
         this.ownerId = data.ownerId;
         this.Nombre = data.perfil?.Nombre || "Aventurero";
         this.HP = data.nucleo?.HP ?? 100;
         this.Mana = data.nucleo?.Mana ?? 50;
-        this.stats = data.stats || {};
+        this.stats = normalizarStats(data.stats || {});
+        this.stats.hpMax = this.stats.hpMax ?? this.HP;
+        this.stats.manaMax = this.stats.manaMax ?? this.Mana;
         this.avatarURL = data.perfil?.avatarURL || "";
         this.statusEffect = [];
-        this.defenseActual = 1;
+        this.defenseActual = 0; // puntos de guardia de "Defenderse" (ver BALANCE en turnProcessor)
 
-        const dominio = data.dominio
-        console.log("Combatientes.js", dominio)
+        const dominio = data.dominio || {}
         this.hechizos = dominio.hechizos || [];
         this.equipamiento = dominio.equipo || [];
 
@@ -23,14 +102,19 @@ class Combatiente {
         this.surrender = false;
         this.isTurn = false;
 
-        console.log(this.ID)
+        // Arma normalizada: por ahora no aporta efecto; se conserva para cuando tenga datos de combate
+        this.arma = (this.equipamiento || []).find(esArma) || null;
+        this.ataquePredeterminado = this.arma?.skillId || "default_001";
+    }
 
-        const arma = (this.equipamiento || []).find(item => item && item.tipo === "arma");
-        if (arma) {
-            this.ataquePredeterminado = arma.skillId;
-        } else {
-            this.ataquePredeterminado = "default_001";
-        }
+    /** Nivel usado por el escalado de daño y defensa (lo define cada subclase) */
+    get nivelCombate() {
+        return 1;
+    }
+
+    /** Multiplicador sobre el daño que inflige (los NPCs no tienen Resplandor) */
+    get multiplicadorDanio() {
+        return 1;
     }
 
     aplicarDaño(cantidad) {
@@ -52,7 +136,6 @@ class Combatiente {
 
     fueDerrotado() {
         if (this.surrender) return true;
-        console.log("combatiente.js - Revisando derrota de " + this.Nombre + ": HP actual = " + this.HP)
         return this.HP <= 0;
     }
 
@@ -110,10 +193,12 @@ class Personaje extends Combatiente {
         this.resonancia = sendero.resonancia || 0;
         this.disonancia = sendero.disonancia || 0;
         this.resplandor = sendero.resplandor ?? data.resplandor ?? 'I';
+        // Las almas antiguas solo tienen StelarFragments; se usa como total si falta
         this.StelarFragmentsTotal = Number(
             sendero.StelarFragmentsTotal 
             ?? fragmentos.StelarFragmentsTotal 
             ?? data.StelarFragmentsTotal 
+            ?? sendero.StelarFragments
             ?? 0
         );
         this.StelarFragments = Number(
@@ -121,6 +206,21 @@ class Personaje extends Combatiente {
             ?? fragmentos.StelarFragments 
             ?? this.StelarFragmentsTotal
         );
+
+        const nucleo = data.nucleo || {};
+        this.elemento = normalizarElemento(nucleo.Elemento);
+        this.Elemento = this.elemento;
+
+        // Efectos que el personaje arrastra de combates anteriores (Soul.nucleo.efectos)
+        cargarEfectos(this, nucleo.efectos);
+    }
+
+    get nivelCombate() {
+        return calcularNivelJugador(this.StelarFragmentsTotal);
+    }
+
+    get multiplicadorDanio() {
+        return multiplicadorResplandor(this.resplandor);
     }
 }
 
@@ -134,13 +234,17 @@ class NPC extends Combatiente {
             dominio: { hechizos: [], equipo: [] }
         });
         this.isNPC = true;
-        this.nivelMagico = data.nivelMagico || data.stats?.nivelMagico || data.restrictions?.fe_min || 1;
-        this.elemento = data.Elemento || "Neutro";
-        this.Elemento = data.Elemento || "Neutro";
+        this.nivel = nivelNPC(data);
+        this.tipoNPC = data.Type || "Enemigo";
+        this.elemento = normalizarElemento(data.Elemento);
+        this.Elemento = this.elemento;
         this.ataques = data.ataques || [];
         this.loot = data.loot || [];
         this.restrictions = data.restrictions || {};
         this.boss = data.boss || null;
+        // Subtipo de recompensa: heraldo > jefe (grieta) > duelo
+        this.esHeraldo = data.heraldo === true || String(this.tipoNPC).toLowerCase() === "heraldo";
+        this.esJefe = this.esHeraldo || !!this.boss || String(this.tipoNPC).toLowerCase() === "boss";
         this.comportamiento = data.comportamiento || [];
         this.permiteAtaqueBasico = data.permiteAtaqueBasico !== false;
         this.permiteDefensaBasica = data.permiteDefensaBasica !== false;
@@ -163,9 +267,22 @@ class NPC extends Combatiente {
             this.stats.precision = this.stats.precision ?? 100;
         }
     }
+
+    get nivelCombate() {
+        return this.nivel;
+    }
 }
 
 module.exports = {
     Personaje,
-    NPC
+    NPC,
+    ESCALADO,
+    calcularNivelJugador,
+    multiplicadorResplandor,
+    nivelNPC,
+    etiquetaPoder,
+    resplandorANumero,
+    normalizarElemento,
+    normalizarStats,
+    esArma
 }

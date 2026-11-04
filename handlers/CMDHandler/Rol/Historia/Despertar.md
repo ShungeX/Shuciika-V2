@@ -1,3 +1,6 @@
+Archivo desactualizado, ya no usado. Guardado solo por nostalgía
+
+
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, Client, StringSelectMenuBuilder, SlashCommandSubcommandBuilder } = require(`discord.js`)
 const clientdb = require("../../../../Server")
 const db = clientdb.db("Server_db")
@@ -382,8 +385,6 @@ module.exports = {
                     ID: character.ID,
                     HP: 100,
                     Mana: 50,
-                    nivelMagico: 1,
-                    XP: 0,
                     Elemento: "Ninguno",
                     EnergiaAlmica: 0,
                     Corrupcion: 0,

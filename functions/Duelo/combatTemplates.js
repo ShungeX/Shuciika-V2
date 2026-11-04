@@ -1,10 +1,130 @@
 const { barraCustom, asciiText } = require("../../utils/utilidadesTexto.js")
+const { etiquetaPoder } = require("./combatientes")
+
+const NL = "\n"
+const AVATAR_DEFAULT ="https://i.pinimg.com/736x/1a/1f/1d/1a1f1d639f5e61ffa219819b1e2f5b44.jpg"
+const IMAGEN_EQUIPO_DEFAULT = "https://i.pinimg.com/1200x/e5/38/67/e53867f8979e6df0b3dd73728feabf08.jpg"
+
+function etiquetaNivel(c) {
+    return etiquetaPoder(c, "LV")
+}
+
+/** Bloque de estado de un combatiente para la vista de espectador en curso */
+function bloqueCombatiente(c, info, encabezado = "##") {
+    const esTurno = info.actorId != null && String(info.actorId) === String(c.ID) && !c.defeated
+    const estado = c.defeated ? " 💀" : (esTurno ? " ⟡ *En turno*" : "")
+    return [
+        `${encabezado} ${c.Nombre} (${etiquetaNivel(c)})${c.isNPC ? " - [NPC]" : ""}${estado}`,
+        "*`HP:`* " + barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1),
+        "*`Mana:`* " + barraCustom(c.Mana, c.stats?.manaMax ?? c.Mana, 2, 5),
+        "-# Efectos: " + (info.efectos ? info.efectos(c) : "Ninguno")
+    ].join(NL)
+}
+
+function cabeceraEnCurso(sesion, info) {
+    const ambiente = info.ambiente || "El aire se tensa entre los combatientes."
+    return [
+        { "type": 10, "content": "# ¡El duelo está en curso!" },
+        {
+            "type": 10,
+            "content": [
+                "-# 〝" + ambiente + "〞",
+                "",
+                "-# ⁍  *Ronda: " + sesion.ronda + "*",
+                "-# ⁍  *Turno de: " + (info.actorLabel || "Nadie") + "*"
+            ].join(NL)
+        },
+        { "type": 14, "divider": true, "spacing": 1 }
+    ]
+}
+
+function pieEnCurso(info) {
+    const fence = "```"
+    return [
+        { "type": 14, "divider": true, "spacing": 1 },
+        {
+            "type": 10,
+            "content": "-# **Ultimas acciones**:" + NL + fence + "ansi" + NL + (info.ultimasAcciones || "- El duelo ha comenzado") + fence
+        }
+    ]
+}
 
 module.exports = {
 
+    /**
+     * Vista pública (canal espectador) mientras el duelo 1vs1 está en curso.
+     * Mismo diseño que endEspectador1vs1 + ambiente, ronda, mana y efectos.
+     * @param {Object} info - { ambiente, actorLabel, actorId, ultimasAcciones, efectos(c) }
+     */
+    espectadorEnCurso1vs1(sesion, c1, c2, info = {}) {
+        const seccion = (c) => ({
+            "type": 9,
+            "accessory": {
+                "type": 11,
+                "media": { "url": c.avatarURL || AVATAR_DEFAULT },
+                "description": null,
+                "spoiler": false
+            },
+            "components": [{ "type": 10, "content": bloqueCombatiente(c, info) }]
+        })
+
+        return [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    ...cabeceraEnCurso(sesion, info),
+                    seccion(c1),
+                    { "type": 14, "divider": true, "spacing": 1 },
+                    seccion(c2),
+                    ...pieEnCurso(info)
+                ]
+            }
+        ]
+    },
+
+    /**
+     * Vista pública mientras un duelo por equipos (NvsN, o 1vsN) está en curso.
+     * Una sección por equipo; cada integrante con HP, mana y efectos.
+     */
+    espectadorEnCursoNvsN(sesion, equipo1, equipo2, info = {}) {
+        const seccionEquipo = (equipo, titulo) => {
+            const imagen = equipo.length === 1
+                ? (equipo[0].avatarURL || AVATAR_DEFAULT)
+                : ((equipo.find(c => !c.defeated) || equipo[0])?.avatarURL || IMAGEN_EQUIPO_DEFAULT)
+            const contenido = "### " + titulo + NL + equipo.map(c => bloqueCombatiente(c, info, "**❧**")).join(NL + NL)
+            return {
+                "type": 9,
+                "accessory": {
+                    "type": 11,
+                    "media": { "url": imagen },
+                    "description": null,
+                    "spoiler": false
+                },
+                "components": [{ "type": 10, "content": contenido.slice(0, 3900) }]
+            }
+        }
+
+        return [
+            {
+                "type": 17,
+                "accent_color": null,
+                "spoiler": false,
+                "components": [
+                    ...cabeceraEnCurso(sesion, info),
+                    seccionEquipo(equipo1, equipo1.length > 1 ? "Equipo 1" : "Retador"),
+                    { "type": 14, "divider": true, "spacing": 1 },
+                    seccionEquipo(equipo2, equipo2.length > 1 ? "Equipo 2" : "Rival"),
+                    ...pieEnCurso(info)
+                ]
+            }
+        ]
+    },
+
     endEspectador1vs1(sesion, ganador, perdedor, context, message, rewardsMap) {
-        const gObj = ganador || { Nombre: "Ganador", nivelMagico: 1, HP: 0, stats: { hpMax: 100 }, avatarURL: "https://i.pinimg.com/736x/1a/1f/1d/1a1f1d639f5e61ffa219819b1e2f5b44.jpg" };
-        const pObj = perdedor || { Nombre: "Perdedor", nivelMagico: 1, HP: 0, stats: { hpMax: 100 }, avatarURL: "https://i.pinimg.com/736x/1a/1f/1d/1a1f1d639f5e61ffa219819b1e2f5b44.jpg" };
+        const gObj = ganador || { Nombre: "Ganador", HP: 0, stats: { hpMax: 100 }, avatarURL: "https://i.pinimg.com/736x/1a/1f/1d/1a1f1d639f5e61ffa219819b1e2f5b44.jpg" };
+        const pObj = perdedor || { Nombre: "Perdedor", HP: 0, stats: { hpMax: 100 }, avatarURL: "https://i.pinimg.com/736x/1a/1f/1d/1a1f1d639f5e61ffa219819b1e2f5b44.jpg" };
 
         const json = [
             {
@@ -38,7 +158,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": `## ${gObj.Nombre} (${gObj.isNPC ? `LV: ${gObj.nivelMagico ?? "1"}` : `FE: ${gObj.StelarFragmentsTotal ?? gObj.sendero?.StelarFragmentsTotal ?? 0} [${gObj.resplandor ?? gObj.sendero?.resplandor ?? 'I'}]`}) - ${gObj.isNPC ? "[NPC]" : ""}  Ganador ✨ ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
+                                "content": `## ${gObj.Nombre} (${etiquetaPoder(gObj, "LV")}) - ${gObj.isNPC ? "[NPC]" : ""}  Ganador ✨ ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
                             }
                         ]
                     },
@@ -60,7 +180,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": `## ${pObj.Nombre} (${pObj.isNPC ? `LV: ${pObj.nivelMagico ?? "1"}` : `FE: ${pObj.StelarFragmentsTotal ?? pObj.sendero?.StelarFragmentsTotal ?? 0} [${pObj.resplandor ?? pObj.sendero?.resplandor ?? 'I'}]`})  ${pObj.isNPC ? "- [NPC]" : ""} ` + "\n*`HP:`*" + `${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1)}`
+                                "content": `## ${pObj.Nombre} (${etiquetaPoder(pObj, "LV")})  ${pObj.isNPC ? "- [NPC]" : ""} ` + "\n*`HP:`*" + `${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1)}`
                             }
                         ]
                     },
@@ -106,8 +226,8 @@ module.exports = {
     },
 
     endEspectadorNvsN(sesion, ganadores, perdedores, context, message, rewardsMap) {
-        const statsLossers = `${perdedores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})`).join("\n\n")}`
-        const statsWinners = `${ganadores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})`).join("\n\n")}`
+        const statsLossers = `${perdedores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${etiquetaPoder(c, "LV")})`).join("\n\n")}`
+        const statsWinners = `${ganadores.map(c => `-# **❧ ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 5)} (${parseFloat((100 * Math.max(0, c.HP) / (c.stats?.hpMax || 1)).toFixed(1))}%) | ${c.Nombre} (${etiquetaPoder(c, "LV")})`).join("\n\n")}`
 
         const json = [
             {
@@ -212,9 +332,9 @@ module.exports = {
         const pObj = player || { Nombre: "Jugador", HP: 0, Mana: 0, stats: { hpMax: 100, manaMax: 100 }, avatarURL: "https://i.pinimg.com/736x/bc/30/6b/bc306bced5860828cf4f38273805a607.jpg" };
         const titleRivales = (arrayRivales && arrayRivales.length > 1) ? "Tus rivales" : "`Tu rival`"
         const messageDataRivales = (arrayRivales && arrayRivales.length > 1)
-            ? arrayRivales.map(c => `**❧ ${c.Nombre} (${c.isNPC ? `LV: ${c.nivelMagico ?? 1}` : `FE: ${c.StelarFragmentsTotal ?? c.sendero?.StelarFragmentsTotal ?? 0} [${c.resplandor ?? c.sendero?.resplandor ?? 'I'}]`})**:\n-# \`HP:\` ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 10)}`).join("\n\n")
+            ? arrayRivales.map(c => `**❧ ${c.Nombre} (${etiquetaPoder(c, "LV")})**:\n-# \`HP:\` ${barraCustom(c.HP, c.stats?.hpMax ?? c.HP, 1, 10)}`).join("\n\n")
             : ((arrayRivales && arrayRivales.length > 0)
-                ? `**❧ ${arrayRivales[0].Nombre} (${arrayRivales[0].isNPC ? `LV: ${arrayRivales[0].nivelMagico ?? 1}` : `FE: ${arrayRivales[0].StelarFragmentsTotal ?? arrayRivales[0].sendero?.StelarFragmentsTotal ?? 0} [${arrayRivales[0].resplandor ?? arrayRivales[0].sendero?.resplandor ?? 'I'}]`})**:\n-# \`HP:\` ${barraCustom(arrayRivales[0].HP, arrayRivales[0].stats?.hpMax ?? arrayRivales[0].HP, 1, 10)}`
+                ? `**❧ ${arrayRivales[0].Nombre} (${etiquetaPoder(arrayRivales[0], "LV")})**:\n-# \`HP:\` ${barraCustom(arrayRivales[0].HP, arrayRivales[0].stats?.hpMax ?? arrayRivales[0].HP, 1, 10)}`
                 : "Sin rivales");
 
         let recompensas = null;
@@ -230,7 +350,7 @@ module.exports = {
             if (rData) {
                 esGanadorP = !!rData.isWinner;
                 const itemsList = [];
-                if (rData.polvo) itemsList.push(`XP / Polvo Estelar: +${rData.polvo}`);
+                if (rData.polvo) itemsList.push(`Polvo Estelar: +${rData.polvo}`);
                 if (typeof rData.lumens !== 'undefined' && rData.lumens !== 0) {
                     if (esGanadorP) {
                         itemsList.push(`Lumens: +${Math.abs(rData.lumens)}`);
@@ -244,6 +364,9 @@ module.exports = {
                         const sign = esGanadorP ? "+" : "-";
                         itemsList.push(`${o.nombre} x ${sign}${cantAbs}`);
                     });
+                }
+                if (rData.avisoInventario) {
+                    rData.avisoInventario.split(/\r?\n/).forEach(t => itemsList.push(`⟡ ${t}`));
                 }
                 if (rData.loot && rData.loot.length > 0) {
                     rData.loot.forEach(item => {
@@ -296,7 +419,7 @@ module.exports = {
                     },
                     {
                         "type": 10,
-                        "content": `### **❧ ${pObj.Nombre} (${pObj.isNPC ? `LV: ${pObj.nivelMagico ?? 1}` : `FE: ${pObj.StelarFragmentsTotal ?? pObj.sendero?.StelarFragmentsTotal ?? 0} [${pObj.resplandor ?? pObj.sendero?.resplandor ?? 'I'}]`}):**\n-# \`HP:\` ${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1, 10)} \n-# \`Mana:\` ${barraCustom(pObj.Mana, pObj.stats?.manaMax ?? pObj.Mana, 2, 5)}\n-# \`Efectos activos:\` En construcción`
+                        "content": `### **❧ ${pObj.Nombre} (${etiquetaPoder(pObj, "LV")}):**\n-# \`HP:\` ${barraCustom(pObj.HP, pObj.stats?.hpMax ?? pObj.HP, 1, 10)} \n-# \`Mana:\` ${barraCustom(pObj.Mana, pObj.stats?.manaMax ?? pObj.Mana, 2, 5)}\n-# \`Efectos activos:\` En construcción`
                     },
                     {
                         "type": 14,

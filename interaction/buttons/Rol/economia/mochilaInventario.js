@@ -30,8 +30,9 @@ module.exports = crearBoton({
             if (action === "prev") newPage = Math.max(1, page - 1);
             if (action === "next") newPage = Math.min(totalPages, page + 1);
 
-            const json = await interfazCreate.faroExploración(client, interaction, key, soul, newPage);
+            // Acuse antes de consultar la BD (Discord exige respuesta en 3s)
             await interaction.deferUpdate().catch(() => {});
+            const json = await interfazCreate.faroExploración(client, interaction, key, soul, newPage);
             return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
         }
 
@@ -66,8 +67,9 @@ module.exports = crearBoton({
             if (action === "prev") newPage = Math.max(1, page - 1);
             if (action === "next") newPage = Math.min(totalPages, page + 1);
 
-            const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, newPage, key, activeFiltros, isFaro);
+            // Acuse antes de consultar la BD (Discord exige respuesta en 3s)
             await interaction.deferUpdate().catch(() => {});
+            const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, newPage, key, activeFiltros, isFaro);
             return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
         }
 

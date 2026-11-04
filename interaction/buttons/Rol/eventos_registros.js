@@ -10,6 +10,7 @@ const version = require("../../../config")
 const eventosManager = require("../../../functions/eventosManager")
 const dialogueSystem = require('../../../functions/dialogoManager');
 const { v4: uuidv4 } = require('uuid')
+const { splitCustomId } = require("../../../utils/constructores/customId")
 
 module.exports = {
     customId: "events_registers",
@@ -22,7 +23,11 @@ module.exports = {
      */
 
 
-    ejecutar: async (client, interaction, idEvent, StaffActions) => {
+    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
+    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
+    ejecutar: async ({ client, interaction }) => {
+        // events_registers-<userId|null>-<idEvento>[-<accion>]
+        const [, , idEvent, StaffActions] = splitCustomId(interaction.customId)
 
         if (StaffActions === "staff_accept") {
             const channel = client.channels.cache.get("1319810691099656224")

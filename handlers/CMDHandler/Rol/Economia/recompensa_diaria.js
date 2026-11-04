@@ -80,9 +80,11 @@ module.exports = {
 
         // ── Persistencia ──────────────────────────────────────────────────────
         try {
-            await updateInventario(client, interaction, character._id, {
+            const entrega = await updateInventario(client, interaction, character._id, {
                 ID: 320, Region: "TOB-01", cantidad: 1, isItem: true
             })
+            // Máximo en inventario: si el cofre no cabe, se avisa (la racha y los Lumens sí cuentan)
+            if (entrega?.lleno) embed.addFields({ name: "Inventario lleno", value: `${entrega.messages}\n-# Esta vez el cofre no se guardó.` })
 
             let notifications = character.notificaciones || [];
             notifications = notifications.map(n => {

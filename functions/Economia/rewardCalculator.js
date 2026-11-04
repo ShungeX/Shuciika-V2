@@ -9,6 +9,7 @@ const calculadorPVEstelar = require("./calculadorPVEstelar.js")
 const lootSystem = require("./lootSystem.js")
 const congelarHelper = require("./congelarHelper")
 const { moverLumens } = require("./lumens")
+const { esCombateAmistoso, serializarEfectos } = require("../Duelo/efectosPersistentes")
 
 
 class RewardCalculator {
@@ -42,18 +43,22 @@ class RewardCalculator {
                 return { recompensas: new Map() };
             }
 
-            // ── Guardar HP y Maná de todos en Soul ────────────────────────
+            // ── Guardar HP, Maná y efectos activos de todos en Soul ───────
+            // Los efectos se quedan en el personaje salvo en combates amistosos
+            const amistoso = esCombateAmistoso(sesion);
             await Promise.all(
                 sesion.getAllCombatientes()
                     .filter(c => !c.isNPC)
-                    .map(c => 
-                        souls.updateOne({ _id: Number(c.ID) }, {
-                            $set: { "nucleo.HP": c.HP, "nucleo.Mana": c.Mana }
-                        })
-                    )
+                    .map(c => {
+                        const set = { "nucleo.HP": c.HP, "nucleo.Mana": c.Mana };
+                        if (!amistoso) set["nucleo.efectos"] = serializarEfectos(c.statusEffect);
+                        return souls.updateOne({ _id: Number(c.ID) }, { $set: set });
+                    })
             );
 
-            if (sesion.type && sesion.type.toLowerCase() === "pvp") {
+            // PvP = ningún NPC en combate (salas clásicas, amistosas, retos directos): solo apuestas
+            const esPvP = !sesion.getAllCombatientes().some(c => c.isNPC);
+            if (esPvP) {
                 if (sesion.apuestas) {
                     const recompensasApuesta = await this._resolverApuesta(sesion, equipoGanador, equipoPerdedor);
                     console.log(recompensasApuesta);
@@ -65,6 +70,7 @@ class RewardCalculator {
 
             const recompensas = new Map();
             const enemigo = sesion.enemigoId ?? "base";
+            const subtipo = this._subtipoCombate(sesion);
 
             const procesarCombatiente = async(combatiente, isWinner) => {
                 if(combatiente.isNPC) return;
@@ -78,10 +84,11 @@ class RewardCalculator {
                     .filter(a => a.ID === combatiente.ID)
                     .map(a => a.accion);
 
-                const {polvoEstelar = 0, lumens = 0} = await calculadorPVEstelar.calcularRecompensas(
-                    sesion.type,
-                    sesion.subtype,
-                    combatiente,
+                const jugador = await this._contextoJugador(combatiente);
+                const { polvo: polvoEstelar = 0, lumens = 0 } = await calculadorPVEstelar.calcularRecompensas(
+                    "combate",
+                    subtipo,
+                    jugador,
                     { historialAcciones: historialPersonal,
                     esGanador: esGanadorEfectivo }
                 );
@@ -124,6 +131,40 @@ class RewardCalculator {
             sesion.rewardsMap = fallback;
             return fallback;
         }
+    }
+
+    /**
+     * Subtipo de recompensa del combate (tablas de "Sistema de Polvo Estelar"):
+     * heraldo si hay un NPC heraldo, grieta si hay un jefe, duelo en cualquier otro caso.
+     * Si la sesión ya trae un subtipo explícito, se respeta.
+     */
+    _subtipoCombate(sesion) {
+        if (sesion.subtype) return sesion.subtype;
+        const npcs = sesion.getAllCombatientes().filter(c => c.isNPC);
+        if (npcs.some(n => n.esHeraldo)) return "heraldo";
+        if (npcs.some(n => n.esJefe)) return "grieta";
+        return "duelo";
+    }
+
+    /**
+     * Datos del jugador que pesan en el Polvo: Resplandor (Soul.sendero),
+     * Calor y antigüedad (Personajes). Se leen frescos de la BD al terminar el combate.
+     */
+    async _contextoJugador(combatiente) {
+        const id = Number(combatiente.ID);
+        const [soul, personaje] = await Promise.all([
+            souls.findOne({ _id: id }, { projection: { "sendero.resplandor": 1 } }),
+            characters.findOne({ _id: id }, { projection: { "actividad.calor.puntos": 1, "metadata.fechaCreacion": 1 } })
+        ]);
+        const creadoSeg = Number(personaje?.metadata?.fechaCreacion);
+        return {
+            resplandor: soul?.sendero?.resplandor ?? combatiente.resplandor ?? "I",
+            calor: Number(personaje?.actividad?.calor?.puntos) || 0,
+            diasRegistrado: Number.isFinite(creadoSeg) && creadoSeg > 0
+                ? (Date.now() - creadoSeg * 1000) / 86400000
+                : undefined,
+            bonuses: combatiente.bonuses || [],
+        };
     }
 
     async _resolverApuesta(sesion, equipoGanador, equipoPerdedor) {
@@ -453,7 +494,15 @@ class RewardCalculator {
                     if (charActualizado) {
 
                         const inventario = charActualizado.economia?.Inventario || [];
-                        for (const o of prize.objetos) {
+                        // Máximo en inventario: el ganador solo recibe lo que le cabe; lo demás se pierde con el duelo
+                        const { limitarEntradas } = require("../Objetos/limiteInventario");
+                        const limitePremio = await limitarEntradas(charActualizado, prize.objetos);
+                        if (limitePremio.aviso) {
+                            console.log(`[Duelo] ${winner.ID} no recibió parte del premio por el máximo en inventario: ${limitePremio.aviso}`);
+                            prize.objetos = limitePremio.admitidos;
+                            prize.avisoInventario = limitePremio.aviso;
+                        }
+                        for (const o of limitePremio.admitidos) {
                             const itemIdx = inventario.findIndex(i => 
                                 (i.ID !== undefined && String(i.ID) === String(o.id)) || 
                                 (i.Nombre && o.nombre && i.Nombre.toLowerCase() === o.nombre.toLowerCase())
@@ -505,6 +554,7 @@ class RewardCalculator {
                 recompensas.set(Number(winner.ID), {
                     lumens: prize.lumens,
                     objetos: prize.objetos,
+                    avisoInventario: prize.avisoInventario || null,
                     isWinner: true
                 });
             }

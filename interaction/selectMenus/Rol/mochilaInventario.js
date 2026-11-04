@@ -52,8 +52,9 @@ module.exports = crearStringSelectMenu({
             finalFiltros = selectedValues.length ? selectedValues : ["fullbag"];
         }
 
-        const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, key, finalFiltros, isFaro);
+        // Acuse antes de consultar la BD (Discord exige respuesta en 3s)
         await interaction.deferUpdate().catch(() => {});
+        const json = await interfazCreate.mochilaInventarioMensaje(client, interaction, character, 1, key, finalFiltros, isFaro);
         return await editarOMandarMensaje(interaction, cache, cache?.message, { components: json, flags: ["IsComponentsV2"] });
     }
 });

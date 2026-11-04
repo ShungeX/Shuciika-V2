@@ -24,10 +24,9 @@ async function normalizarNPCs() {
             let update = false;
             const setFields = {};
 
-            // 1. nivelMagico
-            if (typeof npc.nivelMagico === 'undefined' || npc.nivelMagico === null) {
-                const fe = npc.restrictions?.fe_min || npc.stats?.nivelMagico || 1;
-                setFields.nivelMagico = Number(fe);
+            // 1. nivel (los NPCs usan nivel; los jugadores, FE + Resplandor)
+            if (typeof npc.nivel === 'undefined' || npc.nivel === null) {
+                setFields.nivel = Number(npc.restrictions?.fe_min) || 1;
                 update = true;
             }
 

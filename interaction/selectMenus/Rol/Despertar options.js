@@ -70,7 +70,7 @@ function soulInicial(characterId, ownerID) {
         _id: characterId,
         ownerID,
         nucleo: {
-            HP: 100, Mana: 50, Elemento: "Ninguno", nivelMagico: 1, XP: 0,
+            HP: 100, Mana: 50, Elemento: "Ninguno",
             energy: 0, lastEnergyUpdate: 0, energiaAlmica: 0,
         },
         stats: {
@@ -79,7 +79,7 @@ function soulInicial(characterId, ownerID) {
             determinacion: 1, regeneracion: 1, paradoja: 0, destino: 0,
         },
         dominio: { hechizos: [], transforaciones: [], equipo: [], debilidades: {} },
-        sendero: { hilosLunares: 0, StelarFragments: 0, firmamento: [], heraldo: null, resonancia: 0, disonancia: 0 },
+        sendero: { hilosLunares: 0, StelarFragments: 0,StelarFragmentsTotal: 0, resplandor: 'I', firmamento: [], heraldo: null, resonancia: 0, disonancia: 0 },
         registros: { npcDefeat: [] },
         isFinish: false,
     }

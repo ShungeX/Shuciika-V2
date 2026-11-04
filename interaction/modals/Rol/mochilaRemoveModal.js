@@ -59,6 +59,7 @@ module.exports = crearModal({
             Nombre: nombreObjeto,
             cantidad: qtyToRemove,
             isItem: true,
+            esMovimiento: true,   // de la mochila al inventario: el total no cambia, no cuenta para el máximo
             Tipo: itemInMochila.Tipo || []
         });
 

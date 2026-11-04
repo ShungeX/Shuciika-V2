@@ -2,6 +2,7 @@ const { crearStringSelectMenu } = require("../../../utils/constructores/crearCom
 const clientdb = require("../../../Server");
 const { obtenerTienda } = require("../../../functions/mensajesServidor");
 const pedidos = require("../../../functions/Tiendas/pedidos");
+const ventas = require("../../../functions/Tiendas/ventas");
 const menus = require("../../../data/UI_ComponentsV2/menusTienda");
 
 // Menú público del panel de cada tienda (customId: tienda_accion---{shopId}). Todo lo que responde es efímero.
@@ -41,6 +42,11 @@ module.exports = crearStringSelectMenu({
         if (accion === "comprar") {
             if (!character) return efimero(menus.mensajeLugar(tienda, "Necesitas un personaje activo para comprar 〒▽〒"));
             return efimero(await pedidos.construirPedido({ userId: interaction.user.id, shopId, character }));
+        }
+
+        if (accion === "vender") {
+            if (!character) return efimero(menus.mensajeLugar(tienda, "Necesitas un personaje activo para vender 〒▽〒"));
+            return efimero(await ventas.construirVenta({ userId: interaction.user.id, shopId, character }));
         }
 
         return efimero(menus.mensajeLugar(tienda, "Esta acción todavía no tiene nada preparado."));
