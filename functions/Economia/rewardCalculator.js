@@ -10,6 +10,18 @@ const lootSystem = require("./lootSystem.js")
 const congelarHelper = require("./congelarHelper")
 const { moverLumens } = require("./lumens")
 const { esCombateAmistoso, serializarEfectos } = require("../Duelo/efectosPersistentes")
+const { aplicarCalor } = require("./sistemaCalor")
+const updateInventario = require("../updateInventario")
+const catalogoObjetos = require("../catalogoObjetos")
+const utilidadesTexto = require("../../utils/utilidadesTexto")
+
+/** "30-50" → entero al azar en el rango; "5" → 5 */
+function tirarCantidad(texto) {
+    const [a, b] = String(texto ?? "1").split("-").map(n => Number(n.trim()))
+    const min = Number.isFinite(a) ? a : 1
+    const max = Number.isFinite(b) ? b : min
+    return Math.floor(min + Math.random() * (Math.max(min, max) - min + 1))
+}
 
 
 class RewardCalculator {
@@ -56,6 +68,16 @@ class RewardCalculator {
                     })
             );
 
+            // ── Calor: cualquier combate real cuenta como actividad del día ──
+            const calores = new Map(await Promise.all(
+                sesion.getAllCombatientes()
+                    .filter(c => !c.isNPC)
+                    .map(async c => [Number(c.ID), await aplicarCalor(c.ID).catch(err => {
+                        console.error("[RewardCalculator] Error aplicando calor:", err);
+                        return null;
+                    })])
+            ));
+
             // PvP = ningún NPC en combate (salas clásicas, amistosas, retos directos): solo apuestas
             const esPvP = !sesion.getAllCombatientes().some(c => c.isNPC);
             if (esPvP) {
@@ -84,20 +106,46 @@ class RewardCalculator {
                     .filter(a => a.ID === combatiente.ID)
                     .map(a => a.accion);
 
-                const jugador = await this._contextoJugador(combatiente);
+                const jugador = await this._contextoJugador(combatiente, calores.get(Number(combatiente.ID)));
+
+                // Base: el loot de Polvo/Lumens de los NPCs rivales (si lo tienen); si no, la tabla del documento
+                const esExploracion = String(sesion.type || "").toLowerCase() === "exploration";
+                const rivales = this._npcsRivales(sesion, combatiente);
+                const baseNPC = this._baseLootNPC(rivales);
+
+                // Escaramuza (exploración): retornos menguantes por combate del día
+                let factor = { polvo: 1, lumens: 1 };
+                if (esExploracion) {
+                    const n = await this._siguienteEscaramuza(combatiente.ID);
+                    const fDia = calculadorPVEstelar.factorEscaramuza(n);
+                    const { ESCARAMUZA } = calculadorPVEstelar;
+                    // El recorte de escaramuza solo aplica a la tabla; el loot del NPC ya es su propia base
+                    factor = {
+                        polvo: fDia * (baseNPC.polvo === undefined ? ESCARAMUZA.polvo : 1),
+                        lumens: fDia * (baseNPC.lumens === undefined ? ESCARAMUZA.lumens : 1),
+                    };
+                }
+
                 const { polvo: polvoEstelar = 0, lumens = 0 } = await calculadorPVEstelar.calcularRecompensas(
                     "combate",
                     subtipo,
                     jugador,
                     { historialAcciones: historialPersonal,
-                    esGanador: esGanadorEfectivo }
+                    esGanador: esGanadorEfectivo,
+                    base: baseNPC,
+                    factor }
                 );
 
-                const loot = esGanadorEfectivo ? lootSystem.generarLootFinal(
+                // Objetos del loot de los NPCs: solo para el ganador (en exploración van al talismán)
+                const objetosNPC = esGanadorEfectivo
+                    ? await this._entregarObjetosNPC(rivales, combatiente.ID, esExploracion)
+                    : [];
+                const lootPool = esGanadorEfectivo ? lootSystem.generarLootFinal(
                     enemigo,
                     combatiente,
                     calculadorPVEstelar._calcularEntropia(historialPersonal)
                 ) : null;
+                const loot = [...objetosNPC, ...(Array.isArray(lootPool) ? lootPool : [])];
 
                 const incSoul = { "nucleo.polvoEstelar": polvoEstelar };
                 if (sesion.enemigoId && combatiente.pity !== undefined && combatiente.pity !== null && !isNaN(Number(combatiente.pity))) {
@@ -113,7 +161,7 @@ class RewardCalculator {
                     })
                 ]).catch(err => console.error("[RewardCalculator] Error actualizando DB para combatiente:", err));
 
-                recompensas.set(Number(combatiente.ID), { polvo: polvoEstelar, lumens, loot, isWinner: esGanadorEfectivo });
+                recompensas.set(Number(combatiente.ID), { polvo: polvoEstelar, lumens, loot: loot.length ? loot : null, isWinner: esGanadorEfectivo });
             };
 
             await Promise.all([
@@ -150,7 +198,7 @@ class RewardCalculator {
      * Datos del jugador que pesan en el Polvo: Resplandor (Soul.sendero),
      * Calor y antigüedad (Personajes). Se leen frescos de la BD al terminar el combate.
      */
-    async _contextoJugador(combatiente) {
+    async _contextoJugador(combatiente, calor = null) {
         const id = Number(combatiente.ID);
         const [soul, personaje] = await Promise.all([
             souls.findOne({ _id: id }, { projection: { "sendero.resplandor": 1 } }),
@@ -159,12 +207,70 @@ class RewardCalculator {
         const creadoSeg = Number(personaje?.metadata?.fechaCreacion);
         return {
             resplandor: soul?.sendero?.resplandor ?? combatiente.resplandor ?? "I",
-            calor: Number(personaje?.actividad?.calor?.puntos) || 0,
+            // El Calor recién actualizado (con enfriamiento aplicado) tiene prioridad sobre el guardado
+            calor: Number(calor?.puntos ?? personaje?.actividad?.calor?.puntos) || 0,
             diasRegistrado: Number.isFinite(creadoSeg) && creadoSeg > 0
                 ? (Date.now() - creadoSeg * 1000) / 86400000
                 : undefined,
             bonuses: combatiente.bonuses || [],
         };
+    }
+
+    /** NPCs del bando contrario al combatiente (los aliados no sueltan loot). */
+    _npcsRivales(sesion, combatiente) {
+        const equipo = (sesion.teams || []).find(t => t.some(c => c === combatiente || String(c.ID) === String(combatiente.ID)));
+        return (sesion.teams || []).filter(t => t !== equipo).flat().filter(c => c?.isNPC);
+    }
+
+    /**
+     * Tira el loot de Polvo/Lumens de los NPCs rivales y lo suma como base de la fórmula.
+     * Un campo queda undefined si ningún rival tiene ese tipo de loot (entonces se usa la tabla).
+     */
+    _baseLootNPC(rivales) {
+        const base = {};
+        for (const npc of rivales) {
+            for (const l of npc.loot || []) {
+                const tipo = l.typeLoot === "polvo" ? "polvo" : l.typeLoot === "lumens" ? "lumens" : null;
+                if (!tipo) continue;
+                base[tipo] = base[tipo] ?? 0;
+                if (Math.random() < Number(l.dropRate ?? 1)) base[tipo] += tirarCantidad(l.quantity);
+            }
+        }
+        return base;
+    }
+
+    /** Número de escaramuza de hoy del personaje (el contador se reinicia a las 00:00 México). */
+    async _siguienteEscaramuza(characterId) {
+        const id = Number(characterId);
+        const dia = utilidadesTexto.reinicio24hrs(Math.floor(Date.now() / 1000));
+        const pj = await characters.findOne({ _id: id }, { projection: { "actividad.escaramuzas": 1 } });
+        const previo = pj?.actividad?.escaramuzas;
+        const n = previo?.reinicio === dia ? (Number(previo.hoy) || 0) + 1 : 1;
+        await characters.updateOne({ _id: id }, { $set: { "actividad.escaramuzas": { reinicio: dia, hoy: n } } });
+        return n;
+    }
+
+    /** Tira y entrega los objetos del loot de los NPCs rivales. Devuelve [{ nombre, cantidad }] para la UI. */
+    async _entregarObjetosNPC(rivales, characterId, aTalisman) {
+        const entregados = [];
+        for (const npc of rivales) {
+            for (const l of npc.loot || []) {
+                if (l.typeLoot !== "item" || !Array.isArray(l.itemId)) continue;
+                if (Math.random() >= Number(l.dropRate ?? 0)) continue;
+                const [region, id] = l.itemId;
+                const cantidad = tirarCantidad(l.quantity);
+                const def = catalogoObjetos.getObjetoPorId(region, Number(id));
+                const r = await updateInventario(null, null, Number(characterId), {
+                    isItem: true, ID: Number(id), Region: region, cantidad, isTalisman: aTalisman,
+                }).catch(err => ({ success: false, messages: err?.message }));
+                if (r?.success === false) {
+                    console.warn(`[RewardCalculator] No se pudo entregar ${region}:${id} a ${characterId}:`, r?.messages);
+                    continue;
+                }
+                entregados.push({ nombre: def?.Nombre || `Objeto ${id}`, cantidad });
+            }
+        }
+        return entregados;
     }
 
     async _resolverApuesta(sesion, equipoGanador, equipoPerdedor) {

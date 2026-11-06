@@ -7,7 +7,9 @@ const subcommands = {
     Pat: require("../../handlers/CMDHandler/Interactions/Pat"),
     Slap: require("../../handlers/CMDHandler/Interactions/Slap"),
     Bite: require("../../handlers/CMDHandler/Interactions/Bite"),
-    bang: require("../../handlers/CMDHandler/Interactions/bang")
+    bang: require("../../handlers/CMDHandler/Interactions/bang"),
+    poke: require("../../handlers/CMDHandler/Interactions/Poke"),
+    punch: require("../../handlers/CMDHandler/Interactions/Punch")
 }
 
 module.exports = {
@@ -55,7 +57,10 @@ ejecutar: async(client, interaction) => {
             interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
             break;
         case "poke":
-            interaction.reply({content: `¡En desarollo! - [${subcommand}]`, flags: ["Ephemeral"]}) 
+            subcommands.poke(client, interaction)
+            break;
+        case "punch":
+            subcommands.punch(client, interaction)
             break;
             
         
@@ -82,7 +87,6 @@ ejecutar: async(client, interaction) => {
          .setDescription("ingresa la ID del Alumno [Personaje]")
          .setAutocomplete(true)
          .setMinValue(1)
-         .setMaxValue(1000)
      )
  )
  .addSubcommand((sub) => 
@@ -100,7 +104,6 @@ ejecutar: async(client, interaction) => {
         .setDescription("ingresa la ID del Alumno [Personaje]")
         .setAutocomplete(true)
         .setMinValue(1)
-        .setMaxValue(1000)
     )
  )
  .addSubcommand((sub) => 
@@ -117,7 +120,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -135,7 +137,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
        
    )
@@ -154,7 +155,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -172,7 +172,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -190,7 +189,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -208,7 +206,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -226,7 +223,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 )
@@ -244,7 +240,23 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
+       .setAutocomplete(true)
+   )
+)
+.addSubcommand((sub) => 
+    sub
+    .setName("punch")
+    .setDescription("[👊] Dale un puñetazo a un usuario o personaje")
+    .addUserOption(user => 
+       user.setName("usuario")
+       .setDescription("Selecciona a la persona (Usuario)")
+       .setRequired(false)
+   )
+   .addIntegerOption(character => 
+       character
+       .setName("personaje")
+       .setDescription("ingresa la ID del Alumno [Personaje]")
+       .setMinValue(1)
        .setAutocomplete(true)
    )
 )
@@ -262,7 +274,6 @@ ejecutar: async(client, interaction) => {
        .setName("personaje")
        .setDescription("ingresa la ID del Alumno [Personaje]")
        .setMinValue(1)
-       .setMaxValue(1000)
        .setAutocomplete(true)
    )
 ),

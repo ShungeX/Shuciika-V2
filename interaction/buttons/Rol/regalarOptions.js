@@ -1,3 +1,6 @@
+// OBSOLETO: botones del /rol regalar antiguo (embed Aceptar/Rechazar + correo embebido).
+// El /rol regalar nuevo usa el menú de functions/Regalos/menuRegalar.js. Se deja para
+// que los mensajes viejos que sigan abiertos no fallen; se puede borrar más adelante.
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, ApplicationCommandOptionType, Client} = require(`discord.js`)
 const clientdb = require("../../../Server")
 const db = clientdb.db("Server_db")

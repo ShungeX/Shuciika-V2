@@ -283,7 +283,7 @@ async function ejecutarAccionDialogo({ interaction, userData, accion, param, cha
 
         case 'perfil': {
             try {
-                const { construirPerfilV2 } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
+                const { construirPerfilV2, obtenerBannerPerfil } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
                 let charDoc = userData?.charDoc;
                 if (!charDoc && interaction.user) {
                     const targetCharId = characterId || userData?.context?.characterId || userData?.charId;
@@ -291,7 +291,8 @@ async function ejecutarAccionDialogo({ interaction, userData, accion, param, cha
                     if (charDoc && userData) userData.charDoc = charDoc;
                 }
                 if (charDoc) {
-                    const perfilV2 = construirPerfilV2(charDoc, interaction.user.id);
+                    const bannerURL = await obtenerBannerPerfil(charDoc, interaction.client);
+                    const perfilV2 = construirPerfilV2(charDoc, interaction.user.id, bannerURL);
                     await responder(interaction, { components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications", "Ephemeral"] });
                 } else {
                     await responder(interaction, { content: "No se encontró el perfil de tu personaje.", flags: ["Ephemeral"] });

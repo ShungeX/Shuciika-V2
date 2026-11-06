@@ -9,9 +9,12 @@
  * 2. ¿Está en bloqueados? -> false (prioridad máxima)
  * 3. ¿Está en permitidos? -> true
  * 4. Si no, se evalúa el nivel jerárquico del campo.
+ *
+ * `porDefecto`: nivel que se usa si el personaje nunca configuró el campo
+ * (p. ej. "interacciones" hostiles = 'amigos', ver config/amistad.js).
  */
 
-async function evaluarPermisoPrivacidad(targetPj, actorPj, campo, dbRol) {
+async function evaluarPermisoPrivacidad(targetPj, actorPj, campo, dbRol, porDefecto = 'todos') {
     if (!targetPj || !actorPj) return false;
 
     const targetId = String(targetPj._id ?? targetPj.ID ?? '');
@@ -46,7 +49,7 @@ async function evaluarPermisoPrivacidad(targetPj, actorPj, campo, dbRol) {
     }
 
     // Regla 3: Nivel jerárquico del campo (default: 'todos')
-    const nivel = priv[campo] || 'todos';
+    const nivel = priv[campo] || porDefecto;
 
     if (nivel === 'todos') {
         return true;
@@ -86,10 +89,28 @@ async function evaluarPermisoPrivacidad(targetPj, actorPj, campo, dbRol) {
         }
     }
 
+    // Sistema de amistad nuevo (Rol_db.amistades, functions/Amistad/). Se suma al
+    // viejo (Relaciones_pj) para que nadie pierda acceso mientras conviven.
+    let pareja = null;
+    if (dbRol) {
+        try {
+            const { idPareja, estadoAmistad } = require("./Amistad/reglasAmistad");
+            const doc = await dbRol.collection("amistades").findOne(
+                { _id: idPareja(targetId, actorId) },
+                { projection: { puntos: 1, rivalidad: 1, rangoBaseId: 1, rangoTope: 1, ganadosTotal: 1, perdidosTotal: 1, ultima: 1, esCompanero: 1 } }
+            );
+            // El tier sale de rangoDe(): conocido / amigo (desde "Amistad") / mejor_amigo (desde "Mejores Amigos").
+            if (doc) pareja = { tier: estadoAmistad(doc).tier, esCompanero: !!doc.esCompanero };
+        } catch (e) {
+            console.warn("Error al buscar amistad en evaluarPermisoPrivacidad:", e?.message);
+        }
+    }
+    const nivelNuevo = pareja?.tier;
+
     const xpAmistad = rel?.xp || 0;
     const nivelAmistad = rel?.amistad?.nivel || 0;
-    const esMejorAmigo = esCompanero || nivelAmistad >= 3 || xpAmistad >= 2000;
-    const esAmigo = esMejorAmigo || nivelAmistad >= 1 || xpAmistad >= 500 || Boolean(rel);
+    const esMejorAmigo = esCompanero || !!pareja?.esCompanero || nivelNuevo === 'mejor_amigo' || nivelAmistad >= 3 || xpAmistad >= 2000;
+    const esAmigo = esMejorAmigo || nivelNuevo === 'amigo' || nivelAmistad >= 1 || xpAmistad >= 500 || Boolean(rel);
 
     if (nivel === 'mejores_amigos') {
         return esMejorAmigo;

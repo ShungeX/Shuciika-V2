@@ -80,19 +80,26 @@ module.exports = async (client, interaction) => {
         }
 
         if (focusedOptions.name === "personaje" || focusedOptions.name === "remitente") {
-            const characters = await chars.find().toArray()
+            try {
+                // Solo lo necesario: traer el documento completo de cada personaje
+                // (inventario, buzón...) hace lenta una respuesta que tiene 3 s.
+                const characters = await chars.find({}, { projection: { _id: 1, "perfil.Nombre": 1 } }).toArray()
+                const texto = String(focusedOptions.value ?? "").toLowerCase()
 
-            const filtro = characters
-                .filter(ch => ch.perfil.Nombre.toLowerCase().startsWith(focusedOptions.value.toLowerCase()) || ch._id === Number(focusedOptions.value))
-                .slice(0, 25)
+                const filtro = characters
+                    .filter(ch => typeof ch._id === "number" && ch.perfil?.Nombre)
+                    .filter(ch => ch.perfil.Nombre.toLowerCase().includes(texto) || String(ch._id).startsWith(texto))
+                    .slice(0, 25)
 
-            await interaction.respond(
-                filtro.map(personaje => ({
-                    name: `ID: ${personaje._id} : ${personaje.perfil.Nombre}`,
-                    value: personaje._id
-                }))
-            )
-
+                await interaction.respond(
+                    filtro.map(personaje => ({
+                        name: `ID: ${personaje._id} : ${personaje.perfil.Nombre}`.slice(0, 100),
+                        value: personaje._id
+                    }))
+                )
+            } catch (e) {
+                console.error("[Autocompletado personaje]", e.message)
+            }
         }
 
         if (subcommand === "dar_objeto") {
@@ -138,25 +145,6 @@ module.exports = async (client, interaction) => {
 
         }
 
-        if (focusedOptions.name === "correo") {
-            const personaje = await chars.findOne({ _id: interaction.user.id })
-            if (!personaje) return;
-
-            const objinventario = await personaje.buzon || []
-
-            const objfiltrados = objinventario.filter(correo => {
-                return correo.ID.toLowerCase().includes(focusedOptions.value.toLowerCase()) ||
-                    correo.Nombre.toLowerCase().includes(focusedOptions.value.toLowerCase()) ||
-                    correo.remitente.Nombre.toLowerCase().includes(focusedOptions.value.toLowerCase())
-            })
-
-            await interaction.respond(
-                objfiltrados.map(objeto => ({
-                    name: `[${objeto.remitente.Nombre}] ${objeto.Nombre} - ${objeto.tipo} `,
-                    value: `${objeto.ID}`
-                }))
-            )
-        }
 
 
 
@@ -174,6 +162,16 @@ module.exports = async (client, interaction) => {
     }
 
     if (interaction.isStringSelectMenu()) {
+        // Sistema de amistad: su custom_id usa "*" (amistad*tipo*de*a*ts*cadena) y
+        // manejarComponente separa con "-", así que se enruta antes.
+        if (interaction.customId.startsWith("amistad*")) {
+            try {
+                return await require("../../functions/Amistad/responderInteraccion")(client, interaction)
+            } catch (e) {
+                return console.log("Ocurrio un error al responder la interacción de amistad!", e)
+            }
+        }
+
         const selectHandlers = await getLocalSelect();
 
         try {

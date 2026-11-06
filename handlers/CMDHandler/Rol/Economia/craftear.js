@@ -1,3 +1,8 @@
+// TODO(decisión): rediseño como sistema de recetas (p. ej. Flor de maná → Caramelo de maná).
+// Armar regalos YA NO vive aquí: es un sistema propio (functions/Regalos/, /rol regalar,
+// /rol buzon y "Usar item" sobre una Bolsa de regalo). De este archivo se extrajo la
+// lógica de la bolsa (capacidad por peso, restricciones, guardado en transacción) a
+// functions/Regalos/bolsa.js. Lo de abajo se conserva sin cambios hasta decidir el rediseño.
 const { EmbedBuilder, ActionRowBuilder, ChatInputCommandInteraction, Client, StringSelectMenuBuilder, SlashCommandSubcommandBuilder } = require(`discord.js`)
 const clientdb = require("../../../../Server")
 const db = clientdb.db("Server_db")

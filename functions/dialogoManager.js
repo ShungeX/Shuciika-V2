@@ -218,7 +218,7 @@ class DialogueSystem {
 
     async handleShowPerfil(param, { user, userData, messageOptions }) {
         try {
-            const { construirPerfilV2 } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
+            const { construirPerfilV2, obtenerBannerPerfil } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
             let charDoc = userData?.charDoc;
             if (!charDoc && user) {
                 const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId;
@@ -227,7 +227,8 @@ class DialogueSystem {
             }
 
             if (charDoc) {
-                const perfilV2 = construirPerfilV2(charDoc, user.id);
+                const bannerURL = await obtenerBannerPerfil(charDoc, user?.client);
+                const perfilV2 = construirPerfilV2(charDoc, user.id, bannerURL);
                 if (messageOptions) {
                     messageOptions.components = perfilV2;
                     messageOptions.flags = ["IsComponentsV2", "SuppressNotifications"];

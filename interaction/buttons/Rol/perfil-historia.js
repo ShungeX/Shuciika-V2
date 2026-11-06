@@ -6,7 +6,7 @@ const souls = db2.collection("Soul")
 const version = require("../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
 const { crearBoton } = require("../../../utils/constructores/crearComponente")
-const { construirPerfilV2 } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { construirPerfilV2, obtenerBannerPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
 
 
 module.exports = crearBoton({
@@ -158,6 +158,7 @@ module.exports = crearBoton({
             const reputacion = character.estado?.Reputacion ? character.estado.Reputacion : "0"
             const grado = character.estado?.DesmpAcademico?.Grado ? character.estado.DesmpAcademico.Grado : "Aún no calculado"
             const urlavatar = character.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
+            const bannerURL = await obtenerBannerPerfil(character, interaction.client)
 
             const perfilV2 = [
                 {
@@ -165,6 +166,10 @@ module.exports = crearBoton({
                     "accent_color": null,
                     "spoiler": false,
                     "components": [
+                        ...(bannerURL ? [{
+                            "type": 12,
+                            "items": [{ "media": { "url": bannerURL }, "description": null, "spoiler": false }]
+                        }] : []),
                         {
                             "type": 9,
                             "accessory": {
@@ -313,7 +318,8 @@ module.exports = crearBoton({
         }
 
         if (action === "reduct") {
-            const perfilV2 = construirPerfilV2(character, interaction.user.id)
+            const bannerURL = await obtenerBannerPerfil(character, interaction.client)
+            const perfilV2 = construirPerfilV2(character, interaction.user.id, bannerURL)
             return interaction.update({ components: perfilV2 })
         }
     }

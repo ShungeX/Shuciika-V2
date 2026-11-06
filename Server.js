@@ -236,6 +236,67 @@ async function procesarBanner(targetId, bannerInput, prevBannerUrl = null) {
 
     return uploadCloudinary?.secure_url || null;
 }
+
+// Mismo cooldown que el bot (/rol configuracion, Config Foto, ActualizarFoto): 5 min por usuario de Discord en usuarios_server.time.pjFoto
+const AVATAR_COOLDOWN_MS = 300000;
+
+/**
+ * Sube la foto de perfil de un personaje a Cloudinary (Rol/Avatars/<pjId>_AvatarRol), sobrescribiendo la
+ * anterior, y elimina la foto previa si vivía en otro public_id de Rol/Avatars que ningún otro personaje use.
+ */
+async function procesarAvatar(targetId, avatarInput, prevAvatarUrl = null) {
+    if (!targetId || !avatarInput) return null;
+
+    const avatarPublicId = `${targetId}_AvatarRol`;
+    const fullPublicId = `Rol/Avatars/${avatarPublicId}`;
+
+    // Validar antes de tocar Cloudinary: si la imagen es inválida no se borra nada
+    const resourceBuffer = await obtenerYValidarBufferImagen(avatarInput, MAX_IMAGE_BYTES);
+
+    const uploadCloudinary = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                resource_type: "image",
+                folder: "Rol/Avatars",
+                public_id: avatarPublicId,
+                overwrite: true,
+                invalidate: true
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        uploadStream.end(resourceBuffer);
+    });
+
+    const nuevaUrl = uploadCloudinary?.secure_url || null;
+
+    // Limpiar la foto anterior solo si estaba en otro public_id dentro de Rol/Avatars (p.ej. las antiguas
+    // `<discordId>_AvatarRol` del bot) y ningún otro personaje la sigue referenciando.
+    if (nuevaUrl && prevAvatarUrl && typeof prevAvatarUrl === 'string' && prevAvatarUrl.includes('cloudinary.com')) {
+        const prevPublicId = extraerPublicIdCloudinary(prevAvatarUrl);
+        if (prevPublicId && prevPublicId !== fullPublicId && /^Rol\/Avatars\//i.test(prevPublicId)) {
+            try {
+                const escapado = prevPublicId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const enUso = await clientdb.db("Rol_db").collection("Personajes").countDocuments({
+                    _id: { $ne: targetId },
+                    $or: [
+                        { "perfil.avatarURL": { $regex: escapado } },
+                        { avatarURL: { $regex: escapado } }
+                    ]
+                });
+                if (enUso === 0) {
+                    await cloudinary.uploader.destroy(prevPublicId, { invalidate: true });
+                }
+            } catch (err) {
+                console.warn("Aviso al eliminar avatar previo de Cloudinary:", err?.message || err);
+            }
+        }
+    }
+
+    return nuevaUrl;
+}
 const uri = process.env.MONGODB_URI
 const clientdb = new MongoClient(uri, { family: 4 });
 const dbserverName = "Server_db"
@@ -2863,6 +2924,12 @@ app.post('/api/personaje/privacidad', async (req, res) => {
             permitidos: sanitizarLista(privBody.permitidos),
             bloqueados: sanitizarLista(privBody.bloqueados)
         };
+        // Interacciones (abrazos, golpes...): si no se elige nada, el campo no se
+        // guarda y el bot usa el valor por defecto de cada categoría
+        // (config/amistad.js → PRIVACIDAD_INTERACCIONES; hostiles: Solo amigos).
+        if (nivelesValidos.includes(privBody.interacciones)) {
+            nuevaPrivacidad.interacciones = sanitizeLevel(privBody.interacciones);
+        }
 
         const dbRol = clientdb.db("Rol_db");
         await dbRol.collection("Personajes").updateOne(
@@ -2874,6 +2941,129 @@ app.post('/api/personaje/privacidad', async (req, res) => {
     } catch (err) {
         console.error("Error en POST /api/personaje/privacidad:", err);
         res.status(500).json({ error: 'Error al actualizar privacidad: ' + (err.message || err) });
+    }
+});
+
+// Banner en el perfil de Discord (/rol perfil). Misma regla que el bot: Perfil.js → puedeMostrarBanner / recortarBannerDiscord.
+// require perezoso: Perfil.js requiere este archivo, así que solo puede cargarse cuando Server.js ya terminó de exportar.
+function helpersBannerDiscord() {
+    return require("./handlers/CMDHandler/Rol/Personajes/Perfil.js");
+}
+
+async function estadoBannerDiscord(charDoc, discordID) {
+    const { puedeMostrarBanner, recortarBannerDiscord, ajustesBannerDiscord } = helpersBannerDiscord();
+    const bannerURL = charDoc.perfil?.bannerURL;
+    const esCloudinary = typeof bannerURL === 'string' && /^https:\/\/res\.cloudinary\.com\//i.test(bannerURL);
+    return {
+        mostrar: charDoc.perfil?.mostrarBannerDiscord === true,
+        puede: await puedeMostrarBanner(discordID, client),
+        bannerPreview: recortarBannerDiscord(bannerURL, charDoc.perfil?.bannerDiscord),
+        // Original para el editor de recorte del dashboard (las coordenadas son en píxeles de esta imagen)
+        bannerOriginal: esCloudinary ? bannerURL : null,
+        ajustes: ajustesBannerDiscord(bannerURL, charDoc.perfil?.bannerDiscord),
+        personajeId: String(charDoc._id),
+        personajeNombre: charDoc.perfil?.Nombre || 'Personaje'
+    };
+}
+
+// GET /api/personaje/banner-discord - Estado del banner en Discord del personaje activo
+app.get('/api/personaje/banner-discord', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const discordID = String(req.session.user.id);
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+        if (!charDoc) return res.status(404).json({ error: 'Personaje no encontrado' });
+        res.json({ success: true, ...(await estadoBannerDiscord(charDoc, discordID)) });
+    } catch (err) {
+        console.error("Error en GET /api/personaje/banner-discord:", err);
+        res.status(500).json({ error: 'Error al obtener la configuración del banner' });
+    }
+});
+
+// POST /api/personaje/banner-discord - Personaje activo. Todos los campos son opcionales:
+// { mostrar: boolean, aspecto: 6|4|3, difuminado: boolean, recorte: { x, y, w, h } | null (null = automático) }
+app.post('/api/personaje/banner-discord', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    try {
+        const body = req.body || {};
+        const discordID = String(req.session.user.id);
+        const { charDoc } = await obtenerPersonajeActivoUsuario(discordID);
+        if (!charDoc) return res.status(404).json({ error: 'Personaje no encontrado' });
+
+        const { puedeMostrarBanner, recortarBannerDiscord, ajustesBannerDiscord } = helpersBannerDiscord();
+        const set = {};
+
+        if (body.mostrar !== undefined) {
+            if (typeof body.mostrar !== 'boolean') return res.status(400).json({ error: 'Valor inválido' });
+            if (body.mostrar && !(await puedeMostrarBanner(discordID, client))) {
+                return res.status(403).json({ error: 'Mostrar el banner en Discord es exclusivo para Server Boosters.' });
+            }
+            set["perfil.mostrarBannerDiscord"] = body.mostrar;
+        }
+
+        const tocaAjustes = body.aspecto !== undefined || body.difuminado !== undefined || body.recorte !== undefined;
+        if (tocaAjustes) {
+            if (!(await puedeMostrarBanner(discordID, client))) {
+                return res.status(403).json({ error: 'Personalizar el banner de Discord es exclusivo para Server Boosters.' });
+            }
+            const bannerURL = charDoc.perfil?.bannerURL;
+            const actual = ajustesBannerDiscord(bannerURL, charDoc.perfil?.bannerDiscord);
+            const aspecto = body.aspecto !== undefined ? Number(body.aspecto) : actual.aspecto;
+            if (![6, 4, 3].includes(aspecto)) return res.status(400).json({ error: 'Grosor de banner inválido' });
+            if (body.difuminado !== undefined && typeof body.difuminado !== 'boolean') {
+                return res.status(400).json({ error: 'Valor de difuminado inválido' });
+            }
+
+            let recorte = body.recorte !== undefined ? body.recorte : actual.recorte;
+            if (recorte !== null) {
+                const r = {
+                    x: Math.round(Number(recorte?.x)), y: Math.round(Number(recorte?.y)),
+                    w: Math.round(Number(recorte?.w)), h: Math.round(Number(recorte?.h))
+                };
+                const enteros = Object.values(r).every(Number.isFinite);
+                if (!enteros || r.x < 0 || r.y < 0 || r.w < 50 || r.h < 10 || r.w > 20000 || r.h > 20000) {
+                    return res.status(400).json({ error: 'Recorte inválido' });
+                }
+                // El recorte debe respetar el grosor elegido (tolerancia por redondeo)
+                if (Math.abs(r.w / r.h - aspecto) / aspecto > 0.03) {
+                    return res.status(400).json({ error: 'El recorte no coincide con el grosor elegido' });
+                }
+                recorte = r;
+            }
+
+            const nuevo = {
+                url: bannerURL || null,
+                aspecto,
+                difuminado: body.difuminado !== undefined ? body.difuminado : actual.difuminado,
+                ...(recorte || {})
+            };
+
+            // Comprobar que Cloudinary acepta el recorte (p.ej. que no se salga de la imagen) antes de guardarlo
+            const urlFinal = recortarBannerDiscord(bannerURL, nuevo);
+            if (recorte && urlFinal) {
+                const prueba = await fetch(urlFinal, { method: 'HEAD', signal: AbortSignal.timeout(15000) }).catch(() => null);
+                if (!prueba?.ok) return res.status(400).json({ error: 'Ese recorte no es válido para tu banner. Intenta ajustarlo de nuevo.' });
+            }
+            set["perfil.bannerDiscord"] = nuevo;
+        }
+
+        if (!Object.keys(set).length) return res.status(400).json({ error: 'No hay cambios' });
+
+        await clientdb.db("Rol_db").collection("Personajes").updateOne({ _id: charDoc._id }, { $set: set });
+        charDoc.perfil = {
+            ...(charDoc.perfil || {}),
+            ...(set["perfil.mostrarBannerDiscord"] !== undefined ? { mostrarBannerDiscord: set["perfil.mostrarBannerDiscord"] } : {}),
+            ...(set["perfil.bannerDiscord"] ? { bannerDiscord: set["perfil.bannerDiscord"] } : {})
+        };
+
+        res.json({ success: true, ...(await estadoBannerDiscord(charDoc, discordID)) });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/banner-discord:", err);
+        res.status(500).json({ error: 'Error al guardar la configuración del banner' });
     }
 });
 
@@ -3253,6 +3443,101 @@ app.post('/api/personaje/banner', async (req, res) => {
     } catch (err) {
         console.error("Error en POST /api/personaje/banner:", err);
         res.status(500).json({ error: "Error interno al actualizar banner: " + (err.message || err) });
+    }
+});
+
+// POST /api/personaje/avatar - Cambia la foto de perfil del personaje (propio) en Cloudinary, con el cooldown del bot
+app.post('/api/personaje/avatar', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    const discordID = String(req.session.user.id);
+    const dbRol = clientdb.db("Rol_db");
+    const usuarios = clientdb.db(dbserverName || "Server_db").collection("usuarios_server");
+    let reservaCooldown = null; // { previo } si se reservó el cooldown y hay que revertirlo al fallar
+
+    try {
+        const avatarInput = String(req.body.avatarData || '').trim();
+        if (!avatarInput.startsWith('data:image/')) {
+            return res.status(400).json({ error: 'Debes subir un archivo de imagen.' });
+        }
+
+        // Resolver el personaje: el indicado (debe ser tuyo) o el activo
+        let charDoc = null;
+        const targetPjId = req.body.personajeId;
+        if (targetPjId) {
+            const asNum = Number(targetPjId);
+            const query = !isNaN(asNum)
+                ? { $or: [{ _id: asNum }, { _id: String(targetPjId) }] }
+                : { _id: String(targetPjId) };
+            charDoc = await dbRol.collection("Personajes").findOne(query);
+            if (!charDoc) return res.status(404).json({ error: 'Personaje no encontrado' });
+            if (!charDoc.ownerID || String(charDoc.ownerID) !== discordID) {
+                return res.status(403).json({ error: 'Solo puedes cambiar la foto de tus propios personajes.' });
+            }
+        } else {
+            charDoc = (await obtenerPersonajeActivoUsuario(discordID)).charDoc;
+            if (!charDoc) return res.status(404).json({ error: 'Personaje no encontrado' });
+        }
+
+        // Reservar el cooldown de forma atómica (evita dos subidas simultáneas que se salten el límite)
+        const ahora = Date.now();
+        const usuarioDoc = await usuarios.findOne({ _id: discordID }, { projection: { "time.pjFoto": 1 } });
+        const previo = usuarioDoc?.time?.pjFoto;
+        const reserva = await usuarios.updateOne(
+            {
+                _id: discordID,
+                $or: [
+                    { "time.pjFoto": { $exists: false } },
+                    { "time.pjFoto": { $lte: ahora - AVATAR_COOLDOWN_MS } }
+                ]
+            },
+            { $set: { "time.pjFoto": ahora } },
+            { upsert: !usuarioDoc }
+        ).catch(err => {
+            if (err?.code === 11000) return { matchedCount: 0, upsertedCount: 0 }; // carrera en el upsert
+            throw err;
+        });
+
+        if (!reserva.matchedCount && !reserva.upsertedCount) {
+            const actual = (await usuarios.findOne({ _id: discordID }, { projection: { "time.pjFoto": 1 } }))?.time?.pjFoto || ahora;
+            const restanteMs = Math.max(0, AVATAR_COOLDOWN_MS - (ahora - actual));
+            return res.status(429).json({
+                error: 'Debes esperar antes de establecer otra foto nueva.',
+                restanteMs
+            });
+        }
+        reservaCooldown = { previo, ahora };
+
+        const prevAvatarUrl = charDoc.perfil?.avatarURL || charDoc.avatarURL;
+        const nuevaUrl = await procesarAvatar(charDoc._id, avatarInput, prevAvatarUrl);
+        if (!nuevaUrl) throw new Error("No se pudo obtener la URL de Cloudinary para la foto");
+
+        // Cache-busting: el public_id se reutiliza, así que la versión de la URL cambia en cada subida
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "perfil.avatarURL": nuevaUrl, avatarURL: nuevaUrl } }
+        );
+        reservaCooldown = null;
+
+        if (req.session.personaje && String(req.session.personaje._id || req.session.personaje.id) === String(charDoc._id)) {
+            req.session.personaje.avatarURL = nuevaUrl;
+        }
+
+        res.json({ success: true, avatarURL: nuevaUrl, siguienteCambio: ahora + AVATAR_COOLDOWN_MS });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/avatar:", err);
+        // Si la subida falló, devolver el cooldown a como estaba para no castigar al usuario
+        if (reservaCooldown) {
+            const revertir = reservaCooldown.previo
+                ? { $set: { "time.pjFoto": reservaCooldown.previo } }
+                : { $unset: { "time.pjFoto": "" } };
+            await usuarios.updateOne({ _id: discordID, "time.pjFoto": reservaCooldown.ahora }, revertir).catch(() => {});
+        }
+        const esValidacion = /formato|tamaño|vacío|inválid/i.test(err?.message || '');
+        res.status(esValidacion ? 400 : 500).json({
+            error: esValidacion ? err.message : "Error interno al actualizar la foto de perfil."
+        });
     }
 });
 

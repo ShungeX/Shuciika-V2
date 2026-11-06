@@ -8,7 +8,7 @@ const dbobjetos = db2.collection("Objetos_globales")
 const pets = db2.collection("Mascotas")
 
 const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente")
-const { construirPerfilV2 } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { construirPerfilV2, obtenerBannerPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
 const { construirAlmaMain, construirAlmaStats, construirAlmaEquipamiento, filaNavegacionPerfil } = require("../../../data/UI_ComponentsV2/menuAlma")
 
 module.exports = crearStringSelectMenu({
@@ -56,8 +56,9 @@ module.exports = crearStringSelectMenu({
         }
 
 
-        function perfil(pjuser) {
-            const perfilV2 = construirPerfilV2(pjuser, userId || interaction.user.id);
+        async function perfil(pjuser) {
+            const bannerURL = await obtenerBannerPerfil(pjuser, interaction.client);
+            const perfilV2 = construirPerfilV2(pjuser, userId || interaction.user.id, bannerURL);
             return interaction.update({ components: perfilV2 });
         }
 

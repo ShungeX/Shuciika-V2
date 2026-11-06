@@ -44,6 +44,11 @@ module.exports = crearModal({
             }
         }
 
+        // Bolsas de regalo: responden con su propia UI (editor o bolsa abierta)
+        if (resultado.componentesV2) {
+            return interaction.followUp({ components: resultado.componentesV2, flags: ["Ephemeral", "IsComponentsV2"], allowedMentions: { parse: [] } });
+        }
+
         const texto = resultado.lineas.filter(Boolean).join("\n").slice(0, 4000) || "Listo.";
 
         if (resultado.publico) {

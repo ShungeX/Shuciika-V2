@@ -57,6 +57,9 @@ module.exports = async(client, member) => {
                 console.log("El personaje del usuario aun no despertaba", e)
             })
 
+            // Sus regalos pendientes vuelven a quienes los enviaron (antes de borrar el personaje)
+            await require("../../functions/Regalos/regalos").alBorrarPersonaje(profile).catch(e => console.error("[Regalos] Al borrar personaje:", e))
+
             // Los Lumens del personaje salen del sistema: el libro lo registra como sumidero
             require("../../functions/Economia/lumens").registrarBaja(profile)
             await character.deleteOne({_id: user}).catch(e => {

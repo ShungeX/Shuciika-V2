@@ -1,62 +1,43 @@
-module.exports = (existingCommand, localCommand) => {
-  
-  const areChoicesDifferent = (existingChoices, localChoices) => {
-    for (const localChoice of localChoices) {
+// Compara un comando registrado en Discord (ApplicationCommand de discord.js, en
+// camelCase) con su versión local (toJSON del builder, en snake_case).
+//
+// Antes solo se miraba el primer nivel de opciones (los subcomandos), así que un
+// cambio DENTRO de un subcomando (p. ej. quitar max_value o activar autocomplete)
+// nunca se subía a Discord. Ahora se compara todo el árbol de opciones.
 
-      console.log("choice true")
-      const existingChoice = existingChoices?.find(
-        (choice) => choice.name === localChoice.name
-      );
+const pick = (o, camel, snake) => o?.[camel] ?? o?.[snake] ?? null
 
-      if (!existingChoice) {
-        return true;
-      }
+function normalizarChoices(choices) {
+  if (!choices?.length) return []
+  return choices.map(c => ({ name: c.name, value: c.value }))
+}
 
-      if (localChoice.value !== existingChoice.value) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  const areOptionsDifferent = (existingOptions, localOptions) => {
-   
-    for (const localOption of localOptions) {
-      const existingOption = existingOptions?.find(
-        (option) => option.name === localOption.name
-      );
-      
-      if (!existingOption) {
-        
-        return true;
-      }
-
-      if (
-        localOption.description !== existingOption.description ||
-        localOption.type !== existingOption.type ||
-        (localOption.required || false) !== (existingOption.required || false) ||
-        (localOption.choices?.length || 0) !==
-          (existingOption.choices?.length || 0) ||
-        areChoicesDifferent(
-          localOption.choices || [],
-          existingOption.choices || []
-        )
-      ) {
-        console.error("Local:", localOption.description, "\nExistente:", existingOption.description)
-        return true;
-      }
-    }
-    return false;
-  };
-  if (
-
-    existingCommand.description !== localCommand.description ||
-    existingCommand.options?.length !== (localCommand.options?.length || 0) ||
-    areOptionsDifferent(existingCommand.options, localCommand.options || [])
-  ) {
-    console.log("description true")
-    return true;
+function normalizarOpcion(o) {
+  return {
+    type: o.type,
+    name: o.name,
+    description: o.description ?? "",
+    required: !!o.required,
+    autocomplete: !!o.autocomplete,
+    min_value: pick(o, "minValue", "min_value"),
+    max_value: pick(o, "maxValue", "max_value"),
+    min_length: pick(o, "minLength", "min_length"),
+    max_length: pick(o, "maxLength", "max_length"),
+    channel_types: [...(pick(o, "channelTypes", "channel_types") || [])].sort(),
+    choices: normalizarChoices(o.choices),
+    options: (o.options || []).map(normalizarOpcion),
   }
+}
 
-  return false;
-};
+module.exports = (existingCommand, localCommand) => {
+  if ((existingCommand.description ?? "") !== (localCommand.description ?? "")) return true
+
+  const existentes = JSON.stringify((existingCommand.options || []).map(normalizarOpcion))
+  const locales = JSON.stringify((localCommand.options || []).map(normalizarOpcion))
+
+  if (existentes !== locales) {
+    console.log(`🔎 Opciones distintas en "${localCommand.name}", se actualizará`)
+    return true
+  }
+  return false
+}

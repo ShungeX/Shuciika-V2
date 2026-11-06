@@ -6,6 +6,16 @@ const client = require("../../bot")
 const sesionesCombate = require("./sesionesCombate")
 const rewardCalculator = require("../Economia/rewardCalculator")
 
+/** Suma el duelo al documento de amistad de la pareja si fue 1 vs 1 entre dos jugadores. */
+async function registrarDueloAmistad(sesion, arrayWinner = []) {
+    if (sesion.modeTest || sesion.teams?.length !== 2) return
+    const [[a], [b]] = sesion.teams
+    if (sesion.teams.some(t => t.length !== 1) || !a || !b || a.isNPC || b.isNPC) return
+    const ganador = arrayWinner?.[0]?.ID ?? null
+    const { registrarDuelo } = require("../Amistad/amistades")
+    await registrarDuelo({ _id: a.ID, ownerID: a.ownerId }, { _id: b.ID, ownerID: b.ownerId }, ganador)
+}
+
 class duelManager {
     constructor() {
         this.sesiones = new Map()       // sessionId → sesionCombate
@@ -54,6 +64,9 @@ class duelManager {
           // (antes los jugadores quedaban marcados "en combate" hasta reiniciar el bot)
           try {
             const {sessionId, winners, arrayWinner = [], lossers, arrayLosser = [], typeWin} = datos || {};
+
+            // Historial de duelos de la pareja (/rol amistad). Solo 1 vs 1 entre jugadores.
+            registrarDueloAmistad(sesion, arrayWinner).catch(e => console.error("[duelManager] Error al registrar el duelo en amistades:", e.message));
 
             // 1. Mostrar estado de 0 HP y log de derrota "sucumbido 💀" en la UI regular
             await interfazCreate.update(sesion, this.client);

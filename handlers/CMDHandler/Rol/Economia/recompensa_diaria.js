@@ -9,6 +9,13 @@ const utilidadesTexto = require("../../../../utils/utilidadesTexto")
 const { moverLumens } = require("../../../../functions/Economia/lumens")
 const SEGUNDOS_DIA   = 86_400
 
+// ⚙ Bono de racha: crece siempre, pero cada vez menos (logarítmico).
+// 16 · log2(1 + días/7) → día 7: 16 · 30: 38 · 100: 63 · 365: 92 · 730: 108
+const BONO_RACHA_BASE = 16
+function bonoRacha(dias) {
+    return Math.floor(BONO_RACHA_BASE * Math.log2(1 + Math.max(0, dias) / 7))
+}
+
 module.exports = {
     data: new SlashCommandSubcommandBuilder()
         .setName("recompensa_diaria")
@@ -47,7 +54,7 @@ module.exports = {
         const deadlineRacha = utilidadesTexto.getDeadlineRacha(ultimaInteraccion)
         const rachaRota = racha > 1 && ahora > deadlineRacha
         const nuevaRacha = rachaRota ? 1 : racha + 1
-        const bonus = (!rachaRota && racha > 1) ? Math.floor((racha / 7) * 16) : 0
+        const bonus = (!rachaRota && racha > 1) ? bonoRacha(racha) : 0
 
         // ── Mensaje ───────────────────────────────────────────────────────────
         let descripcion, footer

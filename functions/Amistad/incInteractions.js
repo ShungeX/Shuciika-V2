@@ -1,4 +1,4 @@
-const clientdb = require("../Server")
+const clientdb = require("../../Server")
 const db = clientdb.db("Interaccion")
 const contadorS = db.collection("ContadorS")
 const contadorC = db.collection("ContadorC")

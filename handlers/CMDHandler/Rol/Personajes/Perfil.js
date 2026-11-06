@@ -106,16 +106,107 @@ module.exports = {
         }
 
         async function perfil(pjuser) {
-            const perfilV2 = construirPerfilV2(pjuser, interaction.user.id);
+            const bannerURL = await obtenerBannerPerfil(pjuser, interaction.client);
+            const perfilV2 = construirPerfilV2(pjuser, interaction.user.id, bannerURL);
             await interaction.reply({ components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications"], withResponse: true });
             return;
         }
 
     },
-    construirPerfilV2
+    construirPerfilV2,
+    obtenerBannerPerfil,
+    recortarBannerDiscord,
+    ajustesBannerDiscord,
+    puedeMostrarBanner
 }
 
-function construirPerfilV2(pjuser, viewerUserId) {
+// Quienes pueden mostrar el banner del dashboard en el perfil de Discord, además de los boosters
+const IDS_BANNER_DISCORD = ["1566978771922329665", "665421882694041630", "811049909099692073"];
+const GUILD_ID_BANNER = "716342375303217285";
+
+// Grosor de la franja (ancho:alto). 6 = delgado (por defecto), 4 = medio, 3 = alto
+const ASPECTOS_BANNER_DISCORD = [6, 4, 3];
+const ANCHO_BANNER_DISCORD = 1200;
+
+/**
+ * Normaliza perfil.bannerDiscord = { url, x, y, w, h, aspecto, difuminado }.
+ * El recorte manual (x, y, w, h en píxeles de la imagen original) solo vale para el banner con el que se hizo:
+ * si se sube otro banner (cambia la URL/versión) se vuelve al recorte automático.
+ */
+function ajustesBannerDiscord(bannerURL, ajustes) {
+    const a = ajustes && typeof ajustes === "object" ? ajustes : {};
+    const aspecto = ASPECTOS_BANNER_DISCORD.includes(Number(a.aspecto)) ? Number(a.aspecto) : 6;
+    const num = (v) => Number.isFinite(Number(v)) ? Math.round(Number(v)) : NaN;
+    const [x, y, w, h] = [num(a.x), num(a.y), num(a.w), num(a.h)];
+    const recorteValido = a.url === bannerURL && x >= 0 && y >= 0 && w > 0 && h > 0;
+    return {
+        aspecto,
+        difuminado: a.difuminado === true,
+        recorte: recorteValido ? { x, y, w, h } : null
+    };
+}
+
+/**
+ * Recorta el banner del dashboard (Cloudinary) a una franja ancha para el perfil de Discord, con el recorte,
+ * grosor y difuminado elegidos en el dashboard. Devuelve null si no es una URL de Cloudinary utilizable.
+ */
+function recortarBannerDiscord(bannerURL, ajustes) {
+    if (!bannerURL || typeof bannerURL !== "string") return null;
+    if (!/^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(bannerURL)) return null;
+
+    const { aspecto, difuminado, recorte } = ajustesBannerDiscord(bannerURL, ajustes);
+    const alto = Math.round(ANCHO_BANNER_DISCORD / aspecto);
+    const pasos = [];
+    if (recorte) {
+        pasos.push(`c_crop,x_${recorte.x},y_${recorte.y},w_${recorte.w},h_${recorte.h}`);
+        pasos.push(`c_scale,w_${ANCHO_BANNER_DISCORD},h_${alto}`);
+    } else {
+        // Automático: g_auto centra el recorte en la zona más relevante de la imagen
+        pasos.push(`c_fill,g_auto,w_${ANCHO_BANNER_DISCORD},h_${alto}`);
+    }
+    if (difuminado) {
+        // Desvanece la mitad inferior a transparente: en Discord se funde con el fondo (tema claro u oscuro).
+        // f_webp explícito: f_auto entrega JPEG al proxy de Discord y se perdería la transparencia.
+        pasos.push("e_gradient_fade,y_-0.5", "f_webp,q_auto");
+    } else {
+        pasos.push("q_auto,f_auto");
+    }
+    return bannerURL.replace("/upload/", `/upload/${pasos.join("/")}/`);
+}
+
+/** Booster del servidor (Discord o marca en usuarios_server) o ID autorizada */
+async function puedeMostrarBanner(ownerID, client) {
+    if (!ownerID) return false;
+    const id = String(ownerID);
+    if (IDS_BANNER_DISCORD.includes(id)) return true;
+
+    const guild = client?.guilds?.cache?.get(GUILD_ID_BANNER);
+    if (guild) {
+        const member = guild.members.cache.get(id) || await guild.members.fetch(id).catch(() => null);
+        if (member?.premiumSince) return true;
+    }
+
+    const userdb = await userdbs.findOne({ _id: id }, { projection: { roles: 1, isBooster: 1 } }).catch(() => null);
+    return Boolean(userdb?.isBooster || (Array.isArray(userdb?.roles) && userdb.roles.includes("booster")));
+}
+
+/**
+ * URL del banner recortado a mostrar en el perfil de Discord, o null si el dueño no puede/no quiere mostrarlo.
+ * Se activa desde /rol configuracion → "Mostrar banner en el perfil de Discord" (perfil.mostrarBannerDiscord).
+ */
+async function obtenerBannerPerfil(pjuser, client) {
+    try {
+        if (!pjuser || pjuser.perfil?.mostrarBannerDiscord !== true) return null;
+        const recortado = recortarBannerDiscord(pjuser.perfil?.bannerURL, pjuser.perfil?.bannerDiscord);
+        if (!recortado) return null;
+        return (await puedeMostrarBanner(pjuser.ownerID, client)) ? recortado : null;
+    } catch (err) {
+        console.warn("[Perfil] No se pudo resolver el banner:", err?.message || err);
+        return null;
+    }
+}
+
+function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
     if (!pjuser) return [];
     const perfil = pjuser.perfil || {};
     const userId = viewerUserId || pjuser.ownerID;
@@ -134,6 +225,10 @@ function construirPerfilV2(pjuser, viewerUserId) {
             "accent_color": null,
             "spoiler": false,
             "components": [
+                ...(bannerURL ? [{
+                    "type": 12,
+                    "items": [{ "media": { "url": bannerURL }, "description": null, "spoiler": false }]
+                }] : []),
                 {
                     "type": 9,
                     "accessory": {

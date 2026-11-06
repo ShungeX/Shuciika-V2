@@ -1,271 +1,37 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, Client, SlashCommandSubcommandBuilder } = require(`discord.js`)
-const clientdb = require("../../../../Server")
-const db = clientdb.db("Server_db")
-const db2 = clientdb.db("Rol_db")
-const characters = db2.collection("Personajes")
-const souls = db2.collection("Soul")
-const version = require("../../../../config")
-const { duelSystem } = require("../../../../functions/Duelo/duelManager")
-const transaccionCache = require("../../../../utils/cache")
-const { v4: uuidv4 } = require('uuid')
+// /rol regalar [personaje] — abre (efímero) el menú para enviar un regalo.
+// Dentro se elige qué regalar (una Bolsa de regalo ya cerrada o un objeto
+// suelto, más Lumens sin bolsa) y a quién (por ID o desde tus relaciones).
+// Nada se descuenta hasta pulsar "Enviar" en la vista previa:
+// functions/Regalos/menuRegalar.js → regalos.enviarRegalo.
+const { SlashCommandSubcommandBuilder } = require("discord.js")
+const M = require("../../../../functions/Regalos/menuRegalar")
 
 module.exports = {
     data: new SlashCommandSubcommandBuilder()
         .setName("regalar")
-        .setDescription("Regala un objeto a otro personaje del Rol")
-        .addNumberOption(o =>
-            o
-                .setName("personaje")
-                .setDescription("Selecciona o ingresa la ID del personaje a regalar el objeto")
-                .setRequired(true)
-                .setAutocomplete(true)
-        )
-        .addStringOption(o =>
-            o
-                .setName("item")
-                .setDescription("Ingresa la ID del objeto a regalar")
-                .setRequired(true)
-                .setAutocomplete(true)
+        .setDescription("Abre el menú para enviar un regalo al buzón de otro personaje")
+        .addIntegerOption(o => o.setName("personaje").setDescription("Para quién es (opcional: también puedes elegirlo en el menú)").setAutocomplete(true)),
 
-        )
-        .addNumberOption(o =>
-            o
-                .setName("cantidad")
-                .setDescription("Ingresa la cantidad de objetos que vas a regalar")
-                .setRequired(true)
-        ),
-
-    requireCharacter: true,
-    requireSoul: true,
-    requireCharacterCache: false,
+    requirements: {
+        character: { obtener: true, required: true },
+    },
     isDevOnly: false,
     enMantenimiento: false,
-    requireEstrict: {
-        Soul: true,
-        Character: true,
-        Cachepj: false
-    },
-
-
-
 
     /**
-     * 
-     * @param {Client} client 
-     * @param {ChatInputCommandInteraction} interaction 
+     * @param {import("discord.js").Client} client
+     * @param {import("discord.js").ChatInputCommandInteraction} interaction
      */
+    ejecutar: async (client, interaction, { character }) => {
+        await interaction.deferReply({ flags: ["Ephemeral"] })
+        const userId = interaction.user.id
+        const token = M.abrirMenu(userId, character._id)
 
-    ejecutar: async (client, interaction, { character, soul }) => {
-        const objetoId = interaction.options.getString("item")
-        const pjID = interaction.options.getNumber("personaje")
-        const cantidad = interaction.options.getNumber("cantidad")
-        const [region, ID] = objetoId.split("_")
-        let cantidadInventario
-        const cacheExist = transaccionCache.getUser(interaction.user.id)
+        // Destinatario por adelantado (se valida igual que si lo escribiera en el menú)
+        const pjId = interaction.options.getInteger("personaje")
+        const aviso = pjId !== null ? await M.ponerDestino({ token, character, idTxt: String(pjId) }) : null
 
-        if (cacheExist && transaccionCache.get(cacheExist)) {
-            const messages = transaccionCache.get(cacheExist).message
-
-            return interaction.reply({
-                content: "Ya tienes una interacción de regalo activa.\n-# " +
-                    `[Haz click aqui para ir al mensaje](https://discord.com/channels/${messages.guildId}/${messages.channelId}/${messages.id})\n-# Por seguridad el cache se almacena durante 3 horas, si por error eliminaste el mensaje, tendras que esperar ese tiempo. Disculpa las molestias ＞﹏＜`, flags: ["Ephemeral"]
-            })
-        }
-
-        if (typeof ID !== "undefined") {
-            cantidadInventario = character.Inventario.find(obj => obj.instanciaID === ID && obj.Region === region)
-        }
-
-        if (!cantidadInventario) {
-            cantidadInventario = character.Inventario.find(obj => obj.ID === Number(ID) && obj.Region === region)
-        }
-
-
-        if (character.ID === pjID) return interaction.reply({ content: "Ehm... no puedes regalarte a ti mismo un objeto 〒▽〒\n-# Menciona otro personaje que no seas tu mismo", flags: ["Ephemeral"] })
-
-        const pjFriend = await characters.findOne({ ID: pjID })
-
-        if (!pjFriend) return interaction.reply({ content: "No se pudo encontrar el personaje con la siguiente ID: `" + pjID + "`", flags: ["Ephemeral"] })
-
-        const { evaluarPermisoPrivacidad } = require("../../../../functions/privacidad.js");
-        const puedeRecibirRegalo = await evaluarPermisoPrivacidad(pjFriend, character, 'regalos', db2);
-        if (!puedeRecibirRegalo) {
-            return interaction.reply({
-                content: "La configuración de privacidad de este personaje no le permite recibir regalos de tu parte. 〒▽〒",
-                flags: ["Ephemeral"]
-            });
-        }
-
-        console.log(cantidadInventario)
-        if (cantidadInventario?.Cantidad < cantidad || !cantidadInventario) return interaction.reply({
-            content: "No tienes la cantidad suficiente para dar este objeto 〒▽〒\n-# Tienes: **`" +
-                cantidadInventario?.Cantidad + "`**, y quieres enviar: **`" + cantidad + "`**", flags: ["Ephemeral"]
-        })
-
-        const soulFriend = await souls.findOne({ ID: pjFriend.ID })
-
-        if (!soulFriend) return interaction.reply({ content: "Este personaje aún no puede recibir objetos... 〒▽〒", flags: ["Ephemeral"] })
-
-
-        const objeto = await duelSystem.getObjetInfo(region, cantidadInventario.ID)
-
-        if (!objeto) return interaction.reply({ content: "No se ha podido encontrar ese objeto. ＞﹏＜\n-# Probablemente no sea la ID correcta o el objeto ya no exista", flags: ["Ephemeral"] })
-
-        if (!objeto.intercambiable || cantidadInventario?.Metadata?.restricciones?.intercambiable === false) {
-            return interaction.reply({ content: "**`" + objeto.Nombre + "`** No se puede regalar 〒▽〒\n-# Este objeto no es intercambiable", flags: ["Ephemeral"] })
-        }
-
-
-        const restricciones = {
-            ...objeto.restricciones,
-            ...cantidadInventario?.Metadata?.restricciones
-        }
-
-
-
-
-        const romanToInt = (roman) => {
-            if (!roman) return 0;
-            if (typeof roman === 'number') return roman;
-            const map = { 'i': 1, 'v': 5, 'x': 10, 'l': 50, 'c': 100, 'd': 500, 'm': 1000 };
-            let total = 0, prev = 0;
-            const str = String(roman).toLowerCase().trim();
-            for (let i = str.length - 1; i >= 0; i--) {
-                const current = map[str[i]] || 0;
-                if (current < prev) total -= current;
-                else total += current;
-                prev = current;
-            }
-            return total;
-        };
-
-        const validarRestricciones = async (usuario, soul, item) => {
-            const restricciones = item || {};
-            const errores = [];
-
-            const userFE = Number(
-                soul?.sendero?.StelarFragmentsTotal 
-                ?? soul?.fragmentos?.StelarFragmentsTotal 
-                ?? soul?.sendero?.StelarFragments 
-                ?? soul?.fragmentos?.StelarFragments 
-                ?? soul?.StelarFragments 
-                ?? 0
-            );
-            const userResplandor = romanToInt(soul?.sendero?.resplandor ?? soul?.resplandor ?? 'I');
-
-            const feMin = Number(restricciones.fe_min ?? restricciones.nivel_minimo ?? 0);
-            const feMax = Number(restricciones.fe_max ?? restricciones.nivel_maximo ?? 0);
-            const respMin = Number(restricciones.resplandor_min ?? 0);
-            const respMax = Number(restricciones.resplandor_max ?? 0);
-
-            const validadores = [
-                {
-                    condicion: feMin > 0,
-                    validador: userFE >= feMin,
-                    mensaje: `**\`${usuario.Nombre}\`** Necesita la FE mínima del objeto **\`(FE: ${feMin})\`**`
-                },
-                {
-                    condicion: feMax > 0,
-                    validador: userFE <= feMax,
-                    mensaje: `**\`${usuario.Nombre}\`** Supera la FE máxima del objeto **\`(FE: ${feMax})\`**`
-                },
-                {
-                    condicion: respMin > 0,
-                    validador: userResplandor >= respMin,
-                    mensaje: `**\`${usuario.Nombre}\`** Necesita el Resplandor mínimo requerido **\`(Resplandor: ${respMin})\`**`
-                },
-                {
-                    condicion: respMax > 0,
-                    validador: userResplandor <= respMax,
-                    mensaje: `**\`${usuario.Nombre}\`** Supera el Resplandor máximo permitido **\`(Resplandor: ${respMax})\`**`
-                },
-                {
-                    condicion: restricciones.clase,
-                    validador: String(soul?.Clase || usuario?.Clase || usuario?.clase || '').toLowerCase() === String(restricciones.clase).toLowerCase(),
-                    mensaje: `**\`${usuario.Nombre}\`** Necesita ser de una clase específica **\`(clase: ${restricciones.clase})\`**`
-                },
-                {
-                    condicion: restricciones.reputacion,
-                    validador: Number(usuario.Reputacion || usuario.reputacion || 0) >= Number(restricciones.reputacion),
-                    mensaje: `**\`${usuario.Nombre}\`** Necesita una reputación superior **\`(Rep: ${restricciones.reputacion})\`**`
-                }
-            ];
-
-            validadores.forEach(({ condicion, validador, mensaje }) => {
-                if (condicion && !validador) {
-                    errores.push(mensaje)
-                }
-            });
-
-            return {
-                valido: errores.length === 0,
-                errores
-            }
-        }
-
-        const resultadoValidacion = await validarRestricciones(pjFriend, soulFriend, restricciones);
-
-        if (!resultadoValidacion.valido) {
-            return interaction.reply({
-                content: `No se puede regalar el siguiente objeto porque no se cumplen una o más de los siguientes requisitos:\n
-            ${resultadoValidacion.errores.join("\n")}`, flags: ["Ephemeral"]
-            })
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle("Verifica la informacion antes de enviar el objeto")
-            .setDescription("Este regalo sera enviado al buzón de **`" + pjFriend.Nombre + "`**.\n **¡Esta acción es irreversible!**")
-            .addFields(
-                { name: "Nombre del objeto", value: objeto.Nombre, inline: true },
-                { name: "Rareza", value: objeto.Rareza, inline: true },
-                { name: "Cantidad a dar", value: `${cantidad}`, inline: true },
-            )
-            .setThumbnail(pjFriend.avatarURL)
-            .setTimestamp()
-            .setColor("Red")
-
-        let objFinal = objeto
-
-        if (cantidadInventario?.Metadata) {
-            objFinal = {
-                ...cantidadInventario,
-                bagData: objeto?.BagData
-            }
-            const metadata = cantidadInventario.Metadata
-            embed.addFields(
-                { name: "Titulo?", value: `${metadata.Titulo ? metadata.Titulo : "No"}`, inline: true },
-                { name: "Mensaje?", value: `${metadata?.Mensaje ? metadata.Mensaje.substring(0, 100) + "..." : "No"}`, inline: true },
-                {
-                    name: "Contenido?",
-                    value: metadata.items?.length > 0
-                        ? metadata.items?.map(item => `• ${item.Nombre} x${item.Cantidad}`).join('\n')
-                        : 'Sin contenido'
-                }
-            )
-        }
-
-
-
-        const transacciónId = uuidv4().replace(/-/g, "")
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder().setCustomId(`regalar-${interaction.user.id}-aceptar-${transacciónId}`).setLabel("Aceptar").setStyle(ButtonStyle.Secondary).setEmoji("✅"),
-                new ButtonBuilder().setCustomId(`regalar-${interaction.user.id}-rechazar-${transacciónId}`).setLabel("Rechazar").setStyle(ButtonStyle.Secondary).setEmoji("❌"),
-            )
-
-
-
-        await interaction.reply({ embeds: [embed], components: [row], withResponse: true, flags: ["Ephemeral"] })
-
-        const obj = {
-            objData: objFinal,
-            message: interaction,
-            IDcharacter: pjID,
-            characterName: pjFriend.Nombre,
-            cantidad: cantidad
-        }
-
-        await transaccionCache.set(transacciónId, obj)
-        await transaccionCache.setUser(interaction.user.id, transacciónId)
+        const componentes = await M.pantallaMenu({ userId, token, character, aviso })
+        return interaction.editReply({ components: componentes, flags: ["IsComponentsV2"], allowedMentions: { parse: [] } })
     },
 }

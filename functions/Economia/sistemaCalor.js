@@ -154,30 +154,48 @@ function procesarActividad(calorActual, ultimaActividad) {
     };
 }
 
-async function aplicarCalor(characterId, actividad) {
-    const db2 = clientdb.db("Rol_db")
-    const characters = db2.collection("Personajes")
-    const souls = db2.collection("Soul")
-    const resultado = procesarActividad(actividad?.calor?.puntos ?? 0,
-        actividad?.calor?.ultimaActividad ?? null
-    );
+/**
+ * Registra actividad de combate o exploración y sube el Calor UNA vez al día
+ * (aplicando antes el enfriamiento por los días sin jugar).
+ * La escritura es condicional a la última actividad leída: dos acciones
+ * simultáneas el mismo día no pueden sumar el Calor dos veces.
+ *
+ * @param {number} characterId - _id del Personaje
+ * @returns {Promise<ResultadoCalor & { puntos: number } | null>}
+ */
+async function aplicarCalor(characterId) {
+    const characters = clientdb.db("Rol_db").collection("Personajes")
+    const id = Number(characterId)
+    const pj = await characters.findOne({ _id: id }, { projection: { "actividad.calor": 1 } })
+    if (!pj) return null
 
-    if (resultado.yaActivo) return resultado;
+    const puntos = Number(pj.actividad?.calor?.puntos) || 0
+    const ultima = pj.actividad?.calor?.ultimaActividad ?? null
+    const resultado = procesarActividad(puntos, ultima)
+    if (resultado.yaActivo) return { ...resultado, puntos }
 
-    characters.updateOne({_id: characterId}, {
+    const filtro = ultima
+        ? { _id: id, "actividad.calor.ultimaActividad": ultima }
+        : { _id: id, "actividad.calor.ultimaActividad": { $exists: false } }
+    const r = await characters.updateOne(filtro, {
         $set: {
             "actividad.calor.puntos": resultado.nuevoCalor,
             "actividad.calor.ultimaActividad": new Date(),
         }
     })
-
-    return resultado
+    // Si otra acción ya lo registró hoy, el Calor vigente es el que dejó esa acción
+    if (r.modifiedCount === 0) {
+        const fresco = await characters.findOne({ _id: id }, { projection: { "actividad.calor": 1 } })
+        return { ...resultado, gano: false, puntos: Number(fresco?.actividad?.calor?.puntos) || 0 }
+    }
+    return { ...resultado, puntos: resultado.nuevoCalor }
 }
 
 
 module.exports = {
     // Core
     procesarActividad,
+    aplicarCalor,
     multiplicadorCalor,
     calcularEtapa,
     calcularDecay,

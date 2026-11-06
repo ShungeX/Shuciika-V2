@@ -25,11 +25,14 @@ const tiposDe = (def) => (Array.isArray(def?.Tipo) ? def.Tipo : [def?.Tipo]).fil
 
 /**
  * Cómo se usa un objeto del inventario fuera de combate, o null si no se puede usar.
- * @returns {"bolsa"|"cofre"|"efecto"|null}
+ * @returns {"regalo"|"bolsa"|"cofre"|"efecto"|null}
  */
 function tipoDeUso(item) {
     const def = definicionDe(item)
     if (!def) return null
+
+    // Bolsas de regalo (config/regalos.js): abren el editor, o la abre su dueño si ya está cerrada
+    if (require("../../config/regalos").esBolsaRegalo(item)) return "regalo"
 
     if (def.isBag) {
         // Solo bolsas con contenido y que no estén a medio craftear
@@ -57,10 +60,20 @@ function opcionesUsables(items) {
         .map(item => ({
             label: `[${item.ID}] ${item.Nombre || `Objeto ${item.ID}`}`.slice(0, 100),
             value: claveDe(item),
-            description: tipoDeUso(item) === "bolsa"
-                ? "Abre la bolsa (1 por uso)"
-                : `Tienes x${item.Cantidad ?? 1}`,
+            description: descripcionUso(item),
         }))
+}
+
+function descripcionUso(item) {
+    const tipo = tipoDeUso(item)
+    if (tipo === "bolsa") return "Abre la bolsa (1 por uso)"
+    if (tipo === "regalo") {
+        const estado = item.Metadata?.regalo?.estado
+        if (estado === "cerrado") return "Regalo cerrado: ábrelo para recuperar su contenido"
+        if (estado === "armando") return "Sigue armando este regalo"
+        return `Arma un regalo · tienes x${item.Cantidad ?? 1}`
+    }
+    return `Tienes x${item.Cantidad ?? 1}`
 }
 
 function sortear(tabla) {
@@ -100,6 +113,8 @@ async function usarObjeto({ interaction, character, soul, clave, cantidadTexto }
 
     const tipo = tipoDeUso(item)
     if (!tipo) return fallo(`**${item.Nombre}** no se puede usar fuera de combate (╥﹏╥)`)
+
+    if (tipo === "regalo") return usarBolsaRegalo({ interaction, character, soul, item })
 
     const def = definicionDe(item)
     const tiene = Number(item.Cantidad ?? 1)
@@ -218,6 +233,34 @@ async function abrirBolsa({ character, item }) {
     })
 
     return { ok: true, publico: true, titulo: "Contenido de la bolsa", lineas: ["**Has obtenido:**", ...lineas] }
+}
+
+/**
+ * Bolsa de regalo: abre el editor (nuevo o a medio armar) o, si está cerrada, la
+ * abre su dueño. Devuelve `componentesV2` para que el modal responda con la UI.
+ */
+async function usarBolsaRegalo({ interaction, character, soul, item }) {
+    // Imports diferidos: el sistema de regalos arrastra amistad, economía y UI
+    const bolsa = require("../Regalos/bolsa")
+    const P = require("../Regalos/pantallas")
+    const ui = require("../../data/UI_ComponentsV2/menuRegalo")
+    const { texto } = require("../../config/mensajesRegalos")
+    const userId = interaction.user.id
+
+    const r = await bolsa.usarBolsa({ character, soul, userId, entrada: item })
+    if (!r.ok) return { ok: false, publico: false, lineas: [texto(r.codigo)] }
+
+    if (r.modo === "editor") {
+        const componentesV2 = await P.editor({ userId, token: r.token, pjId: character._id, aviso: r.aviso })
+        return { ok: true, publico: false, lineas: [], componentesV2 }
+    }
+
+    const lineas = r.items.map(i => `- -# ${i.Nombre} x${i.Cantidad} `)
+    if (r.lumens > 0) lineas.push(`- -# ${r.lumens} Lumens ${ui.EMOJI_LUMENS} `)
+    return {
+        ok: true, publico: false, lineas: [],
+        componentesV2: ui.construirAviso({ titulo: "Abriste tu propia bolsa", lineas: [`-# ${texto("ABIERTO_PROPIO")}`, "", ...lineas] }),
+    }
 }
 
 module.exports = { MAX_USOS_POR_MODAL, tipoDeUso, opcionesUsables, usarObjeto }

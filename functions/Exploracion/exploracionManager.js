@@ -14,6 +14,7 @@ const { barrasDeEnergia, editarOMandarMensaje, responder } = require("../../util
 const { recargarEnergia } = require("../dataCharacters");
 const { nivelNPC } = require("../Duelo/combatientes");
 const { leerProgreso } = require("../Economia/progresionEstelar");
+const { aplicarCalor } = require("../Economia/sistemaCalor");
 const getGifs = require("../getGifs");
 const { crearCustomId } = require("../../utils/constructores/customId");
 const sleep = util.promisify(setTimeout);
@@ -328,6 +329,10 @@ class ExploracionManager {
 
             const nuevaEnergia = Math.max(0, currentEnergy - subzonaSelect.energiaNecesaria);
             if (soul.nucleo) soul.nucleo.energy = nuevaEnergia;
+
+            // Explorar cuenta como actividad del día para el Calor (sube una vez al día)
+            const idCalor = character?._id ?? soul?._id;
+            if (idCalor !== undefined) aplicarCalor(idCalor).catch(err => console.error("[Exploración] Error aplicando calor:", err));
 
             let eventMessageIntermedio = await this.generateMessage(exploracionCache, soul, subzonaSelect, messIntermedio, true);
 

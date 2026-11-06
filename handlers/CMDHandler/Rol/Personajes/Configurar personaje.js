@@ -149,6 +149,13 @@ module.exports = {
                                         "description": null,
                                         "emoji": null,
                                         "default": false
+                                    },
+                                    {
+                                        "label": "Mostrar banner en el perfil de Discord",
+                                        "value": "banner",
+                                        "description": "Boosters: muestra el banner del dashboard en /rol perfil",
+                                        "emoji": null,
+                                        "default": false
                                     }
                                 ],
                                 "placeholder": "Selecciona la configuración",

@@ -21,7 +21,6 @@ module.exports = {
         .addIntegerOption(character => 
             character.setName("personaje")
             .setDescription("ingresa la ID del Alumno [Personaje]")
-            .setMaxValue(1000)
             .setMinValue(1)
             .setAutocomplete(true)
         )

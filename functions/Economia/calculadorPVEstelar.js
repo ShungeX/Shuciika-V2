@@ -15,6 +15,21 @@ const { resplandorANumero } = require("./progresionEstelar")
 // ⚙ El perdedor de un combate recibe esta fracción del Polvo/Lumens
 const MULT_PERDEDOR = 0.1
 
+// ⚙ Escaramuza: combate de exploración. Vale una fracción de un duelo de la tabla y
+// paga menos conforme se pelea más en el día (retornos menguantes, como los turnos de trabajo).
+// Simulación: con esto Resplandor VII llega en ~4.7 meses (dedicado) / ~7.5 (regular).
+const ESCARAMUZA = {
+    polvo: 0.3,                                  // fracción de POLVO_BASE.combate.duelo (si el NPC no tiene loot)
+    lumens: 0.4,                                 // fracción de LUMENS_BASE.combate.duelo (si el NPC no tiene loot)
+    retornos: [1, 1, 0.6, 0.6, 0.3, 0.3, 0.15],  // factor del combate N del día; del último en adelante se repite
+}
+
+/** Factor de retornos menguantes para la escaramuza número n del día (1-indexado). */
+function factorEscaramuza(n) {
+    const t = ESCARAMUZA.retornos
+    return t[Math.min(Math.max(1, Math.floor(n) || 1), t.length) - 1]
+}
+
 // ─── 1. TABLAS DE VALORES BASE ──────────────────────────────────────────────
 
 const POLVO_BASE = {
@@ -174,6 +189,7 @@ class StardustCalculator {
      * @param {String} subtipo - combate: "duelo" | "grieta" | "heraldo"; exploracion: "zona_nueva" | "zona_conocida"; mision: "menor" | "mayor"
      * @param {Object} jugador - { resplandor: 'I'..'VII' | 1..7, calor: Number (0-300), diasRegistrado?: Number, bonuses?: [] }
      * @param {Object} contexto - combate: { historialAcciones: [], esGanador: Boolean }
+     *   opcional: base { polvo, lumens } (reemplaza la tabla), factor { polvo, lumens } (escaramuza/retornos)
      * @param {Object} calcular - { polvo, lumens } qué valores devolver
      * @returns {Promise<{polvo?: Number, lumens?: Number}>}
      */
@@ -181,8 +197,12 @@ class StardustCalculator {
         const resplandor = resplandorANumero(jugador?.resplandor);
         const { tipoKey, subtipoKey } = this._normalizarActividad(tipo, subtipo);
 
-        const basePolvo = POLVO_BASE[tipoKey][subtipoKey][resplandor - 1];
-        const baseLumens = LUMENS_BASE[tipoKey]?.[subtipoKey]?.[resplandor - 1] ?? basePolvo;
+        // contexto.base: base propia (p. ej. el loot de Polvo/Lumens del NPC) en lugar de la tabla
+        const basePolvo = contexto.base?.polvo ?? POLVO_BASE[tipoKey][subtipoKey][resplandor - 1];
+        const baseLumens = contexto.base?.lumens ?? LUMENS_BASE[tipoKey]?.[subtipoKey]?.[resplandor - 1] ?? basePolvo;
+        // contexto.factor: multiplicadores externos (escaramuza, retornos menguantes del día)
+        const factorPolvo = contexto.factor?.polvo ?? 1;
+        const factorLumens = contexto.factor?.lumens ?? 1;
 
         const multE = this._multiplicadorContexto(tipoKey, contexto);
         const multC = sistemaCalor.multiplicadorCalor(Number(jugador?.calor) || 0);
@@ -191,8 +211,10 @@ class StardustCalculator {
             : { polvo: 1.0, lumens: 1.0 };
 
         const resultado = {};
-        if (calcular.polvo) resultado.polvo = Math.max(1, Math.floor(basePolvo * multE * multC * multEv.polvo));
-        if (calcular.lumens) resultado.lumens = Math.max(1, Math.floor(baseLumens * multE * multC * multEv.lumens));
+        // Mínimo 1 solo si había algo que ganar (una base 0 se queda en 0)
+        const final = (base, ...mults) => base > 0 ? Math.max(1, Math.floor(mults.reduce((v, m) => v * m, base))) : 0;
+        if (calcular.polvo) resultado.polvo = final(basePolvo, multE, multC, multEv.polvo, factorPolvo);
+        if (calcular.lumens) resultado.lumens = final(baseLumens, multE, multC, multEv.lumens, factorLumens);
 
         return resultado;
     }
@@ -220,4 +242,6 @@ const calculador = new StardustCalculator();
 calculador.POLVO_BASE = POLVO_BASE;
 calculador.LUMENS_BASE = LUMENS_BASE;
 calculador.MULT_PERDEDOR = MULT_PERDEDOR;
+calculador.ESCARAMUZA = ESCARAMUZA;
+calculador.factorEscaramuza = factorEscaramuza;
 module.exports = calculador;

@@ -9,6 +9,34 @@ const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const souls = db2.collection("Soul")
 const {crearStringSelectMenu} = require("../../../utils/constructores/crearComponente")
+const { crearCustomId } = require("../../../utils/constructores/customId")
+const { puedeMostrarBanner, recortarBannerDiscord } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+
+// Mismos campos y niveles que la web (Server.js → POST /api/personaje/privacidad).
+const CAMPOS_PRIVACIDAD = [
+    { campo: "regalos", label: "🎁 Regalos", ayuda: "¿Quién puede enviarte lumens y regalos?" },
+    { campo: "invitaciones", label: "📜 Invitaciones", ayuda: "¿Quién puede invitarte a grupos y misiones cooperativas?" },
+    { campo: "tablero", label: "🔮 Tablero Mágico", ayuda: "¿Quién puede escribirte en tu cartelera pública?" },
+    { campo: "pvp", label: "⚔️ Retos PvP / Duelos", ayuda: "¿Quién puede retarte a combates? (PvP amistosos y duelos automáticos)" },
+    // Sin elegir: cariñosos de todos y golpes solo de amigos (config/amistad.js → PRIVACIDAD_INTERACCIONES).
+    { campo: "interacciones", label: "🤗 Interacciones", ayuda: "Abrazos, mimos, golpes... Por defecto: los cariñosos de todos y los golpes solo de amigos", porDefecto: true },
+    { campo: "verAlma", label: "✨ Ver Alma", ayuda: "¿Quién puede ver la información y atributos de tu alma?" },
+    { campo: "amistades", label: "⭐ Amistades Destacadas", ayuda: "¿Quién puede ver tus vínculos en tu perfil?" },
+    { campo: "estadisticas", label: "📊 Estadísticas", ayuda: "¿Quién puede ver tus registros de combate y progreso?" },
+]
+const NIVELES_PRIVACIDAD = [
+    { valor: "todos", label: "Todos", emoji: { id: "1401710472302034985", name: "Cinnamoroll_shock" } },
+    { valor: "amigos", label: "Solo amigos", emoji: { id: "1401710462084579470", name: "Cinnamoroll_happy" } },
+    { valor: "mejores_amigos", label: "Solo mejores amigos", emoji: { id: "1401710462084579470", name: "Cinnamoroll_happy" } },
+    // Solo aparece si el personaje tiene compañero (igual que en la web).
+    { valor: "companero", label: "Solo compañero", emoji: { id: "1401710483437785148", name: "Cinnamoroll_love" } },
+    { valor: "nadie", label: "Nadie", emoji: { id: "1401710448994287736", name: "Cinnamoroll_sleep" } },
+]
+const POR_DEFECTO = "defecto"
+const EMOJI_DEFECTO = { id: "1401710472302034985", name: "Cinnamoroll_shock" }
+// Mismo orden que utils/getDataCharacters.js al resolver el personaje activo.
+const activoDe = (userdb) => userdb?.usuario?.nix?.personajeActivo ?? userdb?.nix?.personajeActivo
+const tieneCompanero = (pj) => Boolean(pj?.social?.compañero ?? pj?.social?.companero)
 
 
 module.exports = crearStringSelectMenu({
@@ -21,28 +49,95 @@ module.exports = crearStringSelectMenu({
     },
     optionNames: ["action", "key"],
     
-    ejecutar: async({client, interaction, character, soul, cachepj, componentData: {extras}, options: {action, key}}) => {
-        console.log(action, key)
+    ejecutar: async({client, interaction, character, soul, cachepj, componentData: {extras}, options: {action}}) => {
 
-        if (action === "configPriv") {
-            characters.updateOne({ _id: character._id }, {
-                $set: {
-                    [`privacidad.${action}`]: key
-                }
-            })
-            character.privacidad ??= {}
-            character.privacidad[`${action}`] = key
+        // Selects de privacidad: customId configuracion-<user>-<pj>-priv-<campo>, valor = nivel.
+        // Se guarda en social.privacidad, lo mismo que lee evaluarPermisoPrivacidad y
+        // escribe la web (POST /api/personaje/privacidad).
+        if (extras?.[0] === "priv") {
+            const campo = extras[1]
+            const def = CAMPOS_PRIVACIDAD.find(c => c.campo === campo)
+            const nivel = action
+            const valido = NIVELES_PRIVACIDAD.some(n => n.valor === nivel) || (def?.porDefecto && nivel === POR_DEFECTO)
+            // El personaje viene del customId: confirmar que es de quien hace clic.
+            if (!character || String(character.ownerID) !== interaction.user.id) {
+                return interaction.reply({ content: "Este menú es de otro personaje, abre el tuyo con `/rol configuracion` ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+            if (!def || !valido) {
+                return interaction.reply({ content: "Esa opción ya no es válida, abre el menú otra vez ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+            if (nivel === "companero" && !tieneCompanero(character)) {
+                return interaction.reply({ content: "Aún no tienes compañero, así que esa opción todavía no está disponible ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
 
-            const message = privMessage(character)
+            // "Por defecto" (solo Interacciones) borra el campo: el bot usa el valor de cada categoría.
+            const update = nivel === POR_DEFECTO
+                ? { $unset: { [`social.privacidad.${campo}`]: "" } }
+                : { $set: { [`social.privacidad.${campo}`]: nivel } }
+            await characters.updateOne({ _id: character._id }, update)
 
-            await interaction.update({ components: message })
+            character.social ??= {}
+            character.social.privacidad ??= {}
+            if (nivel === POR_DEFECTO) delete character.social.privacidad[campo]
+            else character.social.privacidad[campo] = nivel
+
+            await interaction.update({ components: privMessage(character) })
             return;
         }
 
-        if (action === "selectCharacter") {
+        // Banner en el perfil de Discord: customId configuracion-<user>-<pj>-banner, valor = mostrar | ocultar.
+        // Se guarda por personaje en perfil.mostrarBannerDiscord (lo lee obtenerBannerPerfil en Perfil.js).
+        if (extras?.[0] === "banner") {
+            if (!character || String(character.ownerID) !== interaction.user.id) {
+                return interaction.reply({ content: "Este menú es de otro personaje, abre el tuyo con `/rol configuracion` ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+            if (action !== "mostrar" && action !== "ocultar") {
+                return interaction.reply({ content: "Esa opción ya no es válida, abre el menú otra vez ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+            const puede = await puedeMostrarBanner(interaction.user.id, interaction.client)
+            if (!puede && action === "mostrar") {
+                return interaction.reply({ content: "Mostrar el banner en Discord es exclusivo para quienes apoyan al servidor con un boost ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+
+            const mostrar = action === "mostrar"
+            await characters.updateOne({ _id: character._id }, { $set: { "perfil.mostrarBannerDiscord": mostrar } })
+            character.perfil ??= {}
+            character.perfil.mostrarBannerDiscord = mostrar
+
+            await interaction.update({ components: bannerMessage(character, puede) })
+            return;
+        }
+
+        // "Otro Reflejo": customId configuracion-<user>-<pj>-cambiar, valor = _id del personaje elegido.
+        if (extras?.[0] === "cambiar") {
+            const nuevoId = Number(action)
+            const elegido = Number.isFinite(nuevoId)
+                ? await characters.findOne({ _id: nuevoId, ownerID: interaction.user.id }, { projection: { _id: 1 } })
+                : null
+            if (!elegido) {
+                return interaction.reply({ content: "No encuentro ese reflejo entre tus personajes, abre el menú otra vez ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+
+            const userdbActual = await userdbs.findOne({ _id: interaction.user.id })
+            if (Number(activoDe(userdbActual)) === nuevoId) {
+                return interaction.reply({ content: "Ya estás usando ese reflejo ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+
+            // Cambiar de personaje a mitad de un combate o una exploración dejaría la
+            // sesión apuntando a un personaje que ya no es el activo.
+            const { duelSystem } = require("../../../functions/Duelo/duelManager")
+            const transaccionCache = require("../../../utils/cache")
+            const explorando = transaccionCache.getUser?.(interaction.user.id)?.explorarID
+            if (duelSystem.estaEnCombate(interaction.user.id) || (explorando && transaccionCache.get(explorando))) {
+                return interaction.reply({ content: "Ahora mismo tu personaje está ocupado en una aventura. Termínala y luego cambiamos de reflejo ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+            }
+
+            // Los dos campos, igual que la web (POST /api/personaje/cambiar-activo):
+            // getDataCharacters lee primero usuario.nix.personajeActivo.
             await userdbs.updateOne({ _id: interaction.user.id }, {
                 $set: {
-                    "nix.personajeActivo": Number(action)
+                    "nix.personajeActivo": nuevoId,
+                    "usuario.nix.personajeActivo": nuevoId,
                 }
             })
 
@@ -108,10 +203,12 @@ module.exports = crearStringSelectMenu({
                 }
             ]
 
-            await interaction.update({ components: inicioMess }).then(setTimeout(() => interaction.editReply({ components: intermedio }), 4500))
-            setTimeout(() => interaction.editReply({ components: finalSesion }), 15500)
+            await interaction.update({ components: inicioMess })
+            setTimeout(() => interaction.editReply({ components: intermedio }).catch(() => { }), 4500)
+            setTimeout(() => interaction.editReply({ components: finalSesion }).catch(() => { }), 15500)
 
-            setTimeout(() => interaction.deleteReply(), 21000)
+            setTimeout(() => interaction.deleteReply().catch(() => { }), 21000)
+            return;
         }
 
         const userdb = await userdbs.findOne({ _id: interaction.user.id })
@@ -129,6 +226,14 @@ module.exports = crearStringSelectMenu({
 
                 await interaction.update({ components: messagePriv })
                 break;
+            case "banner": {
+                if (!character) {
+                    return interaction.reply({ content: "Necesitas un personaje para configurar su banner ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+                }
+                const puede = await puedeMostrarBanner(interaction.user.id, interaction.client)
+                await interaction.update({ components: bannerMessage(character, puede) })
+                break;
+            }
             case "switch":
                 const messageCharacter = await switchCharacter(userdb)
                 await interaction.update({ components: messageCharacter })
@@ -139,289 +244,89 @@ module.exports = crearStringSelectMenu({
 
 
         function privMessage(character) {
-            const message = [
-                {
-                    "type": 17,
-                    "accent_color": null,
-                    "spoiler": false,
-                    "components": [
-                        {
-                            "type": 9,
-                            "accessory": {
-                                "type": 11,
-                                "media": {
-                                    "url": "https://i.pinimg.com/1200x/55/cb/a5/55cba54b6d1c1cc7f8cefbf11f33ac2d.jpg"
-                                },
-                                "description": null,
-                                "spoiler": false
-                            },
-                            "components": [
-                                {
-                                    "type": 10,
-                                    "content": "# Configuración de privacidad"
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "-# Algunas configuraciones están en fase de desarrollo, es posible que no se apliquen del todo.\n\n-# " +
-                                        "Aviso: Solo aplican dentro del sistema del bot, esto no afecta el text rol"
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": "**✧ Regalos:**\n-# ¿Quién puede enviarte regalos mágicos u objetos?"
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `configuracion-${interaction.user.id}-configPriv-a`,
-                                    "options": [
-                                        {
-                                            "label": "Todos",
-                                            "value": `regalos*todos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710472302034985",
-                                                name: "Cinnamoroll_shock"
-                                            },
-                                            "default": character.privacidad?.regalos === "todos"
-                                        },
-                                        {
-                                            "label": "Solo amigos",
-                                            "value": `regalos*amigos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710462084579470",
-                                                name: "Cinnamoroll_happy"
-                                            },
-                                            "default": character.privacidad?.regalos === "amigos"
-                                        },
-                                        {
-                                            "label": "Solo compañero",
-                                            "value": `regalos*compañero`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710483437785148",
-                                                name: "Cinnamoroll_love"
-                                            },
-                                            "default": character.privacidad?.regalos === "compañero"
-                                        },
-                                        {
-                                            "label": "Nadie",
-                                            "value": `regalos*nadie`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710448994287736",
-                                                name: "Cinnamoroll_sleep"
-                                            },
-                                            "default": character.privacidad?.regalos === "nadie"
-                                        }
-                                    ],
-                                    "placeholder": "Sin configurar",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "✧ Combate:\n-# ¿Quién puede retarte a combates PvP o duelos mágicos? (Si deshabilitas esta opción no podrás retar a otros usuarios / esto solo aplica en pvp amistosos)"
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `configuracion-${interaction.user.id}-configPriv-b`,
-                                    "options": [
-                                        {
-                                            "label": "Todos",
-                                            "value": `combate*todos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710472302034985",
-                                                name: "Cinnamoroll_shock"
-                                            },
-                                            "default": character.privacidad?.combate === "todos"
-                                        },
-                                        {
-                                            "label": "Solo amigos",
-                                            "value": `combate*amigos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710462084579470",
-                                                name: "Cinnamoroll_happy"
-                                            },
-                                            "default": character.privacidad?.combate === "amigos"
-                                        },
-                                        {
-                                            "label": "Solo compañero",
-                                            "value": `combate*compañero`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710483437785148",
-                                                name: "Cinnamoroll_love"
-                                            },
-                                            "default": character.privacidad?.combate === "compañero"
-                                        },
-                                        {
-                                            "label": "Nadie",
-                                            "value": `combate*nadie`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710448994287736",
-                                                name: "Cinnamoroll_sleep"
-                                            },
-                                            "default": character.privacidad?.combate === "nadie"
-                                        }
-                                    ],
-                                    "placeholder": "Sin configurar",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "✧ Ver alma:\n-# ¿Quién puede ver la información de tu alma y atributos?"
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `configuracion-${interaction.user.id}-configPriv-c`,
-                                    "options": [
-                                        {
-                                            "label": "Todos",
-                                            "value": `alma*todos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710472302034985",
-                                                name: "Cinnamoroll_shock"
-                                            },
-                                            "default": character.privacidad?.alma === "todos"
-                                        },
-                                        {
-                                            "label": "Solo amigos",
-                                            "value": `alma*amigos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710462084579470",
-                                                name: "Cinnamoroll_happy"
-                                            },
-                                            "default": character.privacidad?.alma === "amigos"
-                                        },
-                                        {
-                                            "label": "Solo compañero",
-                                            "value": `alma*compañero`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710483437785148",
-                                                name: "Cinnamoroll_love"
-                                            },
-                                            "default": character.privacidad?.alma === "compañero"
-                                        },
-                                        {
-                                            "label": "Nadie",
-                                            "value": `alma*nadie`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710448994287736",
-                                                name: "Cinnamoroll_sleep"
-                                            },
-                                            "default": character.privacidad?.alma === "nadie"
-                                        }
-                                    ],
-                                    "placeholder": "Sin configurar",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 10,
-                            "content": "✧ Invitaciones:\n-# ¿Quién puede invitarte a un grupo o misión cooperativa?"
-                        },
-                        {
-                            "type": 1,
-                            "components": [
-                                {
-                                    "type": 3,
-                                    "custom_id": `configuracion-${interaction.user.id}-configPriv-d`,
-                                    "options": [
-                                        {
-                                            "label": "Todos",
-                                            "value": `invitaciones*todos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710472302034985",
-                                                name: "Cinnamoroll_shock"
-                                            },
-                                            "default": character.privacidad?.invitaciones === "todos"
-                                        },
-                                        {
-                                            "label": "Solo amigos",
-                                            "value": `invitaciones*amigos`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710462084579470",
-                                                name: "Cinnamoroll_happy"
-                                            },
-                                            "default": character.privacidad?.invitaciones === "amigos"
-                                        },
-                                        {
-                                            "label": "Solo compañero",
-                                            "value": `invitaciones*compañero`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710483437785148",
-                                                name: "Cinnamoroll_love"
-                                            },
-                                            "default": character.privacidad?.invitaciones === "compañero"
-                                        },
-                                        {
-                                            "label": "Nadie",
-                                            "value": `invitaciones*nadie`,
-                                            "description": null,
-                                            "emoji": {
-                                                id: "1401710448994287736",
-                                                name: "Cinnamoroll_sleep"
-                                            },
-                                            "default": character.privacidad?.invitaciones === "nadie"
-                                        }
-                                    ],
-                                    "placeholder": "Sin configurar",
-                                    "min_values": 1,
-                                    "max_values": 1,
-                                    "disabled": false
-                                }
-                            ]
-                        },
-                        {
-                            "type": 14,
-                            "divider": true,
-                            "spacing": 1
-                        },
-                        {
-                            "type": 10,
-                            "content": `Sistema de rol | Version: ${versionRol}`
-                        }
-                    ]
-                }
-            ]
+            const priv = character.social?.privacidad || {}
+            const niveles = NIVELES_PRIVACIDAD.filter(n => n.valor !== "companero" || tieneCompanero(character))
 
-            return message
+            const filas = CAMPOS_PRIVACIDAD.flatMap(def => {
+                const actual = priv[def.campo] ?? (def.porDefecto ? POR_DEFECTO : "todos")
+                const opciones = (def.porDefecto ? [{ valor: POR_DEFECTO, label: "Por defecto", emoji: EMOJI_DEFECTO }] : []).concat(niveles)
+                return [
+                    { type: 10, content: `**${def.label}**\n-# ${def.ayuda}` },
+                    {
+                        type: 1,
+                        components: [{
+                            type: 3,
+                            custom_id: crearCustomId({ action: "configuracion", userId: interaction.user.id, characterId: character._id, extras: ["priv", def.campo] }),
+                            options: opciones.map(n => ({ label: n.label, value: n.valor, description: null, emoji: n.emoji, default: n.valor === actual })),
+                            placeholder: "Sin configurar",
+                            min_values: 1,
+                            max_values: 1,
+                            disabled: false,
+                        }],
+                    },
+                ]
+            })
+
+            return [{
+                type: 17,
+                accent_color: null,
+                spoiler: false,
+                components: [
+                    {
+                        type: 9,
+                        accessory: { type: 11, media: { url: "https://i.pinimg.com/1200x/55/cb/a5/55cba54b6d1c1cc7f8cefbf11f33ac2d.jpg" }, description: null, spoiler: false },
+                        components: [
+                            { type: 10, content: "# Configuración de privacidad" },
+                            { type: 10, content: `-# Personaje: **${character.perfil?.Nombre ?? "—"}**\n-# Solo aplica dentro del sistema del bot; no afecta el text rol.\n-# Las listas de permitidos y bloqueados se editan desde la web.` },
+                        ],
+                    },
+                    { type: 14, divider: true, spacing: 1 },
+                    ...filas,
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: `Sistema de rol | Version: ${versionRol}` },
+                ],
+            }]
+        }
+
+        function bannerMessage(character, puede) {
+            const recortado = recortarBannerDiscord(character.perfil?.bannerURL, character.perfil?.bannerDiscord)
+            const activo = character.perfil?.mostrarBannerDiscord === true
+            let estado
+            if (!puede) estado = "-# `🔒` Exclusivo para Server Boosters."
+            else if (!recortado) estado = "-# `⚠️` Aún no tienes banner. Súbelo desde tu perfil en el dashboard (click sobre el banner)."
+            else estado = activo ? "-# `✅` Tu banner se muestra en `/rol perfil`." : "-# `💤` Tu banner está oculto en Discord."
+
+            return [{
+                type: 17,
+                accent_color: null,
+                spoiler: false,
+                components: [
+                    { type: 10, content: "# Banner del perfil" },
+                    { type: 10, content: `-# Personaje: **${character.perfil?.Nombre ?? "—"}**
+-# Se usa el mismo banner que configuras en el dashboard, recortado como franja para Discord.\n-# El recorte, el grosor y el difuminado se ajustan en el dashboard → Configuración.
+${estado}` },
+                    ...(recortado ? [{ type: 12, items: [{ media: { url: recortado }, description: "Vista previa del banner", spoiler: false }] }] : []),
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: "**Mostrar banner en el perfil de Discord**" },
+                    {
+                        type: 1,
+                        components: [{
+                            type: 3,
+                            custom_id: crearCustomId({ action: "configuracion", userId: interaction.user.id, characterId: character._id, extras: ["banner"] }),
+                            options: [
+                                { label: "Mostrar", value: "mostrar", description: null, emoji: null, default: activo },
+                                { label: "Ocultar", value: "ocultar", description: null, emoji: null, default: !activo },
+                            ],
+                            placeholder: "Sin configurar",
+                            min_values: 1,
+                            max_values: 1,
+                            disabled: !puede,
+                        }],
+                    },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: `Sistema de rol | Version: ${versionRol}` },
+                ],
+            }]
         }
 
         async function switchCharacter(dataUser) {
@@ -432,7 +337,7 @@ module.exports = crearStringSelectMenu({
 
 
             for (const ch of listaDePersonajes) {
-                const activo = dataUser.nix.personajeActivo === ch._id;
+                const activo = Number(activoDe(dataUser)) === Number(ch._id);
                 const soul = await souls.findOne({ _id: ch._id });
 
                 const apodoFormateado = ch.perfil.apodo ? `[${ch.perfil.apodo}]` : "";
@@ -509,7 +414,7 @@ module.exports = crearStringSelectMenu({
                             "components": [
                                 {
                                     "type": 3,
-                                    "custom_id": `configuracion-${interaction.user.id}-selectCharacter`,
+                                    "custom_id": crearCustomId({ action: "configuracion", userId: interaction.user.id, extras: ["cambiar"] }),
                                     "options": selectCharacter,
                                     "placeholder": "Selecciona tu personaje",
                                     "min_values": 1,
