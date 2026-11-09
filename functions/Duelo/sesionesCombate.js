@@ -22,7 +22,8 @@ class sesionesCombate extends EventEmitter{
         this.ronda = 1
         this.compasMax = 1000
         this.decayFactor = 0.57
-        this.pendingEffects = []        // efectos acumulados en la ronda actual
+        this.pendingEffects = []        // compatibilidad: los estados de hechizo ahora se aplican en el acto
+        this.revivesUsados = {}         // "casterId:hechizoId" → veces (revive 1 vez por combate)
         this.compas = this;
         this.log = []
         this.winner = null
@@ -131,6 +132,19 @@ class sesionesCombate extends EventEmitter{
         if (!actor || actor.defeated) return;
 
         this.activeTurnActorId = actor.ID;
+
+        // Estasis o sin ninguna acción posible (todas sus vías bloqueadas): el turno lo salta el
+        // sistema, no el jugador. NO cuenta como turno saltado ni como AFK (va antes del AFK).
+        if (!actor.isNPC) {
+            const TurnProcessor = require("./turnProcessor");
+            const salto = TurnProcessor.motivoSaltoTurno(actor);
+            if (salto) {
+                this.activeTurnActorId = null;
+                TurnProcessor.saltarTurnoSistema(this, actor, salto)
+                    .catch(e => console.error(`[Combate ${this.sessionId}] Error al saltar el turno de ${actor.Nombre}:`, e));
+                return;
+            }
+        }
 
         // Si el combatiente ya fue marcado como AFK, omitir su turno automáticamente de inmediato
         if (this.esAFK(actor.ID)) {
@@ -342,7 +356,8 @@ class sesionesCombate extends EventEmitter{
 
 
 
-        // Aplicar los efectos pendientes a los combatientes antes de vaciar la lista
+        // Efectos pendientes (formato antiguo). Los hechizos ya no acumulan aquí: aplican sus
+        // estados en el momento para que un control pueda interrumpir un cast.
         const pending = this.pendingEffects || [];
         const turnProcessor = require("./turnProcessor");
 

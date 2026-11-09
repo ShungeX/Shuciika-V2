@@ -212,7 +212,7 @@ async function detalle({ userId, personaje, regaloId, pagina = 0, lineasExtra = 
 function resultadoApertura(personaje, res, regalo) {
     const lineas = []
     if (res.etiqueta) lineas.push(`-# *${res.etiqueta}*`, "")
-    lineas.push("**Encontraste:**")
+    lineas.push("**Encontraste:** ")
     for (const i of res.items) lineas.push(`- -# ${i.nombre} x${i.cantidad} `)
     if (res.lumens > 0) lineas.push(`- -# ${res.lumens} Lumens ${ui.EMOJI_LUMENS} `)
     if (res.amistad?.linea) lineas.push("", res.amistad.linea)

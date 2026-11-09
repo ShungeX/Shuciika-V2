@@ -4,6 +4,10 @@
 // Los NPCs sí usan nivel (campo `nivel`).
 const { resplandorANumero } = require("../Economia/progresionEstelar")
 const { cargarEfectos } = require("./efectosPersistentes")
+const { normalizarElemento } = require("./hechizos/elementos")
+const { tieneInmunidad, efectosActivos } = require("./hechizos/estados")
+const { modificadores, absorberConEscudo, alRecibirDanio } = require("./hechizos/efectos")
+const { mapaMaestrias } = require("./hechizos/maestria")
 
 const ESCALADO = {
     BONUS_DANIO_RESPLANDOR_POR_RANGO: 0.12, // ⚙ I = ×1.00, II = ×1.12 ... VII = ×1.72
@@ -41,18 +45,6 @@ function etiquetaPoder(c = {}, prefijoNPC = "Lv") {
     return `FE: ${fe} [${resplandor}]`
 }
 
-/** "Pyró", "pyros", "Ninguno", null... → nombre canónico usado en la tabla elemental */
-function normalizarElemento(elemento) {
-    if (!elemento) return "Neutro"
-    const limpio = String(elemento).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase()
-    const mapa = {
-        pyro: "Pyros", pyros: "Pyros", aqua: "Aqua", lapis: "Lapis", rakau: "Rakau",
-        electro: "Electro", kryo: "Kryo", wind: "Wind", lux: "Lux",
-        neutro: "Neutro", ninguno: "Neutro", none: "Neutro",
-    }
-    return mapa[limpio] ?? elemento
-}
-
 /**
  * Copia las stats y rellena los nombres que el combate usa a partir de los campos
  * de las almas nuevas (sintoniaElemental, percepcion) o de los antiguos (resistenciaFisica...).
@@ -69,6 +61,14 @@ function normalizarStats(stats = {}) {
     return s
 }
 
+/** Contenedor elemental equipado (desafinados). PENDIENTE: los objetos contenedor aún no existen en el catálogo. */
+function esContenedor(item) {
+    if (!item) return false
+    const t = item.tipo ?? item.Type ?? item.type ?? item.Tipo
+    const lista = Array.isArray(t) ? t : [t]
+    return item.contenedor === true || lista.some(x => String(x).toLowerCase() === "contenedor")
+}
+
 /** Reconoce un arma equipada sin importar el formato ({Type: 1}, {Type: "arma"}, {tipo: "arma"}, {Tipo: ["Arma"]}) */
 function esArma(item) {
     if (!item) return false
@@ -76,6 +76,8 @@ function esArma(item) {
     if (Array.isArray(t)) return t.some(x => String(x).toLowerCase() === "arma")
     return t === 1 || String(t).toLowerCase() === "arma"
 }
+
+const idEfecto = (eff) => String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
 
 class Combatiente {
     constructor(id, data = {}) {
@@ -89,7 +91,7 @@ class Combatiente {
         this.stats.manaMax = this.stats.manaMax ?? this.Mana;
         this.avatarURL = data.perfil?.avatarURL || "";
         this.statusEffect = [];
-        this.defenseActual = 0; // puntos de guardia de "Defenderse" (ver BALANCE en turnProcessor)
+        this.defenseActual = 0; // guardia antigua (NPCs con defensa inline); la de "Defenderse" es el estado Guardia
 
         const dominio = data.dominio || {}
         this.hechizos = dominio.hechizos || [];
@@ -117,15 +119,30 @@ class Combatiente {
         return 1;
     }
 
-    aplicarDaño(cantidad) {
-        this.ultimoDanioRecibido = Number(cantidad) || 0;
+    /**
+     * Aplica daño respetando Estasis (inmune), escudos, Tregua (piso de 1 HP) y los estados que
+     * se rompen al recibir daño (Congelado). Todas las fuentes de daño pasan por aquí.
+     * @param {number} cantidad
+     * @param {{ castId?: string }} [origen] - el daño del mismo cast no rompe su propio Congelado
+     * @returns {number} daño que llegó a la vida
+     */
+    aplicarDaño(cantidad, origen = {}) {
+        cantidad = Math.max(0, Number(cantidad) || 0);
+        if (tieneInmunidad(this, "todo")) return 0;
+        cantidad = absorberConEscudo(this, cantidad);
+        this.ultimoDanioRecibido = cantidad;
         this.vidaAntesDelGolpe = this.HP;
-        this.HP = Math.max(0, this.HP - cantidad);
+        let hp = Math.max(0, this.HP - cantidad);
+        if (hp < 1 && this.HP >= 1 && tieneInmunidad(this, "muerte")) hp = 1;   // Tregua
+        this.HP = hp;
         if (this.fueDerrotado()) this.defeated = true;
+        if (cantidad > 0) alRecibirDanio(this, origen);
+        return this.vidaAntesDelGolpe - this.HP;
     }
 
     aplicarCuracion(cantidad, esAccionInstantanea = false) {
         if (this.defeated && !esAccionInstantanea) return;
+        if (tieneInmunidad(this, "todo")) return;   // Estasis: tampoco recibe curas
         const hpMax = this.stats?.hpMax ?? 99999;
         this.HP = Math.min(hpMax, this.HP + cantidad);
         if (this.HP > 0 && !this.surrender) {
@@ -141,13 +158,14 @@ class Combatiente {
 
     get effectiveTempo() {
         const baseCompas = Math.floor(1000 / (1 + (this.tempo * 0.08)));
-        
+
         let modVelocidad = 0;
-        for (const eff of (this.statusEffect || [])) {
-            const id = String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            if (id === 'slowed' || id === 'lentitud') {
-                modVelocidad -= 50;
-            } else if (id === 'hasted' || id === 'acelerado') {
+        for (const a of efectosActivos(this)) {
+            const eff = a.efecto;
+            if (a.lentitud) { modVelocidad -= 50; continue; }
+            if (eff.tipo) continue;   // los efectos nuevos (buff/debuff) se leen con modificadores()
+            const id = idEfecto(eff);
+            if (id === 'hasted' || id === 'acelerado') {
                 modVelocidad += 50;
             } else if (id === 'speed' || id === 'velocidad') {
                 modVelocidad += Number(eff.base || 0);
@@ -155,7 +173,8 @@ class Combatiente {
                 modVelocidad += Number(eff.base.velocidad);
             }
         }
-        
+        modVelocidad += modificadores(this).velocidad * 100;
+
         const compasEfectivo = Math.max(1, Math.floor(baseCompas * (1 - modVelocidad / 100)));
         return 1000 / compasEfectivo;
     }
@@ -164,25 +183,29 @@ class Combatiente {
         const baseAgilidad = this.stats?.agilidad || 0;
         let modAgilidad = 0;
         for (const eff of (this.statusEffect || [])) {
-            const id = String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            if (id === 'furia' && eff.base?.agilidad !== undefined) {
+            if (idEfecto(eff) === 'furia' && eff.base?.agilidad !== undefined) {
                 modAgilidad += Number(eff.base.agilidad);
             }
         }
+        modAgilidad += modificadores(this).esquive * 100;
         return Math.max(0, baseAgilidad * (1 + modAgilidad / 100));
     }
 
+    /** Modificador de precisión en % (Furia, Cegado, debuffs de precisión). */
     get effectivePrecision() {
         let modPrecision = 0;
         for (const eff of (this.statusEffect || [])) {
-            const id = String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            if (id === 'furia' && eff.base?.precision !== undefined) {
+            if (idEfecto(eff) === 'furia' && eff.base?.precision !== undefined) {
                 modPrecision += Number(eff.base.precision);
             }
         }
-        return modPrecision;
+        return modPrecision + modificadores(this).precision * 100;
     }
 
+    /** No puede esquivar (Raíz del Mundo: esquive a 0). */
+    get sinEsquive() {
+        return modificadores(this).esquiveCero;
+    }
 }
 
 class Personaje extends Combatiente {
@@ -195,15 +218,15 @@ class Personaje extends Combatiente {
         this.resplandor = sendero.resplandor ?? data.resplandor ?? 'I';
         // Las almas antiguas solo tienen StelarFragments; se usa como total si falta
         this.StelarFragmentsTotal = Number(
-            sendero.StelarFragmentsTotal 
-            ?? fragmentos.StelarFragmentsTotal 
-            ?? data.StelarFragmentsTotal 
+            sendero.StelarFragmentsTotal
+            ?? fragmentos.StelarFragmentsTotal
+            ?? data.StelarFragmentsTotal
             ?? sendero.StelarFragments
             ?? 0
         );
         this.StelarFragments = Number(
-            sendero.StelarFragments 
-            ?? fragmentos.StelarFragments 
+            sendero.StelarFragments
+            ?? fragmentos.StelarFragments
             ?? this.StelarFragmentsTotal
         );
 
@@ -213,6 +236,12 @@ class Personaje extends Combatiente {
 
         // Efectos que el personaje arrastra de combates anteriores (Soul.nucleo.efectos)
         cargarEfectos(this, nucleo.efectos);
+
+        // Maestría por hechizo (dominio.hechizos[i].usos / .maestria)
+        this.maestrias = mapaMaestrias(this.hechizos);
+
+        // Contenedor equipado (desafinados): fija el elemento con el que puede lanzar
+        this.contenedor = (this.equipamiento || []).find(esContenedor) || null;
     }
 
     get nivelCombate() {
@@ -221,6 +250,22 @@ class Personaje extends Combatiente {
 
     get multiplicadorDanio() {
         return multiplicadorResplandor(this.resplandor);
+    }
+
+    /** Afinado: resonancia ≥ disonancia. */
+    get afinado() {
+        return (Number(this.resonancia) || 0) >= (Number(this.disonancia) || 0);
+    }
+
+    /**
+     * Elemento lanzable (III.E): un afinado lanza su elemento; un desafinado, el del contenedor
+     * equipado (si no lleva ninguno con elemento, el suyo).
+     * PENDIENTE: si cambiar de contenedor en combate consume un turno (propuesta: sí).
+     */
+    get elementoActivo() {
+        if (this.afinado || !this.contenedor) return this.elemento;
+        const el = this.contenedor.Elemento ?? this.contenedor.elemento;
+        return el ? normalizarElemento(el) : this.elemento;
     }
 }
 
@@ -246,6 +291,9 @@ class NPC extends Combatiente {
         this.esHeraldo = data.heraldo === true || String(this.tipoNPC).toLowerCase() === "heraldo";
         this.esJefe = this.esHeraldo || !!this.boss || String(this.tipoNPC).toLowerCase() === "boss";
         this.comportamiento = data.comportamiento || [];
+        // Humano: vías normales, como un jugador (puede tener maestría). Resto: solo instinto (VI.B)
+        this.esHumano = String(data.tipo ?? data.naturaleza ?? "").toLowerCase() === "humano";
+        this.maestrias = mapaMaestrias(data.maestrias || {});
         this.permiteAtaqueBasico = data.permiteAtaqueBasico !== false;
         this.permiteDefensaBasica = data.permiteDefensaBasica !== false;
         this.fase = 1;
@@ -284,5 +332,6 @@ module.exports = {
     resplandorANumero,
     normalizarElemento,
     normalizarStats,
-    esArma
+    esArma,
+    esContenedor
 }

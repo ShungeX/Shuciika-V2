@@ -1,0 +1,412 @@
+[
+ {
+  "_id": "Electro-001",
+  "Nombre": "Descarga Electrica",
+  "Descripcion": "Emite una poderosa descarga eléctrica que impacta a un enemigo causando daño inmediato y Paralisis",
+  "Tipo": "movimiento",
+  "Elemento": "Electro",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "damage": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "enemigos"
+   },
+   "Efectos": {
+    "stun": {
+     "Nombre": "Paralisis",
+     "base": 1,
+     "duracion": 2,
+     "objetivo": "enemigos",
+     "probabilidad": 0.7
+    }
+   },
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.6,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 5,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Lapis-001",
+  "Nombre": "Golpe Terrestre",
+  "Descripcion": "Conjura la fuerza de la tierra para golpear a un enemigo, causando daño y aturdimiento",
+  "Tipo": "movimiento",
+  "Elemento": "Lapis",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "damage": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "enemigos"
+   },
+   "Efectos": {
+    "stun": {
+     "Nombre": "Aturdimiento",
+     "base": 1,
+     "duracion": 3,
+     "objetivo": "enemigos",
+     "probabilidad": 0.5
+    }
+   },
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.8,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 5,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Wind-001",
+  "Nombre": "Brisa revitalizante",
+  "Descripcion": "Invoca una suave brisa que revitaliza al aliado, proporcionando un leve efecto curativo y aumentando temporalmente su agilidad.",
+  "Tipo": "movimiento",
+  "Elemento": "Wind",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "healing": {
+    "base": 5,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "aliados"
+   },
+   "Efectos": {
+    "speed": {
+     "Nombre": "Velocidad",
+     "base": 1,
+     "duracion": 3,
+     "objetivo": "aliados"
+    }
+   },
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.8,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 7,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Lux-001",
+  "Nombre": "Brillo de esperanza",
+  "Descripcion": "Emite un destello radiante que cura a todos los aliados y a si mismo",
+  "Tipo": "movimiento",
+  "Elemento": "Lux",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "healing": {
+    "base": 20,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "aliados"
+   },
+   "Efectos": [],
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.7,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 10,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Aqua-001",
+  "Nombre": "Ola Curativa",
+  "Descripcion": "Invoca una suave ola de agua que restaura vida a un aliado o a ti",
+  "Tipo": "movimiento",
+  "Elemento": "Aqua",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "healing": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "aliados"
+   },
+   "Efectos": [],
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.8,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 5,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Kryo-001",
+  "Nombre": "Soplo Helado",
+  "Descripcion": "Libera un soplo helado que daña al enemigo y lo realentiza",
+  "Tipo": "movimiento",
+  "Elemento": "Kryo",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "damage": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.5
+    },
+    "objetivo": "enemigos"
+   },
+   "Efectos": {
+    "slowed": {
+     "Nombre": "Lentitud",
+     "base": 1,
+     "duracion": 3,
+     "objetivo": "enemigos"
+    }
+   },
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.8,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 5,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Rakau-001",
+  "Nombre": "Bendición de la naturaleza",
+  "Descripcion": "Invoca la esencia de la vida del árbol para infligir un golpe que daña y, al mismo tiempo, revitaliza levemente al conjurador.",
+  "Tipo": "movimiento",
+  "Elemento": "Rakau",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "damage": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 2
+    },
+    "objetivo": "enemigos",
+    "cantidad": 1
+   },
+   "healing": {
+    "base": 5,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 2
+    },
+    "objetivo": "global",
+    "cantidad": 1
+   },
+   "Efectos": [],
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 0.6,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 7,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "Pyro-001",
+  "Nombre": "Chispa Ignea ",
+  "Descripcion": "Lanza una pequeña chispa que daña al enemigo y le provoca quemadura durante 3 turnos",
+  "Tipo": "movimiento",
+  "Elemento": "Pyró",
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "damage": {
+    "base": 10,
+    "scaling": {
+     "stats": "inteligencia",
+     "multi": 1.1
+    },
+    "objetivo": "enemigos",
+    "cantidad": 1
+   },
+   "Efectos": {
+    "quemadura": {
+     "Nombre": "Quemadura",
+     "base": 8,
+     "duracion": 3,
+     "objetivo": "enemigos"
+    }
+   },
+   "cast": {
+    "tiempo": 1,
+    "probabilidad": 1,
+    "interruptible": true
+   }
+  },
+  "Costos": {
+   "mana": 5,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 1
+  },
+  "Creado": "",
+  "uso": "combate"
+ },
+ {
+  "_id": "default_001",
+  "Nombre": "Golpe",
+  "Descripcion": "Un golpe basico, usado en emergencias o situaciones algo... fuera de lugar",
+  "Tipo": "movimiento",
+  "Elemento": null,
+  "isActive": true,
+  "Req": {
+   "fe_min": 1,
+   "fe_max": null,
+   "resplandor_min": null,
+   "resplandor_max": null,
+   "clase": null,
+   "stats": null
+  },
+  "Mecanicas": {
+   "objetivo": [
+    "enemigo"
+   ],
+   "alcance": [
+    "Single"
+   ],
+   "Efectos": [],
+   "cast": {
+    "tiempo": 0,
+    "probabilidad": 1,
+    "interruptible": true
+   },
+   "damage": {
+    "base": 0,
+    "objetivo": "mismo"
+   }
+  },
+  "Costos": {
+   "mana": 0,
+   "Vida": 0,
+   "Dinero": 0,
+   "Cooldown": 0
+  },
+  "Creado": "ShungeX",
+  "uso": "combate"
+ }
+]

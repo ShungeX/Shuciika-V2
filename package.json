@@ -1,6 +1,11 @@
 {
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "test:clima": "node --test \"tests/clima/*.test.js\"",
+    "simular-clima": "node scripts/simularClima.js",
+    "validar-textos": "node scripts/validarTextos.js",
+    "test:hechizos": "node --test --test-force-exit \"tests/hechizos/*.test.js\"",
+    "auditar-hechizos": "node scripts/auditarHechizos.js"
   },
   "dependencies": {
     "@discordjs/opus": "^0.10.0",

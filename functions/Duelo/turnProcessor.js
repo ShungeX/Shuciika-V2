@@ -1,14 +1,25 @@
 const clientdb = require("../../Server")
 const db2 = clientdb.db("Rol_db")
-const hechizos = db2.collection("Hechizos_globales")
 const dbobjetos = db2.collection("Objetos_globales")
 const characters = db2.collection("Personajes")
 const updateInventario = require("../updateInventario")
-const { asciiText, buildActionMessage } = require("../../utils/utilidadesTexto")
+const { buildActionMessage } = require("../../utils/utilidadesTexto")
 const InterfazCreate = require("./combateUI")
 const { normalizarElemento, Personaje } = require("./combatientes")
 const { leerProgreso } = require("../Economia/progresionEstelar")
 const { esFormatoNuevo, aplicarEfectoObjeto, cumpleCondicion, esInmune, revertirModStat } = require("./efectosObjeto")
+
+// ─── Sistema de hechizos (vías, control, Estasis, maestría) ──────────────────
+const { CADENA, OFRENDA, GUARDIA, UNIVERSALES_INICIALES } = require("./hechizos/config")
+const { normalizarHechizo } = require("./hechizos/adaptador")
+const { evaluarCasteo, puedeActuar, ACCIONES, usaInstinto } = require("./hechizos/casteo")
+const { efectosActivos, viasBloqueadas, quienBloquea, tieneInmunidad } = require("./hechizos/estados")
+const {
+    aplicarEfecto, agregarEstado, interrumpirCast, modificadores, filtrarProvocados,
+    procesarFinDeTurno, esPvE, logSistema,
+} = require("./hechizos/efectos")
+const { registrarUso } = require("./hechizos/maestria")
+const cacheHechizos = require("./hechizos/cache")
 
 const PRECISION_MINIMA_BASE = 10;
 const TECHO_ESQUIVE = 0.85;
@@ -28,8 +39,8 @@ const BALANCE = {
     DEF_MAGICA_NIVEL: 0.3,
     DEF_K: 30,                     // con 30 puntos se reduce el 50%
     DEF_TECHO: 0.75,               // reducción máxima por stats
-    GUARDIA_POR_PUNTO: 0.04,       // cada punto de "Defenderse" suma +4% de reducción (se consume al recibir un golpe)
-    REDUCCION_TECHO_TOTAL: 0.85,   // stats + guardia nunca bloquean más del 85%
+    GUARDIA_POR_PUNTO: 0.04,       // guardia antigua (defensa inline de NPCs): +4% por punto, se consume con el primer golpe
+    REDUCCION_TECHO_TOTAL: 0.85,   // stats + guardia + buffs nunca bloquean más del 85% (la Guardia universal se aplica aparte)
     CRITICO_TECHO: 0.40,           // probabilidad máxima de crítico
     CRITICO_MULTI: 1.5,
 };
@@ -37,83 +48,6 @@ const BALANCE = {
 function reduccionPorDefensa(puntos) {
     const p = Math.max(0, Number(puntos) || 0);
     return Math.min(BALANCE.DEF_TECHO, p / (p + BALANCE.DEF_K));
-}
-
-
-const CONFUSION_REDUCTIONS = {
-    I: 0.15,
-    II: 0.30,
-    III: 0.50,
-};
-
-function getConfusionReduction(caster) {
-    if (!caster.statusEffect) return 0;
-    const confusion = caster.statusEffect.find(e => {
-        const id = String(e.id || e.Nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        return id.includes("confusion");
-    });
-    if (!confusion) return 0;
-    
-    let grade = confusion.grado;
-    if (!grade) {
-        const name = String(confusion.id || confusion.Nombre || "").toUpperCase();
-        if (name.includes("III") || name.endsWith("3")) grade = "III";
-        else if (name.includes("II") || name.endsWith("2")) grade = "II";
-        else grade = "I";
-    } else {
-        if (grade === 1) grade = "I";
-        else if (grade === 2) grade = "II";
-        else if (grade === 3) grade = "III";
-    }
-    
-    return CONFUSION_REDUCTIONS[grade] || CONFUSION_REDUCTIONS.I;
-}
-
-function verificarCancelacionCast(caster, hechizo) {
-    if (!caster.statusEffect || caster.statusEffect.length === 0) {
-        return { cancelled: false };
-    }
-    
-    const spellType = String(hechizo.Tipo || "").toLowerCase();
-    
-    const hasStunOrEstasis = caster.statusEffect.some(e => {
-        const id = String(e.id || e.Nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const type = String(e.type || "").toLowerCase();
-        return id.includes("stun") || id.includes("aturd") || id.includes("estasis") || id.includes("paral") || id.includes("sleep") || id.includes("sueno") ||
-               type.includes("stun") || type.includes("aturd") || type.includes("estasis");
-    });
-    
-    if (hasStunOrEstasis) {
-        return { cancelled: true, reason: "Incapacitado (Aturdimiento/Estasis)" };
-    }
-    
-    if (spellType !== 'mental') {
-        const hasImmovable = caster.statusEffect.some(e => {
-            const id = String(e.id || e.Nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            return id.includes("inmovil") || id.includes("atado") || id.includes("enredado") || id.includes("root") || id.includes("freeze") || id.includes("congel");
-        });
-        if (hasImmovable) {
-            return { cancelled: true, reason: "Inmovilizado" };
-        }
-    }
-    
-    return { cancelled: false };
-}
-
-function obtenerEfectoIncapacitante(combatiente) {
-    if (!combatiente.statusEffect || combatiente.statusEffect.length === 0) return null;
-    
-    const incapacitante = combatiente.statusEffect.find(e => {
-        const id = String(e.id || e.Nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const type = String(e.type || "").toLowerCase();
-        const name = String(e.Nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        return id.includes("stun") || id.includes("aturd") || id.includes("estasis") || id.includes("paral") || 
-               id.includes("sleep") || id.includes("sueno") || id.includes("congel") || id.includes("freeze") ||
-               type.includes("stun") || type.includes("aturd") || type.includes("estasis") || type.includes("congel") ||
-               name.includes("stun") || name.includes("aturd") || name.includes("estasis") || name.includes("paral") || 
-               name.includes("sueno") || name.includes("congel");
-    });
-    return incapacitante ? { Nombre: (incapacitante.Nombre || incapacitante.id), duracion: incapacitante.duracion } : null;
 }
 
 function normalizarObjetivo(objetivo) {
@@ -156,13 +90,13 @@ function normalizarObjetivo(objetivo) {
 
 
 const TABLA_ELEMENTAL = {
-    Pyros: { fuerteContra: ["Rakau", "Kryo", "Wind"], debilContra: ["Aqua", "Lapis"] },
-    Aqua: { fuerteContra: ["Pyros", "Lapis"], debilContra: ["Electro", "Rakau", "Kryo"] },
+    "Pyrós": { fuerteContra: ["Rakau", "Kryo", "Wind"], debilContra: ["Aqua", "Lapis"] },
+    Aqua: { fuerteContra: ["Pyrós", "Lapis"], debilContra: ["Electro", "Rakau", "Kryo"] },
     Lapis: { fuerteContra: ["Electro", "Kryo"], debilContra: ["Aqua", "Wind", "Electro"] },
-    Rakau: { fuerteContra: ["Aqua", "Lapis"], debilContra: ["Pyros", "Kryo", "Electro"] },
+    Rakau: { fuerteContra: ["Aqua", "Lapis"], debilContra: ["Pyrós", "Kryo", "Electro"] },
     Electro: { fuerteContra: ["Aqua", "Rakau"], debilContra: ["Lapis", "Wind"] },
-    Kryo: { fuerteContra: ["Pyros", "Lapis"], debilContra: ["Pyros", "Lapis"] }, // relación especial
-    Wind: { fuerteContra: [], debilContra: ["Kryo", "Pyros"] },
+    Kryo: { fuerteContra: ["Pyrós", "Lapis"], debilContra: ["Pyrós", "Lapis"] }, // relación especial
+    Wind: { fuerteContra: [], debilContra: ["Kryo", "Pyrós"] },
     Lux: { fuerteContra: [], debilContra: [] },
     Neutro: { fuerteContra: [], debilContra: [] }
 }
@@ -170,23 +104,26 @@ const TABLA_ELEMENTAL = {
 const BONUS_ELEMENTAL = 1.35
 const PENALTY_ELEMENTAL = 0.70
 
+let contadorCast = 0
+const nuevoCastId = (caster) => `${caster?.ID ?? "x"}:${Date.now().toString(36)}:${(++contadorCast).toString(36)}`
+
 class TurnProcessor {
 
     // ─── Utilidades ──────────────────────────────────────────────────────────
 
     /**
      * Calcula el multiplicador elemental entre atacante y defensor
-     * Respeta el caso especial Kryo-Pyros-Lapis
+     * Respeta el caso especial Kryo-Pyrós-Lapis
      */
     _getMultiplicadorElemental(elementoAtacante, elementoDefensor) {
-        // Normalizar nombres ("Pyró" → "Pyros", "Ninguno"/null → "Neutro")
+        // Nombres canónicos ("Pyró" → "Pyrós", "Ninguno"/null → "Neutro")
         elementoAtacante = normalizarElemento(elementoAtacante)
         elementoDefensor = normalizarElemento(elementoDefensor)
 
         // Triángulo especial — se maneja en CombatUI, aquí es neutro
         const esTriangulo =
-            (elementoAtacante === "Kryo" && (elementoDefensor === "Pyros" || elementoDefensor === "Lapis")) ||
-            (elementoAtacante === "Pyros" && elementoDefensor === "Kryo") ||
+            (elementoAtacante === "Kryo" && (elementoDefensor === "Pyrós" || elementoDefensor === "Lapis")) ||
+            (elementoAtacante === "Pyrós" && elementoDefensor === "Kryo") ||
             (elementoAtacante === "Lapis" && elementoDefensor === "Kryo")
 
         if (esTriangulo) return { multi: 1, tipo: "triangulo" }
@@ -201,22 +138,20 @@ class TurnProcessor {
 
     /**
      * Calcula el valor de un efecto con scaling de stats
-     * (Reciclado del código anterior)
      */
     _calculateAmount(mecanica, caster, multiplicador = 1) {
-        if (mecanica.base !== undefined && Number(mecanica.base) === 0) return 0;
-        let amount = mecanica.base
+        if (mecanica.base !== undefined && Number(mecanica.base) === 0 && !mecanica.scaling) return 0;
+        let amount = Number(mecanica.base) || 0
 
         if (mecanica.scaling) {
-            const statVal = caster.stats?.[mecanica.scaling.stats] || 0
-            amount += (statVal * mecanica.scaling.multi) * multiplicador
+            const statVal = caster?.stats?.[mecanica.scaling.stats] || 0
+            amount += (statVal * (Number(mecanica.scaling.multi) || 0)) * multiplicador
         }
         return Math.max(0, Math.floor(amount))
     }
 
     /**
-     * Genera el ataque básico dinámicamente según el arma equipada
-     * (Reciclado y adaptado del código anterior)
+     * Genera el ataque básico (Golpe) según el nivel del atacante
      */
     _generarAtaqueBasico(atacante) {
         // El arma (atacante.arma) aún no aporta datos de combate: todos usan el ataque básico
@@ -227,9 +162,9 @@ class TurnProcessor {
         return {
             _id: "basic_attack",
             Nombre: "Ataque básico",
-            Tipo: 0,
             Elemento: atacante.elemento || atacante.Elemento || "Neutro",
-            Costos: { Mana: 0, Vida: 0, Cooldown: 0 },
+            isActive: true,
+            Costos: { mana: 0, Vida: 0, Cooldown: 0 },
             Mecanicas: {
                 damage: {
                     base: baseAleatoria,
@@ -237,93 +172,106 @@ class TurnProcessor {
                         stats: "fuerza",
                         multi: 1 + (lvl * BALANCE.ATAQUE_NIVEL_ESCALA)
                     },
-                    objetivo: 1,
+                    objetivo: "enemigos",
+                    alcance: "single",
                     esFisico: true
                 },
-                Efectos: {},
-                castProbabilidad: 1 // ataque básico nunca falla
+                Efectos: [],
+                cast: { vias: ["movimiento"], tiempo: 0, probabilidad: 1, interruptible: false } // Golpe nunca falla
             }
         }
     }
 
-    // ─── Verificaciones pre-acción ────────────────────────────────────────────
+    // ─── Costos ──────────────────────────────────────────────────────────────
 
     /**
-     * Verifica si el combatiente puede usar el hechizo
+     * Cobra el costo del hechizo (ya calculado por evaluarCasteo: modo mental, maestría...)
      */
-    _verificarCosto(hechizo, caster) {
-        if (caster.Mana < hechizo.Costos.mana) {
-            return { success: false, message: "No tienes suficiente maná para lanzar este hechizo ＞﹏＜" }
-        }
-        if ((caster.HP - 1) <= hechizo.Costos.Vida) {
-            return { success: false, message: "No tienes suficiente vida para lanzar este hechizo ＞﹏＜" }
-        }
-        if (caster.cooldowns?.[hechizo._id] > 0) {
-            return { success: false, message: `Este hechizo está en enfriamiento (${caster.cooldowns[hechizo._id]} ronda/s restante/s)` }
-        }
-        return { success: true }
-    }
+    _cobrarCosto(hechizo, caster, evaluacion = null) {
+        const mana = evaluacion?.costoMana ?? Number(hechizo.Costos?.mana ?? 0)
+        const vida = evaluacion?.costoVida ?? Number(hechizo.Costos?.Vida ?? 0)
+        caster.Mana -= mana
+        caster.HP -= vida
 
-    /**
-     * Cobra el costo del hechizo al caster
-     */
-    _cobrarCosto(hechizo, caster) {
-        caster.Mana -= hechizo.Costos.mana
-        caster.HP -= hechizo.Costos.Vida
-
-        if (hechizo.Costos.Cooldown > 0) {
+        if (hechizo.Costos?.Cooldown > 0) {
             caster.cooldowns ??= {}
             caster.cooldowns[hechizo._id] = hechizo.Costos.Cooldown
         }
     }
 
+    /** Costo en Lumens (ofrenda, p. ej. Lux-003). Pasa por el libro de Lumens. */
+    async _cobrarOfrenda(session, caster, hechizo, evaluacion) {
+        const costo = Number(evaluacion?.costoDinero) || 0
+        if (!costo || caster.isNPC) return { ok: true }
+        if (OFRENDA.SOLO_PVE && !esPvE(session)) {
+            return { ok: false, message: "La ofrenda de este hechizo solo puede hacerse en combates contra NPCs." }
+        }
+        const { moverLumens } = require("../Economia/lumens")
+        const r = await moverLumens({
+            personajeId: Number(caster.ID),
+            userId: caster.ownerId,
+            delta: -costo,
+            motivo: OFRENDA.MOTIVO_LEDGER,
+            ref: { hechizo: hechizo._id, sesion: session?.sessionId ?? null, ronda: session?.ronda ?? null },
+        })
+        if (!r.ok) {
+            return { ok: false, message: r.motivo === "saldo_insuficiente" ? `No tienes Lumens suficientes para la ofrenda (${costo}).` : "No se pudo cobrar la ofrenda." }
+        }
+        return { ok: true }
+    }
+
     // ─── Resolución de objetivos ──────────────────────────────────────────────
 
-    /**
-     * Resuelve los objetivos según el código de objetivo del hechizo
-     * objetivo: 1=enemigo, 2=aliado, 3=self, 4=todos, 5=todos enemigos, 6=todos aliados
-     */
-    _resolverObjetivos(codigoObjetivo, caster, targetId, battleState) {
-        const { aliados, enemigos } = battleState
-
-        switch (codigoObjetivo) {
-            case 1: // Enemigo seleccionado o primero disponible
-                if (targetId != null) return enemigos.filter(e => String(e.ID) === String(targetId) && !e.defeated)
-                return enemigos.filter(e => !e.defeated).slice(0, 1)
-            case 2: // Aliado seleccionado
-                if (targetId != null) return aliados.filter(a => String(a.ID) === String(targetId) && !a.defeated)
-                return aliados.filter(a => a.ID !== caster.ID && !a.defeated).slice(0, 1)
-            case 3: // Self
-                return [caster]
-            case 4: // Todos
-                return [...aliados, ...enemigos].filter(c => !c.defeated)
-            case 5: // Todos los enemigos
-                return enemigos.filter(e => !e.defeated)
-            case 6: // Todos los aliados
-                return aliados.filter(a => !a.defeated)
-            default:
-                return []
+    _bandos(session, caster) {
+        const esEquipo1 = session.teams[0].some(c => c.ID === caster.ID)
+        return {
+            aliados: esEquipo1 ? session.teams[0] : session.teams[1],
+            enemigos: esEquipo1 ? session.teams[1] : session.teams[0],
         }
     }
 
-    // ─── Aplicación de efectos ────────────────────────────────────────────────
+    /**
+     * Resuelve los objetivos del ataque básico: el enemigo elegido (o el primero vivo).
+     * Si algún enemigo usa Provocar, el golpe va a él.
+     */
+    _resolverObjetivoAtaque(caster, targetId, battleState) {
+        const vivos = battleState.enemigos.filter(e => !e.defeated)
+        const permitidos = filtrarProvocados(vivos)
+        if (targetId != null) {
+            const elegido = permitidos.find(e => String(e.ID) === String(targetId))
+            if (elegido) return [elegido]
+        }
+        return permitidos.slice(0, 1)
+    }
+
+    /** Probabilidad de esquivar un ataque evadible. */
+    _chanceEsquive(caster, target) {
+        if (target.sinEsquive) return 0
+        const agilidadDefensor = target.effectiveAgilidad;
+        const precisionMod = caster.effectivePrecision;
+        const basePrecision = (caster.stats?.precision !== undefined) ? caster.stats.precision : 100;
+        const precisionEfectivaAtacante = Math.max(PRECISION_MINIMA_BASE, basePrecision * (1 + precisionMod / 100));
+        const esquive = agilidadDefensor / (agilidadDefensor + precisionEfectivaAtacante);
+        return Math.max(PISO_ESQUIVE, Math.min(TECHO_ESQUIVE, esquive));
+    }
+
+    // ─── Aplicación de daño y curación ────────────────────────────────────────
 
     /**
      * Aplica daño a un objetivo
+     * @param {Object} mecanica - { base, scaling, esFisico, factor?, yaEsquivado? }
+     * @param {Object} [origen] - { castId } (Congelado no se rompe con el daño de su propio cast)
      */
-    _aplicarDaño(mecanica, caster, target, hechizo, session) {
+    _aplicarDaño(mecanica, caster, target, hechizo, session, origen = {}) {
+        // Estasis: inmunidad total
+        if (tieneInmunidad(target, "todo")) {
+            return { cantidad: 0, esCritico: false, tipoElemental: "Neutro", inmune: true };
+        }
+
         // Fallback para esquive si no fue precalculado
         const esEvadible = (hechizo._id === "basic_attack" || hechizo.evadible === true);
-        if (esEvadible && session && !mecanica.yaEsquivado) {
-            const agilidadDefensor = target.effectiveAgilidad;
-            const precisionMod = caster.effectivePrecision;
-            const basePrecision = (caster.stats?.precision !== undefined) ? caster.stats.precision : 100;
-            const precisionEfectivaAtacante = Math.max(PRECISION_MINIMA_BASE, basePrecision * (1 + precisionMod / 100));
-
-            const esquive = agilidadDefensor / (agilidadDefensor + precisionEfectivaAtacante);
-            const chanceEsquive = Math.max(PISO_ESQUIVE, Math.min(TECHO_ESQUIVE, esquive));
-
-            if (Math.random() < chanceEsquive) {
+        if (esEvadible && session && !mecanica.yaEsquivado && caster) {
+            if (Math.random() < this._chanceEsquive(caster, target)) {
                 session.addLog("esquive", { defensor: target.Nombre, atacante: caster.Nombre });
                 return { cantidad: 0, esCritico: false, tipoElemental: "Neutro", esquivado: true };
             }
@@ -332,46 +280,52 @@ class TurnProcessor {
         const { multi: multiElemental, tipo: tipoElemental } =
             this._getMultiplicadorElemental(hechizo.Elemento, target.elemento)
 
-        if (mecanica.base !== undefined && Number(mecanica.base) === 0) {
-            return { cantidad: 0, esCritico: false, tipoElemental };
-        }
-
         let cantidad = this._calculateAmount(mecanica, caster, multiElemental)
         if (cantidad === 0) {
             return { cantidad: 0, esCritico: false, tipoElemental };
         }
 
+        // Cadena (Electro-002): 100% / 70% / 50%
+        if (mecanica.factor !== undefined) cantidad = Math.floor(cantidad * Number(mecanica.factor))
+
         // Resplandor del atacante: multiplicador fuerte de daño (los NPCs devuelven 1)
         cantidad = Math.floor(cantidad * (Number(caster?.multiplicadorDanio) || 1))
 
+        // Buffs / debuffs de daño del atacante (Fulgor Bendito +15%, Invierno Profundo −25%)
+        const modsCaster = caster ? modificadores(caster) : { danio: 0 }
+        if (modsCaster.danio) cantidad = Math.floor(cantidad * Math.max(0, 1 + modsCaster.danio))
+
         // Crítico: (sabiduria*2 + agilidad*2) / 100
         const chanceCritico = Math.min(BALANCE.CRITICO_TECHO,
-            (((caster.stats?.sabiduria || 0) * 2) + ((caster.stats?.agilidad || 0) * 2)) / 100)
+            (((caster?.stats?.sabiduria || 0) * 2) + ((caster?.stats?.agilidad || 0) * 2)) / 100)
         const esCritico = Math.random() < chanceCritico
         if (esCritico) cantidad = Math.floor(cantidad * BALANCE.CRITICO_MULTI)
 
-        // Reducción por resistencia
+        // Reducción por resistencia + guardia antigua + buffs de defensa
         const resFis = target.stats?.resFisica ?? target.stats?.resistenciaFisica ?? 0;
         const resMag = target.stats?.resMagica ?? target.stats?.resistenciaMagica ?? 0;
         const lvlDef = Number(target.nivelCombate) || 1;
+        const modsTarget = modificadores(target)
 
         const puntosDefensa = mecanica.esFisico
             ? (resFis * BALANCE.DEF_FISICA_RES) + (lvlDef * BALANCE.DEF_FISICA_NIVEL)
             : (resMag * BALANCE.DEF_MAGICA_RES) + (lvlDef * BALANCE.DEF_MAGICA_NIVEL);
-        const guardia = (target.defenseActual || 0) * BALANCE.GUARDIA_POR_PUNTO;
-        const reduccion = Math.min(BALANCE.REDUCCION_TECHO_TOTAL, reduccionPorDefensa(puntosDefensa) + guardia);
+        const guardiaAntigua = (target.defenseActual || 0) * BALANCE.GUARDIA_POR_PUNTO;
+        const reduccion = Math.min(BALANCE.REDUCCION_TECHO_TOTAL, reduccionPorDefensa(puntosDefensa) + guardiaAntigua + Math.max(0, modsTarget.defensa));
         cantidad = Math.max(1, Math.round(cantidad * (1 - reduccion)));
-        // La guardia de "Defenderse" se consume con el primer golpe recibido (físico o mágico)
+        // Guardia (univ-001 / "Defenderse"): ~50% durante su turno de duración
+        if (modsTarget.guardia) cantidad = Math.max(1, Math.round(cantidad * (1 - modsTarget.guardia)));
+        // La guardia antigua se consume con el primer golpe recibido
         if (target.defenseActual) target.defenseActual = 0;
         if (isNaN(cantidad)) {
-            console.error("Cantidad de daño es NaN", { cantidad, mecanica, caster, target, hechizo })
+            console.error("Cantidad de daño es NaN", { cantidad, mecanica, hechizo: hechizo?._id })
             return { cantidad: 0, esCritico, tipoElemental }
         }
-        target.aplicarDaño(cantidad)
-        caster.damageDealt = (caster.damageDealt || 0) + cantidad
-        // El log de "derrota" se registrará cronológicamente después del log del ataque en _verificarYRegistrarDerrotas
+        const aplicado = target.aplicarDaño(cantidad, origen)
+        if (caster) caster.damageDealt = (caster.damageDealt || 0) + aplicado
+        // El log de "derrota" se registra después del log del ataque en _verificarYRegistrarDerrotas
 
-        return { cantidad, esCritico, tipoElemental }
+        return { cantidad: aplicado, esCritico, tipoElemental }
     }
 
     _verificarYRegistrarDerrotas(session, caster) {
@@ -379,6 +333,7 @@ class TurnProcessor {
         for (const c of session.getAllCombatientes()) {
             if (c.HP <= 0 && c.defeated && !c._alreadyLoggedDefeat) {
                 c._alreadyLoggedDefeat = true;
+                delete c.activeCast;
                 session.addLog("derrota", { derrotados: [c.Nombre], derrotado: c.Nombre });
                 session.emit('jugadorDerrotado', { victima: c, atacante: caster });
             }
@@ -386,22 +341,23 @@ class TurnProcessor {
     }
 
     /**
-     * Aplica curación a un objetivo
+     * Aplica curación a un objetivo. Con `scaling` usa base + stat × multi (como el daño);
+     * los datos antiguos sin scaling conservan la fórmula de sintonía.
      */
     _aplicarCuracion(mecanica, caster, target, hechizo, esAccionInstantanea = true) {
         const { multi: multiElemental } =
             this._getMultiplicadorElemental(hechizo.Elemento, target.elemento)
 
-        // Curación usa sintonía en lugar de fuerza
-        let cantidad = Math.floor(
-            mecanica.base + ((caster?.stats?.sintoniaElemental ?? caster?.stats?.sintonia ?? 1) * 1.4 * multiElemental)
-        )
+        let cantidad = mecanica.scaling
+            ? this._calculateAmount(mecanica, caster, multiElemental)
+            : Math.floor((Number(mecanica.base) || 0) + ((caster?.stats?.sintoniaElemental ?? caster?.stats?.sintonia ?? 1) * 1.4 * multiElemental))
 
-        if(isNaN(cantidad)) {
-            console.error("Algun valor de curación es NaN", { cantidad, mecanica, caster, target, hechizo })
+        if (isNaN(cantidad)) {
+            console.error("Algun valor de curación es NaN", { cantidad, mecanica, hechizo: hechizo?._id })
             cantidad = 0
         }
-        
+
+        const hpPrev = target.HP
         if (target.aplicarCuracion) {
             target.aplicarCuracion(cantidad, esAccionInstantanea);
         } else {
@@ -414,43 +370,31 @@ class TurnProcessor {
             }
         }
 
-        console.log("Cantidad de curación aplicada:", cantidad)
-
-        return { cantidad }
+        return { cantidad: Math.max(0, target.HP - hpPrev) }
     }
 
     /**
-     * Agrega efectos de estado al combatiente objetivo de forma inmediata.
-     * También los registra en pendingEffects para daño/curación demorados.
+     * Compatibilidad: antes los estados de hechizo se acumulaban en pendingEffects y se aplicaban
+     * al cerrar la ronda. Ahora se aplican en el acto (así un control puede interrumpir un cast).
      */
     _agregarEfectoPendiente(session, efectoDatos, key, target, caster) {
         const probabilidad = efectoDatos.probabilidad ?? 1
-        if (Math.random() > probabilidad) return false // no procede
-        if (esInmune(target, key) || esInmune(target, efectoDatos.Nombre)) return false // inmunidad de un objeto
-
-        const effectPayload = {
-            id: key,
-            nombre: efectoDatos.Nombre || key,
-            Nombre: efectoDatos.Nombre || key,
-            base: typeof efectoDatos.base === 'object'
-                ? { ...efectoDatos.base }
-                : Math.round(efectoDatos.base + ((caster?.stats?.poderElemental ?? caster?.stats?.sintoniaElemental ?? 1) * 2)),
-            duracion: efectoDatos.duracion,
-            objetivo: target.ID,
-            fuente: caster.ID,
-            instancia: 1
-        };
-
-        // Registrar en pendingEffects (para daño/curación/estado demorados al cerrar ronda)
-        const existente = session.pendingEffects.find(
-            e => e.id === key && e.objetivo === target.ID
-        )
-        if (existente) {
-            existente.instancia = (existente.instancia || 1) + 1
-        } else {
-            session.pendingEffects.push({ ...effectPayload })
+        if (Math.random() > probabilidad) return false
+        if (esInmune(target, key) || esInmune(target, efectoDatos.Nombre)) return false
+        if (tieneInmunidad(target, "todo")) return false
+        const nombre = efectoDatos.Nombre || key
+        const [convertido] = normalizarHechizo({ _id: "tmp", Mecanicas: { Efectos: { [key]: { ...efectoDatos, probabilidad: 1 } } } }).Mecanicas.Efectos
+        if (convertido && !["legacy", "instantaneo"].includes(convertido.tipo)) {
+            return aplicarEfecto({ sesion: session, caster, target, efecto: convertido, ctx: { esInmune, revertir: revertirModStat } }).aplicado
         }
-
+        agregarEstado(target, {
+            id: String(key).toLowerCase(),
+            Nombre: nombre, nombre,
+            base: typeof efectoDatos.base === 'object' ? { ...efectoDatos.base } : Number(efectoDatos.base) || 0,
+            duracion: Number(efectoDatos.duracion) || 1,
+            objetivo: target.ID,
+            fuente: caster?.ID,
+        })
         return true
     }
 
@@ -458,7 +402,7 @@ class TurnProcessor {
 
     /**
      * Procesa la acción de un combatiente en su sub-turno
-     * @param {sesionCombate} session 
+     * @param {sesionCombate} session
      * @param {String} userId — quien actúa
      * @param {Object} accion — { tipo: 'attack'|'spell'|'defend'|'surrender', spellId, targetId }
      * @returns {Object} resultado de la acción para que CombatUI lo muestre
@@ -467,47 +411,28 @@ class TurnProcessor {
         const caster = session.getCombatiente(userId)
         if (!caster) return { success: false, message: "Combatiente no encontrado" }
 
-        // Bloquear acciones si el combatiente está incapacitado
-        const incapacitante = obtenerEfectoIncapacitante(caster);
-        if (incapacitante) {
-            return { success: false, message: `No puedes actuar, estás afectado por: ${incapacitante.Nombre} (${incapacitante.duracion} turno(s) restante(s)).` }
-        }
-
-        const esEquipo1 = session.teams[0].some(c => c.ID === caster.ID)
-        const battleState = {
-            aliados: esEquipo1 ? session.teams[0] : session.teams[1],
-            enemigos: esEquipo1 ? session.teams[1] : session.teams[0]
-        }
-
-        if (session && typeof session.resolverTurnoExitoso === 'function') {
-            session.resolverTurnoExitoso(caster.ID);
-        }
+        const battleState = this._bandos(session, caster)
 
         try {
             switch (accion.tipo) {
 
-                // ── Ataque básico ─────────────────────────────────────────
+                // ── Ataque básico (Golpe: vía movimiento) ────────────────
                 case 'attack': {
-                    const hechizo = this._generarAtaqueBasico(caster)
-                    const targets = this._resolverObjetivos(1, caster, accion.targetId, battleState)
+                    const ev = evaluarCasteo(caster, ACCIONES.GOLPE)
+                    if (!ev.ok) return { success: false, message: `No puedes golpear: ${ev.motivo}.` }
 
+                    const hechizo = this._generarAtaqueBasico(caster)
+                    const targets = this._resolverObjetivoAtaque(caster, accion.targetId, battleState)
                     if (targets.length === 0) return { success: false, message: "No hay objetivos válidos" }
 
+                    session.resolverTurnoExitoso?.(caster.ID);
+
                     const esquivaron = new Set();
-                    if (session) {
-                        for (const target of targets) {
-                            const agilidadDefensor = target.effectiveAgilidad;
-                            const precisionMod = caster.effectivePrecision;
-                            const basePrecision = (caster.stats?.precision !== undefined) ? caster.stats.precision : 100;
-                            const precisionEfectivaAtacante = Math.max(PRECISION_MINIMA_BASE, basePrecision * (1 + precisionMod / 100));
-
-                            const esquive = agilidadDefensor / (agilidadDefensor + precisionEfectivaAtacante);
-                            const chanceEsquive = Math.max(PISO_ESQUIVE, Math.min(TECHO_ESQUIVE, esquive));
-
-                            if (Math.random() < chanceEsquive) {
-                                esquivaron.add(target.ID);
-                                session.addLog("esquive", { defensor: target.Nombre, atacante: caster.Nombre });
-                            }
+                    for (const target of targets) {
+                        if (tieneInmunidad(target, "todo")) continue
+                        if (Math.random() < this._chanceEsquive(caster, target)) {
+                            esquivaron.add(target.ID);
+                            session.addLog("esquive", { defensor: target.Nombre, atacante: caster.Nombre });
                         }
                     }
 
@@ -521,13 +446,14 @@ class TurnProcessor {
                         };
                     });
 
-                    if (resultados.every(r => r.esquivado)) {
-                        // Todos esquivaron, no registramos el log de ataque estándar
-                    } else {
+                    const inmunes = resultados.filter(r => r.inmune)
+                    if (inmunes.length) logSistema(session, `${inmunes.map(r => r.target.Nombre).join(", ")} está en Estasis: el golpe no le afecta.`, { autor: caster.Nombre })
+                    const golpeados = resultados.filter(r => !r.esquivado && !r.inmune)
+                    if (golpeados.length) {
                         session.addLog("ataque", {
                             atacante: caster.Nombre,
-                            defensor: targets.filter(t => !esquivaron.has(t.ID)).map(t => t.Nombre).join(", "),
-                            daño: resultados.find(r => !r.esquivado)?.cantidad || 0
+                            defensor: golpeados.map(r => r.target.Nombre).join(", "),
+                            daño: golpeados[0]?.cantidad || 0
                         });
                     }
                     this._verificarYRegistrarDerrotas(session, caster);
@@ -547,24 +473,29 @@ class TurnProcessor {
                     return await this.resolverHechizo(session, caster, accion.spellId, accion.targetId ? [accion.targetId] : null);
                 }
 
-                // ── Defender ──────────────────────────────────────────────
+                // ── Defender (Guardia universal: vía movimiento) ──────────
                 case 'defend': {
-                    const bonus = Math.floor(Math.random() * 5) + 2 // 2-6
-                    caster.defenseActual = (caster.defenseActual || 0) + bonus
-                    session.addLog("defender", { defensor: caster.Nombre, defensaObtenida: bonus })
+                    const ev = evaluarCasteo(caster, ACCIONES.GUARDIA)
+                    if (!ev.ok) return { success: false, message: `No puedes cubrirte: ${ev.motivo}.` }
+                    session.resolverTurnoExitoso?.(caster.ID);
+                    aplicarEfecto({ sesion: session, caster, target: caster, efecto: { tipo: "guardia", nombre: "Guardia", valor: GUARDIA.REDUCCION, duracion: GUARDIA.DURACION } })
+                    const porcentaje = `${Math.round(GUARDIA.REDUCCION * 100)}%`
+                    session.addLog("defender", { defensor: caster.Nombre, defensaObtenida: porcentaje })
 
                     return {
                         success: true,
                         tipo: 'defender',
                         caster,
-                        bonus
+                        bonus: porcentaje
                     }
                 }
 
                 // ── Rendirse ──────────────────────────────────────────────
                 case 'surrender': {
+                    session.resolverTurnoExitoso?.(caster.ID);
                     caster.defeated = true
                     caster.surrender = true
+                    delete caster.activeCast
                     session.addLog("surrender", { combatiente: caster.Nombre })
 
                     return {
@@ -585,60 +516,44 @@ class TurnProcessor {
         }
     }
 
-    /**
-     * Avanza el compás tras una acción:
-     * recalcula valorCompas del caster y aplica el decay
-     */
-    // ─── Helpers internos para advanceCompas ──────────────────────────────────
+    // ─── Fin de turno y compás ────────────────────────────────────────────────
 
     /**
-     * Aplica efectos periódicos y decrementa duraciones del combatiente que acaba de actuar,
-     * luego lo marca como actuado en este subturno.
+     * Cierra el turno propio del combatiente que acaba de actuar (efectos periódicos y duraciones,
+     * con la pausa de Estasis) y lo marca como actuado en este subturno.
      */
     _procesarFinDeAccion(session, caster) {
         if (caster && !caster.defeated) {
-            caster.statusEffect ??= [];
-
-            caster.statusEffect.forEach(eff => {
-                const id = String(eff.id || eff.Nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (id === 'veneno' || id === 'quemadura' || id === 'damage' || id === 'danio' || id === 'degeneracion') {
-                    const dmg = Number(eff.base || 0);
-                    if (dmg > 0) {
-                        caster.aplicarDaño(dmg);
-                        session.addLog("efecto_periodico", {
-                            personaje: caster.Nombre,
-                            valor: dmg,
-                            efecto: eff.Nombre || eff.id,
-                            isDmg: true
-                        });
-                        if (caster.defeated && !caster._alreadyLoggedDefeat) {
-                            caster._alreadyLoggedDefeat = true;
-                            session.addLog("derrota", { derrotado: caster.Nombre });
-                            session.emit('jugadorDerrotado', { victima: caster, atacante: session.getCombatiente(eff.fuente) || caster });
-                        }
+            procesarFinDeTurno(caster, {
+                danio: (pj, valor, eff) => {
+                    const aplicado = pj.aplicarDaño(valor, { periodico: true });
+                    if (!aplicado) return;
+                    session.addLog("efecto_periodico", {
+                        personaje: pj.Nombre,
+                        valor: aplicado,
+                        efecto: eff.Nombre || eff.nombre || eff.id,
+                        isDmg: true
+                    });
+                    if (pj.defeated && !pj._alreadyLoggedDefeat) {
+                        pj._alreadyLoggedDefeat = true;
+                        delete pj.activeCast;
+                        session.addLog("derrota", { derrotado: pj.Nombre });
+                        session.emit('jugadorDerrotado', { victima: pj, atacante: session.getCombatiente(eff.fuente) || pj });
                     }
-                } else if (id === 'curacion' || id === 'heal' || id === 'healing' || id === 'pasive' || id === 'regeneracion') {
-                    const heal = Number(eff.base || 0);
-                    if (heal > 0) {
-                        const hpPrev = caster.HP;
-                        caster.HP = Math.min(caster.stats?.hpMax || 99999, caster.HP + heal);
-                        session.addLog("efecto_periodico", {
-                            personaje: caster.Nombre,
-                            valor: caster.HP - hpPrev,
-                            efecto: eff.Nombre || eff.id,
-                            isDmg: false
-                        });
-                    }
-                }
+                },
+                cura: (pj, valor, eff) => {
+                    const hpPrev = pj.HP;
+                    pj.aplicarCuracion(valor);
+                    if (pj.HP - hpPrev <= 0) return;
+                    session.addLog("efecto_periodico", {
+                        personaje: pj.Nombre,
+                        valor: pj.HP - hpPrev,
+                        efecto: eff.Nombre || eff.nombre || eff.id,
+                        isDmg: false
+                    });
+                },
+                revertir: revertirModStat, // los buffs temporales de stat se deshacen al expirar
             });
-
-            for (let i = caster.statusEffect.length - 1; i >= 0; i--) {
-                caster.statusEffect[i].duracion--;
-                if (caster.statusEffect[i].duracion <= 0) {
-                    const [expirado] = caster.statusEffect.splice(i, 1);
-                    revertirModStat(caster, expirado); // los buffs temporales de stat se deshacen al expirar
-                }
-            }
         }
 
         caster.bolitaPos = caster.valorCompas;
@@ -668,19 +583,86 @@ class TurnProcessor {
         return !session.hayBolitasActivas();
     }
 
-    // advanceCompas — iterativo, no recursivo
-    async advanceCompas(session, caster) {
-        console.log("=== advanceCompas START ===")
-        if (caster) {
-            console.log("Caster:", caster.Nombre)
-            this._procesarFinDeAccion(session, caster);
-        } else {
-            console.log("Caster: null (inicio de combate / avance automático)")
+    /** Hechizos que el combatiente podría usar (para saber si aún tiene alguna acción real). */
+    _hechizosDisponibles(actor) {
+        if (actor.isNPC) {
+            return (actor.ataques || []).map(a => a.hechizoId
+                ? cacheHechizos.obtenerSync(a.hechizoId)
+                : { _id: `inline_${a.id}`, Elemento: actor.elemento, Mecanicas: { cast: { vias: a.vias || ["movimiento"], tiempo: a.cast?.tiempo ?? 1, probabilidad: 1 } } }
+            ).filter(Boolean)
+        }
+        const ids = [...(actor.hechizos || []).map(h => h?.ID ?? h), ...UNIVERSALES_INICIALES]
+        return cacheHechizos.obtenerVariosSync(ids)
+    }
+
+    /**
+     * Si el combatiente no puede actuar este turno, devuelve el motivo (y si lo salta el sistema).
+     * El turno saltado por Estasis o por control NO cuenta como turno saltado ni como AFK.
+     */
+    motivoSaltoTurno(actor) {
+        if (!actor || actor.defeated) return null
+        const r = puedeActuar(actor, this._hechizosDisponibles(actor))
+        return r.puede ? null : r
+    }
+
+    /** Salta el turno de un combatiente que no puede actuar (sin tocar los contadores AFK). */
+    _registrarTurnoSaltado(session, actor, salto) {
+        const duracion = efectosActivos(actor).find(a => a.nombre === salto.motivo || salto.motivo?.includes(a.nombre))?.efecto?.duracion
+        const texto = salto.sistema
+            ? `${actor.Nombre} reposa en Estasis: intocable, su turno pasa sin que el tiempo corra.`
+            : `${actor.Nombre} no puede actuar en este turno debido a: ${salto.motivo}${duracion ? ` (${duracion} turno(s) restante(s))` : ""}.`
+        logSistema(session, texto, { autor: actor.Nombre })
+    }
+
+    /** Llamado al iniciar el turno de un humano: si no puede actuar, el sistema lo salta. */
+    async saltarTurnoSistema(session, actor, salto = null) {
+        salto ??= this.motivoSaltoTurno(actor)
+        if (!salto) return false
+        this._registrarTurnoSaltado(session, actor, salto)
+        await this.advanceCompas(session, actor)
+        return true
+    }
+
+    /**
+     * Turno de un actor que no requiere al jugador: incapacitado / Estasis, canalizando o NPC.
+     * @returns {Promise<boolean>} true si se resolvió (el bucle sigue); false si espera a un humano
+     */
+    async _turnoAutomatico(session, actor, { emitirAntesDeNPC = false } = {}) {
+        const salto = this.motivoSaltoTurno(actor)
+        if (salto) {
+            this._registrarTurnoSaltado(session, actor, salto)
+            this._procesarFinDeAccion(session, actor)
+            return true
         }
 
-        // ── 2. Loop principal: seguir procesando mientras el siguiente actor sea NPC ──
+        if (actor.activeCast) {
+            this._processActiveCastTick(session, actor)
+            this._verificarYRegistrarDerrotas(session, actor)
+            this._procesarFinDeAccion(session, actor)
+            return true
+        }
+
+        if (actor.isNPC) {
+            // Emitir la UI antes del retraso para que el humano vea el resultado de su acción
+            if (emitirAntesDeNPC) session.emit('actualizarUI')
+            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 1000) + 2000))
+            const NpcAi = require("./npcAi")
+            await NpcAi.executeTurn(session, actor)
+            this._verificarYRegistrarDerrotas(session, actor)
+            session.emit('actualizarUI')
+            this._procesarFinDeAccion(session, actor)
+            return true
+        }
+        return false
+    }
+
+    // advanceCompas — iterativo, no recursivo
+    async advanceCompas(session, caster) {
+        await cacheHechizos.asegurar().catch(e => console.error("[Hechizos] No se pudo cargar la caché:", e.message))
+        if (caster) this._procesarFinDeAccion(session, caster);
+
+        // Loop principal: seguir procesando mientras el siguiente actor no sea un humano con acciones
         while (true) {
-            // a) ¿Hay game over?
             const gameOver = session.checkGameOver();
             if (gameOver.gameOver) {
                 return { rondaCerrada: false, gameOver: true, winners: gameOver.winners, arrayWinner: gameOver.arrayWinner };
@@ -688,13 +670,12 @@ class TurnProcessor {
 
             const todosActivos = session.getAllCombatientes().filter(c => !c.defeated);
             const todosActuaron = todosActivos.every(c => session.actuaronEsteSubturno.has(c.ID));
+            let rondaCerrada = false;
 
             if (todosActuaron) {
-                // b) Todos actuaron → avanzar ronda completa
-                const cerrRonda = this._avanzarRondaCompleta(session);
-
-                if (cerrRonda) {
-                    // Ronda cerrada
+                // Todos actuaron → avanzar ronda completa
+                rondaCerrada = this._avanzarRondaCompleta(session);
+                if (rondaCerrada) {
                     const go2 = session.checkGameOver();
                     if (go2.gameOver) return { rondaCerrada: true, gameOver: true, winners: go2.winners, arrayWinner: go2.arrayWinner };
                     session.cerrarRonda();
@@ -704,54 +685,8 @@ class TurnProcessor {
                     const go2 = session.checkGameOver();
                     if (go2.gameOver) return { rondaCerrada: true, gameOver: true, winners: go2.winners, arrayWinner: go2.arrayWinner };
                 }
-
-                // c) Quién actúa ahora
-                const nextActor = session.getCurrentActor();
-                if (!nextActor) {
-                    session.emit('actualizarUI');
-                    return { rondaCerrada: cerrRonda };
-                }
-
-                // Incapacitado → procesar y continuar el while
-                const incap = obtenerEfectoIncapacitante(nextActor);
-                if (incap) {
-                    session.addLog("objeto", {
-                        autor: nextActor.Nombre,
-                        item: { Nombre: "Incapacitado", Tipo: "efecto", tipo: 'efecto' },
-                        efectos: [], objetivos: [],
-                        textoLog: `${nextActor.Nombre} no puede actuar en este turno debido a: ${incap.Nombre} (${incap.duracion} turno(s) restante(s)).`
-                    });
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                // ActiveCast → procesar y continuar
-                if (nextActor.activeCast) {
-                    this._processActiveCastTick(session, nextActor);
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                if (nextActor.isNPC) {
-                    // NPC: ejecutar turno con 2-3s de cooldown, emitir UI y continuar el while
-                    await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 1000) + 2000));
-                    const NpcAi = require("./npcAi");
-                    await NpcAi.executeTurn(session, nextActor);
-                    session.emit('actualizarUI');
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                // Jugador humano → detener y esperar su interacción
-                session.emit('actualizarUI');
-                const clientBot = require("../../bot");
-                if (typeof session.iniciarWatchdogTurno === 'function') {
-                    session.iniciarWatchdogTurno(clientBot);
-                }
-                return { rondaCerrada: cerrRonda, proximosEnActuar: session.turnoQueue };
-
             } else {
-                // d) Subturno en curso: avanzar bolas de los pendientes
+                // Subturno en curso: avanzar bolas de los pendientes
                 const pendientes = todosActivos.filter(c => !session.actuaronEsteSubturno.has(c.ID));
                 if (pendientes.length > 0) {
                     const salto = Math.min(...pendientes.map(c => c.bolitaPos));
@@ -766,63 +701,30 @@ class TurnProcessor {
                     }
                     session.turnoQueue = proximosEnActuar;
                 }
-
-                console.log("turnoQueue resultante:", session.turnoQueue.map(c => c.Nombre));
-                console.log("=== advanceCompas END ===");
-
-                const nextActor = session.getCurrentActor();
-                if (!nextActor) {
-                    session.emit('actualizarUI');
-                    return { rondaCerrada: false, proximosEnActuar: session.turnoQueue };
-                }
-
-                // Incapacitado
-                const incap = obtenerEfectoIncapacitante(nextActor);
-                if (incap) {
-                    session.addLog("objeto", {
-                        autor: nextActor.Nombre,
-                        item: { Nombre: "Incapacitado", Tipo: "efecto", tipo: 'efecto' },
-                        efectos: [], objetivos: [],
-                        textoLog: `${nextActor.Nombre} no puede actuar en este turno debido a: ${incap.Nombre} (${incap.duracion} turno(s) restante(s)).`
-                    });
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                // ActiveCast
-                if (nextActor.activeCast) {
-                    this._processActiveCastTick(session, nextActor);
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                if (nextActor.isNPC) {
-                    // Emitir UI inmediatamente para que el usuario humano vea el resultado de su acción sin esperar el delay del NPC
-                    session.emit('actualizarUI');
-
-                    // NPC: ejecutar turno con 2-3s de cooldown, emitir UI y continuar el while
-                    await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 1000) + 2000));
-                    const NpcAi = require("./npcAi");
-                    await NpcAi.executeTurn(session, nextActor);
-                    session.emit('actualizarUI');
-                    this._procesarFinDeAccion(session, nextActor);
-                    continue;
-                }
-
-                // Jugador humano → parar
-                session.emit('actualizarUI');
-                const clientBot = require("../../bot");
-                if (typeof session.iniciarWatchdogTurno === 'function') {
-                    session.iniciarWatchdogTurno(clientBot);
-                }
-                return { rondaCerrada: false, proximosEnActuar: session.turnoQueue };
             }
+
+            const nextActor = session.getCurrentActor();
+            if (!nextActor) {
+                session.emit('actualizarUI');
+                return { rondaCerrada, proximosEnActuar: session.turnoQueue };
+            }
+
+            if (await this._turnoAutomatico(session, nextActor, { emitirAntesDeNPC: !todosActuaron })) continue;
+
+            // Jugador humano → detener y esperar su interacción
+            session.emit('actualizarUI');
+            const clientBot = require("../../bot");
+            if (typeof session.iniciarWatchdogTurno === 'function') {
+                session.iniciarWatchdogTurno(clientBot);
+            }
+            return { rondaCerrada, proximosEnActuar: session.turnoQueue };
         }
     }
+
     tickCooldowns(session) {
         session.getAllCombatientes().forEach(c => {
-            // Solo cooldowns de hechizos — las duraciones de statusEffect
-            // se decrementan en advanceCompas cuando el combatiente actúa.
+            // Solo cooldowns de hechizos — las duraciones de statusEffect bajan en el turno propio.
+            // Cooldown N = el hechizo vuelve a estar listo N−1 turnos después (Cooldown 1 = cada turno).
             if (c.cooldowns) {
                 for (const key of Object.keys(c.cooldowns)) {
                     c.cooldowns[key]--
@@ -853,10 +755,10 @@ class TurnProcessor {
             caster = new Personaje(Number(caster._id ?? caster.ID), caster);
         }
 
-        // Bloquear si el caster está incapacitado
-        const incapacitante = obtenerEfectoIncapacitante(caster);
-        if (incapacitante) {
-            return { success: false, message: `No puedes actuar, estás afectado por: ${incapacitante.Nombre} (${incapacitante.duracion} turno(s) restante(s)).` };
+        // Usar un objeto exige movimiento (III.E). Fuera de combate los estados no cuentan.
+        if (session) {
+            const ev = evaluarCasteo(caster, ACCIONES.OBJETO);
+            if (!ev.ok) return { success: false, message: `No puedes usar objetos: ${ev.motivo}.` };
         }
 
         // Paso 1 — Obtener el objeto:
@@ -1011,6 +913,8 @@ class TurnProcessor {
         // Formato nuevo (suma/resta/limpia/aplica/inmuniza) → efectosObjeto; el antiguo se conserva abajo
         const efectosAplicados = [];
         for (const target of objetivos) {
+            // Estasis: inmunidad total, no recibe efectos nuevos
+            if (session && tieneInmunidad(target, "todo")) continue;
             for (const efecto of (objetoExist.efectos || [])) {
                 if (!cumpleCondicion(efecto.condicion, caster, target)) continue;
 
@@ -1116,6 +1020,8 @@ class TurnProcessor {
             caster.cooldowns[itemIdKey] = Number(objetoExist.uso.cooldown);
         }
 
+        session?.resolverTurnoExitoso?.(caster.ID);
+
         const personalMsg = buildActionMessage({
             actor: caster.Nombre,
             item: objetoExist,
@@ -1132,7 +1038,21 @@ class TurnProcessor {
         };
     }
 
-    async checkSpellRequirements(caster, hechizo, session) {
+    // ─── Hechizos ─────────────────────────────────────────────────────────────
+
+    /** Hechizo normalizado desde un _id (caché en memoria) o un objeto ya armado (ataque inline). */
+    async _obtenerHechizo(hechizoId) {
+        if (hechizoId && typeof hechizoId === "object") return normalizarHechizo(hechizoId)
+        return await cacheHechizos.obtener(hechizoId)
+    }
+
+    /**
+     * Requisitos de un hechizo: contexto de uso, requisitos de adquisición (FE, Resplandor, clase,
+     * stats) y, para todo lo demás (estados, vías, kit, cooldown, costos), evaluarCasteo.
+     * @returns {Promise<{ success: boolean, message?: string, evaluacion?: Object }>}
+     */
+    async checkSpellRequirements(caster, hechizoRaw, session) {
+        const hechizo = hechizoRaw?._normalizado ? hechizoRaw : normalizarHechizo(hechizoRaw)
         // Los ataques inline de NPC y ataques básicos son siempre válidos (generados dinámicamente)
         const isInlineOrBasic = hechizo?._id && (
             String(hechizo._id).startsWith('inline_') ||
@@ -1142,7 +1062,7 @@ class TurnProcessor {
         if (!isInlineOrBasic && (!hechizo || !hechizo.isActive)) {
             return { success: false, message: "El hechizo no está activo o no existe." };
         }
-        
+
         // 1. Contexto de uso
         const uso = hechizo.uso || "combate";
         if (uso === "combate" && !session) {
@@ -1151,24 +1071,9 @@ class TurnProcessor {
         if (uso === "mapa" && session) {
             return { success: false, message: "Este hechizo no se puede usar en combate." };
         }
-        
-        // 2. Cooldown
-        if (caster.cooldowns?.[hechizo._id] > 0) {
-            return { success: false, message: `Este hechizo está en enfriamiento (${caster.cooldowns[hechizo._id]} ronda/s restante/s).` };
-        }
-        
-        // 3. Costos
-        const manaCost = Number(hechizo.Costos?.mana ?? 0);
-        const vidaCost = Number(hechizo.Costos?.Vida ?? hechizo.Costos?.vida ?? 0);
-        if (caster.Mana < manaCost) {
-            return { success: false, message: `No tienes suficiente maná (Costo: ${manaCost} PM).` };
-        }
-        if ((caster.HP - 1) <= vidaCost) {
-            return { success: false, message: `No tienes suficiente HP (Costo: ${vidaCost} HP).` };
-        }
-        
-        // 4. Req
-        if (hechizo.Req) {
+
+        // 2. Req (solo jugadores: los NPCs no tienen alma ni progreso)
+        if (hechizo.Req && !caster.isNPC && !isInlineOrBasic) {
             const characterId = Number(caster.ID || caster._id);
             if (!caster._charDoc) {
                 caster._charDoc = await characters.findOne({ _id: characterId }) || {};
@@ -1181,10 +1086,10 @@ class TurnProcessor {
             if (!charDoc._id) {
                 return { success: false, message: "Personaje no encontrado." };
             }
-            
+
             const { ganados: userFE, resplandor: userResplandor } = leerProgreso(soulDoc || {});
             const userClass = String(caster.Clase || charDoc.Clase || charDoc.clase || "").toLowerCase();
-            
+
             const feMin = Number(hechizo.Req.fe_min ?? 0);
             if (feMin > 0 && userFE < feMin) {
                 return { success: false, message: `No cumples con la FE mínima requerida (${feMin}).` };
@@ -1213,23 +1118,88 @@ class TurnProcessor {
                 }
             }
         }
-        
-        return { success: true };
+
+        // 3. Estados, vías, kit, cooldown y costos: un único punto de decisión
+        const evaluacion = evaluarCasteo(caster, hechizo)
+        if (!evaluacion.ok) {
+            return { success: false, message: `No puedes lanzar ${hechizo.Nombre}: ${evaluacion.motivo}.`, evaluacion };
+        }
+        return { success: true, evaluacion };
+    }
+
+    /**
+     * Cómo apunta un hechizo: un "slot" de daño (enemigos) y uno de curación/apoyo (aliados).
+     * Sale de damage/healing o, si no hay, del primer efecto de un solo objetivo.
+     */
+    _planObjetivos(hechizo) {
+        const m = hechizo.Mecanicas || {}
+        const plan = { damage: null, healing: null }
+        if (m.damage) plan.damage = { objetivo: m.damage.objetivo, alcance: m.damage.alcance }
+        if (m.healing) plan.healing = { objetivo: m.healing.objetivo, alcance: m.healing.alcance }
+        const efectos = m.Efectos || []
+        if (efectos.some(e => e.tipo === "revive")) plan.healing = { objetivo: "aliados", alcance: "single", caidos: true }
+        for (const e of efectos) {
+            if (e.objetivo === "mismo" || e.alcance === "todos") continue
+            if ((e.objetivo === "enemigos" || e.objetivo === "global") && !plan.damage) plan.damage = { objetivo: e.objetivo, alcance: "single" }
+            if (e.objetivo === "aliados" && !plan.healing) plan.healing = { objetivo: "aliados", alcance: "single" }
+        }
+        return plan
+    }
+
+    /**
+     * Candidatos para un slot de un solo objetivo. 'aliados' te incluye a ti; con Provocar,
+     * los enemigos que provocan son los únicos elegibles.
+     */
+    _obtenerCandidatos(session, caster, tipoObjetivo, { caidos = false } = {}) {
+        if (!session) return [];
+        if (tipoObjetivo === "mismo") return [caster];
+        if (tipoObjetivo === "todos") return session.getAllCombatientes().filter(c => !c.defeated);
+
+        const { aliados, enemigos } = this._bandos(session, caster)
+
+        if (tipoObjetivo === "aliados") {
+            if (caidos) return aliados.filter(a => a.ID !== caster.ID && a.defeated && !a.surrender);
+            return aliados.filter(a => !a.defeated);
+        } else if (tipoObjetivo === "enemigos") {
+            return filtrarProvocados(enemigos.filter(e => !e.defeated));
+        } else if (tipoObjetivo === "global") {
+            return [...aliados, ...enemigos].filter(c => !c.defeated);
+        }
+        return [];
+    }
+
+    /** Todos los objetivos de un slot de área. */
+    _objetivosArea(session, caster, objetivo, invertido = false) {
+        if (!session) return [caster]
+        const { aliados, enemigos } = this._bandos(session, caster)
+        let lado = objetivo
+        if (invertido && objetivo === "enemigos") lado = "aliados"
+        else if (invertido && objetivo === "aliados") lado = "enemigos"
+        if (lado === "enemigos") return enemigos.filter(c => !c.defeated)
+        if (lado === "aliados") return aliados.filter(c => !c.defeated)
+        if (lado === "mismo") return [caster]
+        return session.getAllCombatientes().filter(c => !c.defeated)
+    }
+
+    /** IDs elegidos por el jugador → { damage, healing } con combatientes reales. */
+    _leerSeleccion(session, targetIds) {
+        const resolver = (id) => {
+            const n = Number(id)
+            return session?.getCombatiente(isNaN(n) ? id : n) || session?.getCombatiente(id)
+        }
+        if (!targetIds) return { damage: [], healing: [] }
+        if (typeof targetIds === "object" && !Array.isArray(targetIds)) {
+            return {
+                damage: (targetIds.damage || []).map(resolver).filter(Boolean),
+                healing: (targetIds.healing || []).map(resolver).filter(Boolean),
+            }
+        }
+        const lista = (Array.isArray(targetIds) ? targetIds : [targetIds]).map(resolver).filter(Boolean)
+        return { damage: lista, healing: lista }
     }
 
     async resolverHechizo(session, caster, hechizoId, targetIds = null) {
-        // Bloquear si el caster está incapacitado
-        const incapacitante = obtenerEfectoIncapacitante(caster);
-        if (incapacitante) {
-            return { success: false, message: `No puedes actuar, estás afectado por: ${incapacitante.Nombre} (${incapacitante.duracion} turno(s) restante(s)).` };
-        }
-
-        let hechizo;
-        if (typeof hechizoId === 'object' && hechizoId !== null) {
-            hechizo = hechizoId;
-        } else {
-            hechizo = await hechizos.findOne({ _id: hechizoId });
-        }
+        const hechizo = await this._obtenerHechizo(hechizoId)
         if (!hechizo) {
             return { success: false, message: "No se pudo encontrar el hechizo seleccionado." };
         }
@@ -1242,34 +1212,27 @@ class TurnProcessor {
         if (!check.success) {
             return check;
         }
+        const evaluacion = check.evaluacion
 
-        // Obtener candidatos para daño y curación por separado
-        // 'mismo' / 'todos' → automático, sin selección
-        // 'global' → pool combinado aliados+enemigos, el usuario elige
-        // 'aliados' / 'enemigos' → pool del bando correspondiente, el usuario elige
-        let candidatosDamage = [];
-        let needsDamageTarget = false;
-        if (hechizo.Mecanicas?.damage) {
-            const tgt = normalizarObjetivo(hechizo.Mecanicas.damage.objetivo || "enemigos");
-            if (tgt !== "mismo" && tgt !== "todos") {
-                // 'global' devuelve aliados+enemigos, 'aliados'/'enemigos' solo su bando
-                candidatosDamage = this._obtenerCandidatos(session, caster, tgt);
-                needsDamageTarget = candidatosDamage.length > 0;
-            }
+        // ── Objetivos ────────────────────────────────────────────────────────
+        // 'mismo' / alcance 'todos' → automático · un solo candidato → automático
+        // 'aliados' / 'enemigos' / 'global' con varios candidatos → el jugador elige
+        const plan = this._planObjetivos(hechizo)
+        const slot = (p) => {
+            if (!p) return { candidatos: [], auto: [], elegir: false }
+            if (p.objetivo === "mismo") return { candidatos: [], auto: [caster], elegir: false }
+            if (p.alcance === "todos") return { candidatos: [], auto: this._objetivosArea(session, caster, p.objetivo), elegir: false }
+            const candidatos = this._obtenerCandidatos(session, caster, p.objetivo, { caidos: p.caidos })
+            return { candidatos, auto: candidatos.length === 1 ? candidatos : [], elegir: candidatos.length > 1 }
+        }
+        const sDamage = slot(plan.damage)
+        const sHealing = slot(plan.healing)
+
+        if (plan.healing?.caidos && sHealing.candidatos.length === 0) {
+            return { success: false, message: "No hay aliados caídos a los que devolver la vida." }
         }
 
-        let candidatosHealing = [];
-        let needsHealingTarget = false;
-        if (hechizo.Mecanicas?.healing) {
-            const tgt = normalizarObjetivo(hechizo.Mecanicas.healing.objetivo || "aliados");
-            if (tgt !== "mismo" && tgt !== "todos") {
-                candidatosHealing = this._obtenerCandidatos(session, caster, tgt);
-                needsHealingTarget = candidatosHealing.length > 0;
-            }
-        }
-
-        // Si se requiere interacción (selección de objetivos) y no se han provisto targetIds
-        if ((needsDamageTarget || needsHealingTarget) && !targetIds) {
+        if ((sDamage.elegir || sHealing.elegir) && !targetIds) {
             if (session) {
                 session._accionPendiente = { tipo: "spell", spellId: hechizo._id };
             }
@@ -1277,183 +1240,182 @@ class TurnProcessor {
                 success: true,
                 requiresInteraction: true,
                 message: `Selecciona los objetivos para ${hechizo.Nombre}.`,
-                candidatosDamage,
-                candidatosHealing,
+                candidatosDamage: sDamage.elegir ? sDamage.candidatos : [],
+                candidatosHealing: sHealing.elegir ? sHealing.candidatos : [],
+                // Selector simple (botón "¿Suerte?" → buildTarget): un solo slot a elegir
+                candidatos: sDamage.elegir ? sDamage.candidatos : sHealing.candidatos,
                 hechizo
             };
         }
 
-        // Resolver objetivos reales
-        let objetivosDamage = [];
-        let objetivosHealing = [];
-
-        if (targetIds) {
-            if (typeof targetIds === 'object' && !Array.isArray(targetIds)) {
-                if (targetIds.damage) {
-                    objetivosDamage = targetIds.damage.map(id => session.getCombatiente(id)).filter(Boolean);
-                }
-                if (targetIds.healing) {
-                    objetivosHealing = targetIds.healing.map(id => session.getCombatiente(id)).filter(Boolean);
-                }
-            } else if (Array.isArray(targetIds)) {
-                const resolved = targetIds.map(id => session.getCombatiente(id)).filter(Boolean);
-                objetivosDamage = resolved;
-                objetivosHealing = resolved;
-            } else {
-                // Preservar IDs de NPC como string; solo convertir si es un número válido
-                const _scalarNum = Number(targetIds);
-                const _scalarId = isNaN(_scalarNum) ? targetIds : _scalarNum;
-                const resolved = [session.getCombatiente(_scalarId)].filter(Boolean);
-                objetivosDamage = resolved;
-                objetivosHealing = resolved;
-            }
+        const seleccion = this._leerSeleccion(session, targetIds)
+        const elegidos = (s, elegidosRaw) => {
+            if (!s.elegir) return s.auto
+            const validos = elegidosRaw.filter(t => s.candidatos.some(c => String(c.ID) === String(t.ID)))
+            return validos.length ? validos : s.candidatos.slice(0, 1)   // fallback de emergencia
         }
+        const objetivosDamage = elegidos(sDamage, seleccion.damage)
+        const objetivosHealing = elegidos(sHealing, seleccion.healing)
 
-        // Fallbacks para objetivos automáticos (mismo/todos)
-        // 'global', 'aliados', 'enemigos' → ya resueltos por selección del usuario
-        if (hechizo.Mecanicas?.damage) {
-            const tgt = normalizarObjetivo(hechizo.Mecanicas.damage.objetivo || "enemigos");
-            if (tgt === "mismo") {
-                objetivosDamage = [caster];
-            } else if (tgt === "todos") {
-                objetivosDamage = session.getAllCombatientes().filter(c => !c.defeated);
-            } else if (objetivosDamage.length === 0 && candidatosDamage.length > 0) {
-                // Fallback de emergencia si el usuario no seleccionó nada
-                objetivosDamage = candidatosDamage.slice(0, 1);
-            }
-        }
+        // ── Costos ───────────────────────────────────────────────────────────
+        const ofrenda = await this._cobrarOfrenda(session, caster, hechizo, evaluacion)
+        if (!ofrenda.ok) return { success: false, message: ofrenda.message }
+        this._cobrarCosto(hechizo, caster, evaluacion);
+        session?.resolverTurnoExitoso?.(caster.ID);
 
-        if (hechizo.Mecanicas?.healing) {
-            const tgt = normalizarObjetivo(hechizo.Mecanicas.healing.objetivo || "aliados");
-            if (tgt === "mismo") {
-                objetivosHealing = [caster];
-            } else if (tgt === "todos") {
-                objetivosHealing = session.getAllCombatientes().filter(c => !c.defeated);
-            } else if (objetivosHealing.length === 0 && candidatosHealing.length > 0) {
-                // Fallback de emergencia si el usuario no seleccionó nada
-                objetivosHealing = candidatosHealing.slice(0, 1);
-            }
-        }
+        const castId = nuevoCastId(caster)
+        const modoTxt = evaluacion.modo === "mental" ? " (solo con la mente)" : ""
 
-        this._cobrarCosto(hechizo, caster);
-
-        const castTime = hechizo.Mecanicas?.cast?.tiempo ?? 1;
-
-        if (castTime > 1 && session) {
+        // ── Canalización (tiempo ≥ 2): se puede interrumpir ─────────────────
+        if (evaluacion.tiempo >= 2 && session) {
+            const restantes = evaluacion.tiempo - 1
             caster.activeCast = {
                 spellId: hechizo._id,
-                remainingTurns: castTime,
+                remainingTurns: restantes,
+                vias: evaluacion.usadas,
+                modo: evaluacion.modo,
+                interruptible: hechizo.Mecanicas?.cast?.interruptible !== false,
+                castId,
+                ataqueId: caster.isNPC ? (caster._ataqueEnCurso ?? null) : null,
                 targets: {
                     damage: objetivosDamage.map(o => o.ID),
                     healing: objetivosHealing.map(o => o.ID)
                 },
+                evaluacion,
                 baseSpell: hechizo
             };
 
-            session.addLog("objeto", {
-                autor: caster.Nombre,
-                item: { Nombre: hechizo.Nombre, Tipo: hechizo.Tipo },
-                efectos: [],
-                objetivos: [],
-                textoLog: `${caster.Nombre} ha comenzado a canalizar ${hechizo.Nombre} (${castTime} turnos).`
-            });
+            // Telegrafía: sin este aviso, interrumpir deja de ser una decisión
+            logSistema(session, `${caster.Nombre} está canalizando ${hechizo.Nombre}${modoTxt} (${restantes} turno(s)). ¡Un control puede cortarlo!`, { autor: caster.Nombre, hechizo: hechizo.Nombre });
 
             return {
                 success: true,
-                message: `Has comenzado a canalizar ${hechizo.Nombre} (${castTime} turnos).`,
+                message: `Has comenzado a canalizar ${hechizo.Nombre}${modoTxt} (${restantes} turno(s)).`,
                 caster,
                 hechizo,
                 resultados: []
             };
-        } else {
-            // Verificar probabilidad de lanzamiento (confusión, etc.)
-            const confusionRed = getConfusionReduction(caster);
-            const baseProb = hechizo.Mecanicas?.cast?.probabilidad ?? 1.0;
-            const precisionMod = caster.effectivePrecision; // Furia precision mod
-            const finalProb = Math.max(0, Math.min(1, baseProb * (1 + precisionMod / 100) - confusionRed));
+        }
 
-            if (Math.random() > finalProb) {
-                // El hechizo falla: mana ya gastado, objetivos ya elegidos, pero el lanzamiento se interrumpió
-                session?.addLog("objeto", {
-                    autor: caster.Nombre,
-                    item: { Nombre: hechizo.Nombre, Tipo: hechizo.Tipo, tipo: 'hechizo' },
-                    efectos: [],
-                    objetivos: [],
-                    textoLog: `${caster.Nombre} intentó lanzar ${hechizo.Nombre}, pero el conjuro falló.`
-                });
-                return {
-                    success: true,
-                    spellFailed: true,
-                    message: `El lanzamiento de ${hechizo.Nombre} falló. El mana fue consumido.`,
-                    caster,
-                    hechizo
-                };
+        return this._resolverLanzamiento(session, caster, hechizo, evaluacion, objetivosDamage, objetivosHealing, castId)
+    }
+
+    /**
+     * Confusión: el hechizo sale, pero puede ir al objetivo equivocado (aliado, uno mismo u otro
+     * enemigo). En hechizos de área puede invertir el bando con la misma probabilidad.
+     */
+    _aplicarDesvio(session, caster, hechizo, pDesvio, objetivosDamage, objetivosHealing) {
+        const out = { objetivosDamage, objetivosHealing, invertido: false, texto: null }
+        if (!session || !(pDesvio > 0)) return out
+        const plan = this._planObjetivos(hechizo)
+        const esArea = [plan.damage, plan.healing].some(p => p && p.alcance === "todos" && p.objetivo !== "mismo" && p.objetivo !== "global")
+
+        if (esArea) {
+            if (Math.random() < pDesvio) {
+                out.invertido = true
+                if (plan.damage?.alcance === "todos") out.objetivosDamage = this._objetivosArea(session, caster, plan.damage.objetivo, true)
+                if (plan.healing?.alcance === "todos") out.objetivosHealing = this._objetivosArea(session, caster, plan.healing.objetivo, true)
+                out.texto = `¡La confusión nubla a ${caster.Nombre}! ${hechizo.Nombre} se vuelve contra el bando equivocado.`
             }
+            return out
+        }
 
-            // Aplicar efectos instantáneamente
-            const todosObjetivos = [...new Set([...objetivosDamage, ...objetivosHealing])];
-            const efectosAplicados = this._aplicarEfectosHechizoInstante(session, caster, hechizo, objetivosDamage, objetivosHealing);
+        const vivos = session.getAllCombatientes().filter(c => !c.defeated)
+        const desviar = (lista) => lista.map(t => {
+            if (Math.random() >= pDesvio) return t
+            const otros = vivos.filter(c => c.ID !== t.ID)
+            if (!otros.length) return t
+            const nuevo = otros[Math.floor(Math.random() * otros.length)]
+            out.texto = `¡La confusión nubla a ${caster.Nombre}! ${hechizo.Nombre} se desvía hacia ${nuevo.Nombre}.`
+            return nuevo
+        })
+        if (plan.damage && plan.damage.objetivo !== "mismo" && plan.damage.alcance !== "todos") out.objetivosDamage = desviar(objetivosDamage)
+        if (plan.healing && plan.healing.objetivo !== "mismo" && plan.healing.alcance !== "todos" && !plan.healing.caidos) out.objetivosHealing = desviar(objetivosHealing)
+        return out
+    }
 
+    /** Tira la probabilidad final, aplica el desvío y resuelve el hechizo. */
+    _resolverLanzamiento(session, caster, hechizo, evaluacion, objetivosDamage, objetivosHealing, castId) {
+        if (Math.random() > evaluacion.pFinal) {
+            // El hechizo falla: maná ya gastado, pero el lanzamiento se interrumpió
             session?.addLog("objeto", {
                 autor: caster.Nombre,
-                autorId: caster.ID,
-                item: { Nombre: hechizo.Nombre, Tipo: hechizo.Tipo, tipo: 'hechizo' },
-                efectos: efectosAplicados,
-                objetivos: todosObjetivos.map(t => t.Nombre),
-                objetivosDetalle: todosObjetivos.map(t => ({ ID: t.ID, Nombre: t.Nombre }))
+                item: { Nombre: hechizo.Nombre, Tipo: "hechizo", tipo: 'hechizo' },
+                efectos: [],
+                objetivos: [],
+                textoLog: `${caster.Nombre} intentó lanzar ${hechizo.Nombre}, pero el conjuro falló.`
             });
-
-            this._verificarYRegistrarDerrotas(session, caster);
-
             return {
                 success: true,
-                tipo: 'spell',
+                spellFailed: true,
+                message: `El lanzamiento de ${hechizo.Nombre} falló. El mana fue consumido.`,
                 caster,
-                hechizo,
-                resultados: [],
-                gameOver: session ? session.combateTerminado() : false
+                hechizo
             };
         }
+
+        const desvio = this._aplicarDesvio(session, caster, hechizo, evaluacion.pDesvio, objetivosDamage, objetivosHealing)
+        if (desvio.texto) logSistema(session, desvio.texto, { autor: caster.Nombre, hechizo: hechizo.Nombre })
+
+        const todosObjetivos = [...new Set([...desvio.objetivosDamage, ...desvio.objetivosHealing])];
+        const efectosAplicados = this._aplicarEfectosHechizoInstante(session, caster, hechizo, desvio.objetivosDamage, desvio.objetivosHealing, { castId, invertido: desvio.invertido });
+
+        session?.addLog("objeto", {
+            autor: caster.Nombre,
+            autorId: caster.ID,
+            item: { Nombre: hechizo.Nombre, Tipo: "hechizo", tipo: 'hechizo', _id: hechizo._id },
+            efectos: efectosAplicados,
+            objetivos: todosObjetivos.map(t => t.Nombre),
+            objetivosDetalle: todosObjetivos.map(t => ({ ID: t.ID, Nombre: t.Nombre }))
+        });
+
+        // Maestría: solo cuenta un casteo resuelto (no fallido ni interrumpido)
+        registrarUso(caster, hechizo._id, session)
+        this._verificarYRegistrarDerrotas(session, caster);
+
+        return {
+            success: true,
+            tipo: 'spell',
+            caster,
+            hechizo,
+            modo: evaluacion.modo,
+            resultados: [],
+            gameOver: session ? session.combateTerminado() : false
+        };
     }
 
-    _obtenerCandidatos(session, caster, tipoObjetivo) {
-        if (!session) return [];
-        if (tipoObjetivo === "mismo") return [caster];
-        if (tipoObjetivo === "todos") return session.getAllCombatientes().filter(c => !c.defeated);
-
-        const esEquipo1 = session.teams[0].some(c => c.ID === caster.ID);
-        const aliados = esEquipo1 ? session.teams[0] : session.teams[1];
-        const enemigos = esEquipo1 ? session.teams[1] : session.teams[0];
-
-        if (tipoObjetivo === "aliados") {
-            return aliados.filter(a => a.ID !== caster.ID && !a.defeated);
-        } else if (tipoObjetivo === "enemigos") {
-            return enemigos.filter(e => !e.defeated);
-        } else if (tipoObjetivo === "global") {
-            return [...aliados, ...enemigos].filter(c => !c.defeated);
-        }
-        return [];
+    /** Objetivos de un efecto concreto según su `objetivo` y `alcance`. */
+    _objetivosEfecto(session, caster, efecto, objetivosDamage, objetivosHealing, invertido) {
+        const { objetivo, alcance } = efecto
+        if (objetivo === "mismo") return [caster]
+        if (alcance === "todos") return this._objetivosArea(session, caster, objetivo, invertido)
+        if (objetivo === "enemigos") return objetivosDamage
+        if (objetivo === "aliados") return objetivosHealing.length ? objetivosHealing : [caster]
+        return [...new Set([...objetivosDamage, ...objetivosHealing])]
     }
 
-    _aplicarEfectosHechizoInstante(session, caster, hechizo, objetivosDamage, objetivosHealing) {
+    /** Objetivos de una cadena: el elegido y hasta dos enemigos más (100% / 70% / 50%). */
+    _cadena(session, caster, primarios) {
+        const primero = primarios[0]
+        if (!primero || !session) return primarios
+        const bando = this._bandos(session, caster)
+        const lado = bando.enemigos.some(e => e.ID === primero.ID) ? bando.enemigos : bando.aliados
+        const resto = lado.filter(c => !c.defeated && c.ID !== primero.ID).sort(() => Math.random() - 0.5)
+        return [primero, ...resto].slice(0, CADENA.FACTORES.length)
+    }
+
+    _aplicarEfectosHechizoInstante(session, caster, hechizoRaw, objetivosDamage, objetivosHealing, ctx = {}) {
+        const hechizo = normalizarHechizo(hechizoRaw)
         const efectosAplicados = [];
         const mecanicas = hechizo.Mecanicas || {};
+        const castId = ctx.castId
 
         const esquivaron = new Set();
-        const esEvadible = (hechizo.evadible === true);
-
-        if (esEvadible && session) {
+        if (hechizo.evadible === true && session) {
             const todosObjetivos = [...new Set([...objetivosDamage, ...objetivosHealing])];
             for (const target of todosObjetivos) {
-                const agilidadDefensor = target.effectiveAgilidad;
-                const precisionMod = caster.effectivePrecision;
-                const basePrecision = (caster.stats?.precision !== undefined) ? caster.stats.precision : 100;
-                const precisionEfectivaAtacante = Math.max(PRECISION_MINIMA_BASE, basePrecision * (1 + precisionMod / 100));
-
-                const esquive = agilidadDefensor / (agilidadDefensor + precisionEfectivaAtacante);
-                const chanceEsquive = Math.max(PISO_ESQUIVE, Math.min(TECHO_ESQUIVE, esquive));
-
-                if (Math.random() < chanceEsquive) {
+                if (target.ID === caster.ID) continue
+                if (Math.random() < this._chanceEsquive(caster, target)) {
                     esquivaron.add(target.ID);
                     session.addLog("esquive", { defensor: target.Nombre, atacante: caster.Nombre });
                 }
@@ -1461,10 +1423,16 @@ class TurnProcessor {
         }
 
         if (mecanicas.damage) {
-            const targets = objetivosDamage.length > 0 ? objetivosDamage : [];
-            for (const target of targets) {
-                if (esquivaron.has(target.ID)) continue;
-                const dmgRes = this._aplicarDaño({ ...mecanicas.damage, yaEsquivado: true }, caster, target, hechizo, session);
+            const cadena = mecanicas.damage.alcance === "cadena"
+            const lista = cadena ? this._cadena(session, caster, objetivosDamage) : objetivosDamage
+            lista.forEach((target, i) => {
+                if (esquivaron.has(target.ID)) return;
+                const factor = cadena ? (CADENA.FACTORES[i] ?? CADENA.FACTORES[CADENA.FACTORES.length - 1]) : undefined
+                const dmgRes = this._aplicarDaño({ ...mecanicas.damage, factor, yaEsquivado: true }, caster, target, hechizo, session, { castId });
+                if (dmgRes.inmune) {
+                    efectosAplicados.push({ tipo: 'custom', clausula: 'resistido el golpe (Estasis)', objetivos: [target.Nombre], targetId: target.ID });
+                    return;
+                }
                 efectosAplicados.push({
                     tipo: 'danio',
                     valor: dmgRes.cantidad,
@@ -1472,13 +1440,14 @@ class TurnProcessor {
                     objetivos: [target.Nombre],
                     targetId: target.ID
                 });
-            }
+            });
         }
 
         if (mecanicas.healing) {
             const targets = objetivosHealing.length > 0 ? objetivosHealing : [caster];
             for (const target of targets) {
                 if (esquivaron.has(target.ID) && target.ID !== caster.ID) continue;
+                if (target.defeated) continue;
                 const healRes = this._aplicarCuracion(mecanicas.healing, caster, target, hechizo);
                 efectosAplicados.push({
                     tipo: 'curacion',
@@ -1490,82 +1459,76 @@ class TurnProcessor {
             }
         }
 
-        if (mecanicas.Efectos) {
-            for (const [key, efectoDatos] of Object.entries(mecanicas.Efectos)) {
-                const targetType = normalizarObjetivo(efectoDatos.objetivo || "enemigos");
-                let targets;
-                if (targetType === "mismo") {
-                    targets = [caster];
-                } else if (targetType === "todos") {
-                    targets = session ? session.getAllCombatientes().filter(c => !c.defeated) : [caster];
-                } else if (targetType === "enemigos") {
-                    targets = objetivosDamage;
-                } else if (targetType === "aliados") {
-                    // Si no hay aliados resueltos (ej: 1v1), aplicar al lanzador (mismo comportamiento que healing)
-                    targets = objetivosHealing.length > 0 ? objetivosHealing : [caster];
-                } else {
-                    targets = [caster];
+        for (const efecto of (mecanicas.Efectos || [])) {
+            const targets = this._objetivosEfecto(session, caster, efecto, objetivosDamage, objetivosHealing, ctx.invertido)
+            for (const target of targets) {
+                if (esquivaron.has(target.ID)) continue;
+
+                if (efecto.tipo === "instantaneo") {
+                    const entrada = this._efectoInstantaneoAntiguo(session, caster, target, hechizo, efecto)
+                    if (entrada) efectosAplicados.push(entrada)
+                    continue
+                }
+                if (efecto.tipo === "legacy") {
+                    // Estado sin mecánica conocida (lo pintan la UI y las condiciones de NPC)
+                    if (target.defeated || tieneInmunidad(target, "todo")) continue
+                    if (Math.random() > (efecto.probabilidad ?? 1)) continue
+                    if (esInmune(target, efecto.clave) || esInmune(target, efecto.nombre)) continue
+                    agregarEstado(target, { id: efecto.clave, Nombre: efecto.nombre, nombre: efecto.nombre, base: efecto.base, duracion: efecto.duracion, fuente: caster.ID })
+                    efectosAplicados.push({ tipo: "estado", Nombre: efecto.nombre, duracion: efecto.duracion, objetivos: [target.Nombre], targetId: target.ID })
+                    continue
                 }
 
-                for (const target of targets) {
-                    if (esquivaron.has(target.ID)) continue;
-                    if (efectoDatos.duracion !== null && efectoDatos.duracion !== undefined && efectoDatos.duracion > 0) {
-                        const procedio = this._agregarEfectoPendiente(session, efectoDatos, key, target, caster);
-                        if (procedio) {
-                            efectosAplicados.push({
-                                tipo: key === 'daño' ? 'danio' : key,
-                                Nombre: efectoDatos.Nombre || key,  // nombre display del efecto (ej: 'Aturdimiento')
-                                valor: efectoDatos.base || 0,
-                                duracion: efectoDatos.duracion,
-                                objetivos: [target.Nombre],          // quién queda afectado
-                                targetId: target.ID
-                            });
-                        }
-                    } else {
-                        let valorAplicado = efectoDatos.base || 0;
-                        if (key === 'curacion' || key === 'heal' || key === 'healing') {
-                            const res = this._aplicarCuracion({ base: valorAplicado }, caster, target, hechizo);
-                            valorAplicado = res.cantidad;
-                        } else if (key === 'daño' || key === 'damage') {
-                            const res = this._aplicarDaño({ base: valorAplicado, esFisico: false }, caster, target, hechizo, session);
-                            valorAplicado = res.cantidad;
-                        } else {
-                            const statName = efectoDatos.stat || 'HP';
-                            if (statName === 'HP') {
-                                const hpPrev = target.HP;
-                                target.HP = Math.min(target.stats?.hpMax || 99999, target.HP + valorAplicado);
-                                valorAplicado = target.HP - hpPrev;
-                            } else if (statName === 'Mana') {
-                                const manaPrev = target.Mana;
-                                target.Mana = Math.min(target.stats?.manaMax || 99999, target.Mana + valorAplicado);
-                                valorAplicado = target.Mana - manaPrev;
-                            } else if (target.stats) {
-                                const valPrev = target.stats[statName] || 0;
-                                target.stats[statName] = (target.stats[statName] || 0) + valorAplicado;
-                                valorAplicado = target.stats[statName] - valPrev;
-                            }
-                        }
-                        efectosAplicados.push({
-                            tipo: key === 'daño' ? 'danio' : key,
-                            valor: valorAplicado,
-                            stat: efectoDatos.stat || 'HP',
-                            objetivos: [target.Nombre],
-                            targetId: target.ID
-                        });
-                    }
-                }
+                const r = aplicarEfecto({
+                    sesion: session, caster, target,
+                    efecto: { ...efecto, hechizoId: hechizo._id },
+                    ctx: { castId, hechizo, esInmune, revertir: revertirModStat },
+                })
+                if (r.log) efectosAplicados.push(r.log)
             }
         }
 
         return efectosAplicados;
     }
 
+    /** Efecto instantáneo del formato antiguo (curación / daño / stat inmediato). */
+    _efectoInstantaneoAntiguo(session, caster, target, hechizo, efecto) {
+        const key = efecto.clave
+        let valorAplicado = Number(efecto.base) || 0;
+        if (key === 'curacion' || key === 'heal' || key === 'healing') {
+            valorAplicado = this._aplicarCuracion({ base: valorAplicado }, caster, target, hechizo).cantidad;
+        } else if (key === 'daño' || key === 'dano' || key === 'damage') {
+            valorAplicado = this._aplicarDaño({ base: valorAplicado, esFisico: false }, caster, target, hechizo, session).cantidad;
+        } else {
+            const statName = efecto.stat || 'HP';
+            if (statName === 'HP') {
+                const hpPrev = target.HP;
+                target.aplicarCuracion ? target.aplicarCuracion(valorAplicado, true) : (target.HP = Math.min(target.stats?.hpMax || 99999, target.HP + valorAplicado));
+                valorAplicado = target.HP - hpPrev;
+            } else if (statName === 'Mana') {
+                const manaPrev = target.Mana;
+                target.Mana = Math.min(target.stats?.manaMax || 99999, target.Mana + valorAplicado);
+                valorAplicado = target.Mana - manaPrev;
+            } else {
+                return null;   // un stat sin duración no se puede deshacer: se ignora
+            }
+        }
+        return {
+            tipo: key === 'daño' || key === 'dano' ? 'danio' : key,
+            valor: valorAplicado,
+            stat: efecto.stat || 'HP',
+            objetivos: [target.Nombre],
+            targetId: target.ID
+        };
+    }
+
     async elegirHechizoAleatorio(session, caster) {
-        if (!caster.hechizos || caster.hechizos.length === 0) {
+        const ids = (caster.hechizos || []).map(h => h?.ID ?? h)
+        if (ids.length === 0) {
             return { success: false, message: "No tienes hechizos disponibles." };
         }
 
-        const allSpells = await hechizos.find({ _id: { $in: caster.hechizos } }).toArray();
+        const allSpells = await cacheHechizos.obtenerVarios(ids);
         const validSpells = [];
 
         for (const spell of allSpells) {
@@ -1583,107 +1546,65 @@ class TurnProcessor {
         return await this.resolverHechizo(session, caster, spell._id, null);
     }
 
+    /**
+     * Turno de un combatiente que está canalizando: si alguna vía del cast quedó bloqueada se
+     * interrumpe; si no, avanza y al llegar a 0 resuelve el hechizo.
+     */
     _processActiveCastTick(session, caster) {
-        if (!caster.activeCast) return;
-        
-        const isCancelled = verificarCancelacionCast(caster, caster.activeCast.baseSpell);
-        if (isCancelled.cancelled) {
-            session.addLog("objeto", {
-                autor: caster.Nombre,
-                item: { Nombre: caster.activeCast.baseSpell.Nombre, Tipo: caster.activeCast.baseSpell.Tipo },
-                efectos: [],
-                objetivos: [],
-                textoLog: `${caster.Nombre} ha interrumpido la canalización de ${caster.activeCast.baseSpell.Nombre} (${isCancelled.reason}).`
-            });
-            delete caster.activeCast;
-        } else {
-            caster.activeCast.remainingTurns--;
-            
-            const confusionRed = getConfusionReduction(caster);
-            if (confusionRed > 0 && Math.random() < confusionRed) {
-                session.addLog("objeto", {
-                    autor: caster.Nombre,
-                    item: { Nombre: caster.activeCast.baseSpell.Nombre, Tipo: caster.activeCast.baseSpell.Tipo },
-                    efectos: [],
-                    objetivos: [],
-                    textoLog: `${caster.Nombre} se confunde y falla la canalización de ${caster.activeCast.baseSpell.Nombre}.`
-                });
-                delete caster.activeCast;
-                return;
-            }
-            
-            if (caster.activeCast.remainingTurns === 0) {
-                const spell = caster.activeCast.baseSpell;
-                const targetsData = caster.activeCast.targets || {};
-                
-                // Mapear targets de IDs a combatientes reales
-                const objetivosDamage = (targetsData.damage || []).map(id => session.getCombatiente(id)).filter(Boolean);
-                const objetivosHealing = (targetsData.healing || []).map(id => session.getCombatiente(id)).filter(Boolean);
-                const todosObjetivos = [...new Set([...objetivosDamage, ...objetivosHealing])];
+        const ac = caster.activeCast
+        if (!ac) return;
+        const spell = ac.baseSpell;
 
-                const efectosAplicados = this._aplicarEfectosHechizoInstante(session, caster, spell, objetivosDamage, objetivosHealing);
-                
-                session.addLog("objeto", {
-                    autor: caster.Nombre,
-                    autorId: caster.ID,
-                    item: { Nombre: spell.Nombre, Tipo: spell.Tipo, tipo: 'hechizo' },
-                    efectos: efectosAplicados,
-                    objetivos: todosObjetivos.map(t => t.Nombre),
-                    objetivosDetalle: todosObjetivos.map(t => ({ ID: t.ID, Nombre: t.Nombre }))
-                });
-                
-                delete caster.activeCast;
-            } else {
-                session.addLog("objeto", {
-                    autor: caster.Nombre,
-                    item: { Nombre: caster.activeCast.baseSpell.Nombre, Tipo: caster.activeCast.baseSpell.Tipo },
-                    efectos: [],
-                    objetivos: [],
-                    textoLog: `${caster.Nombre} está canalizando ${caster.activeCast.baseSpell.Nombre} (${caster.activeCast.remainingTurns} turno(s) restante(s)).`
-                });
-            }
+        const activos = efectosActivos(caster)
+        const bloq = viasBloqueadas(activos)
+        const bloqueadas = (ac.vias || []).filter(v => bloq.has(v))
+        if (bloqueadas.length && ac.interruptible !== false) {
+            interrumpirCast(session, caster, quienBloquea(activos, bloqueadas))
+            return;
         }
+
+        ac.remainingTurns--;
+        if (ac.remainingTurns > 0) {
+            logSistema(session, `${caster.Nombre} está canalizando ${spell.Nombre} (${ac.remainingTurns} turno(s) restante(s)).`, { autor: caster.Nombre, hechizo: spell.Nombre });
+            return;
+        }
+
+        delete caster.activeCast;
+        const targetsData = ac.targets || {};
+        const plan = this._planObjetivos(spell)
+        const vivos = (ids, permitirCaidos = false) => (ids || []).map(id => session.getCombatiente(id)).filter(c => c && (permitirCaidos || !c.defeated))
+        let objetivosDamage = vivos(targetsData.damage)
+        const objetivosHealing = vivos(targetsData.healing, plan.healing?.caidos)
+        // Si el objetivo de daño cayó mientras canalizaba, la descarga va a otro enemigo vivo
+        if (!objetivosDamage.length && plan.damage && plan.damage.objetivo !== "mismo") {
+            objetivosDamage = plan.damage.alcance === "todos"
+                ? this._objetivosArea(session, caster, plan.damage.objetivo)
+                : this._obtenerCandidatos(session, caster, plan.damage.objetivo).slice(0, 1)
+        }
+
+        // La degradación se vuelve a leer al resolver (Miedo / Confusión pueden haber cambiado)
+        const reevaluada = evaluarCasteo(caster, spell, { ignorarCostos: true, ignorarKit: true })
+        const evaluacion = reevaluada.ok ? { ...ac.evaluacion, pFinal: reevaluada.pFinal, pDesvio: reevaluada.pDesvio } : ac.evaluacion
+        this._resolverLanzamiento(session, caster, spell, evaluacion, objetivosDamage, objetivosHealing, ac.castId)
     }
 
-    _aplicarEfectosHechizo(session, caster, hechizo, objetivos, alFinalizarRonda = false) {
-        const mecanicas = hechizo.Mecanicas || {};
-        
-        if (mecanicas.damage) {
-            if (!alFinalizarRonda) {
-                for (const target of objetivos) {
-                    this._aplicarDaño(mecanicas.damage, caster, target, hechizo, session);
-                }
-            } else {
-                for (const target of objetivos) {
-                    this._agregarEfectoPendiente(session, {
-                        Nombre: hechizo.Nombre,
-                        base: mecanicas.damage.base,
-                        duracion: null,
-                        probabilidad: 1
-                    }, `${hechizo._id}_damage`, target, caster);
-                }
-            }
+    /** ¿El NPC puede usar ahora este ataque? (vías, kit, cooldown y costos vía evaluarCasteo) */
+    npcPuedeUsar(npc, ataque) {
+        if (!ataque) return false
+        const generico = ataque.isGeneric || ataque.id === "basic_attack" || ataque.id === "basic_punch"
+        if (generico) return evaluarCasteo(npc, ACCIONES.GOLPE).ok
+        if (ataque.id === "basic_defense") return evaluarCasteo(npc, ACCIONES.GUARDIA).ok
+        const ref = ataque.hechizoId ? cacheHechizos.obtenerSync(ataque.hechizoId) : null
+        const hechizo = ref || {
+            _id: `inline_${ataque.id}`,
+            Elemento: npc.elemento,
+            Mecanicas: { cast: { vias: ataque.vias || ["movimiento"], tiempo: ataque.cast?.tiempo ?? 1, probabilidad: 1, interruptible: ataque.cast?.interruptible !== false } },
+            Costos: { mana: Number(ataque.manaCost || 0) },
         }
-        
-        if (mecanicas.healing) {
-            for (const target of objetivos) {
-                this._agregarEfectoPendiente(session, {
-                    Nombre: hechizo.Nombre,
-                    base: mecanicas.healing.base,
-                    duracion: null,
-                    probabilidad: 1
-                }, `${hechizo._id}_healing`, target, caster);
-            }
-        }
-        
-        if (mecanicas.Efectos) {
-            for (const [key, efectoDatos] of Object.entries(mecanicas.Efectos)) {
-                for (const target of objetivos) {
-                    this._agregarEfectoPendiente(session, efectoDatos, key, target, caster);
-                }
-            }
-        }
+        return evaluarCasteo(npc, hechizo).ok
     }
 }
 
 module.exports = new TurnProcessor()
+module.exports.usaInstinto = usaInstinto
+module.exports.BALANCE = BALANCE

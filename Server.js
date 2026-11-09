@@ -1182,18 +1182,10 @@ app.post('/api/admin/hechizos', async (req, res) => {
         const db = clientdb.db(dbname);
         const collection = db.collection('Hechizos_globales');
 
-        // Calcular ID correlativo para el elemento
-        const existingSpells = await collection.find({ Elemento: hechizo.Elemento }).toArray();
-        let maxNum = 0;
-        existingSpells.forEach(s => {
-            const match = String(s._id).match(/-(\d+)$/);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (num > maxNum) maxNum = num;
-            }
-        });
-        const nextNum = maxNum + 1;
-        const nextId = `${hechizo.Elemento}-${String(nextNum).padStart(3, '0')}`;
+        // ID correlativo por prefijo sin tilde ("Pyró"/"Pyrós" → "Pyro-002"), sin depender de cómo esté escrito el Elemento
+        const { siguienteIdHechizo } = require("./functions/Duelo/hechizos/elementos");
+        const idsExistentes = (await collection.find({}, { projection: { _id: 1 } }).toArray()).map(s => s._id);
+        const nextId = siguienteIdHechizo(hechizo.Elemento, idsExistentes);
 
         const normalizedHechizo = {
             _id: nextId,
@@ -1262,8 +1254,14 @@ app.post('/api/admin/hechizos', async (req, res) => {
             }
         }
 
-        await collection.insertOne(normalizedHechizo);
-        res.json({ success: true, message: 'Hechizo creado exitosamente.', hechizo: normalizedHechizo });
+        // Sistema de hechizos: vías, escalón, Efectos como array... y validación antes de guardar
+        const { completarHechizoParaGuardar } = require("./functions/Duelo/hechizos/esquema");
+        const preparado = completarHechizoParaGuardar(normalizedHechizo, hechizo, null);
+        if (!preparado.ok) return res.status(400).json({ error: 'Hechizo inválido', detalles: preparado.errores });
+
+        await collection.insertOne(preparado.doc);
+        require("./functions/Duelo/hechizos/cache").invalidar(preparado.doc._id);
+        res.json({ success: true, message: 'Hechizo creado exitosamente.', hechizo: preparado.doc });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error interno' });
@@ -1372,8 +1370,14 @@ app.put('/api/admin/hechizos/:id', async (req, res) => {
             }
         }
 
-        await collection.replaceOne({ _id: targetSpell._id }, normalizedHechizo);
-        res.json({ success: true, message: 'Hechizo actualizado exitosamente.', hechizo: normalizedHechizo });
+        // Conserva vías / escalón / Efectos nuevos del documento actual y valida antes de guardar
+        const { completarHechizoParaGuardar } = require("./functions/Duelo/hechizos/esquema");
+        const preparado = completarHechizoParaGuardar(normalizedHechizo, hechizo, targetSpell);
+        if (!preparado.ok) return res.status(400).json({ error: 'Hechizo inválido', detalles: preparado.errores });
+
+        await collection.replaceOne({ _id: targetSpell._id }, preparado.doc);
+        require("./functions/Duelo/hechizos/cache").invalidar(targetSpell._id);
+        res.json({ success: true, message: 'Hechizo actualizado exitosamente.', hechizo: preparado.doc });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error interno' });
@@ -1392,6 +1396,9 @@ function normalizeNpc(npc) {
         Mana: new Int32(Number(npc.Mana || 0)),
         Faccion: npc.Faccion || null,
         Type: npc.Type || "Enemigo",
+        // Sistema de hechizos (VI.B): los no humanos castean solo por instinto; los humanos usan vías y maestría
+        tipo: String(npc.tipo || "").toLowerCase() === "humano" ? "humano" : "no_humano",
+        maestrias: npc.maestrias && typeof npc.maestrias === "object" ? npc.maestrias : {},
         artefactoMagico: typeof npc.artefactoMagico !== "undefined" ? Boolean(npc.artefactoMagico) : false,
         permiteAtaqueBasico: typeof npc.permiteAtaqueBasico !== "undefined" ? Boolean(npc.permiteAtaqueBasico) : true,
         permiteDefensaBasica: typeof npc.permiteDefensaBasica !== "undefined" ? Boolean(npc.permiteDefensaBasica) : true,
@@ -1431,7 +1438,11 @@ function normalizeNpc(npc) {
                 probabilidad: new Int32(Number(a.probabilidad || 50)),
                 targeting: a.targeting || "random",
                 objetivosCant: new Int32(Number(a.objetivosCant || 1)),
-                fases: (a.fases || [1]).map(f => new Int32(Number(f)))
+                fases: (a.fases || [1]).map(f => new Int32(Number(f))),
+                // No humano → ['instinto'] siempre; humano → sus vías (por defecto movimiento)
+                vias: String(npc.tipo || "").toLowerCase() === "humano"
+                    ? ((Array.isArray(a.vias) && a.vias.length) ? a.vias.map(v => String(v).toLowerCase()) : ["movimiento"])
+                    : ["instinto"]
             };
             if (a.type === 1) {
                 normalizedAttack.hechizoId = a.hechizoId || "";
@@ -2493,6 +2504,193 @@ app.post('/api/admin/eventos-mensaje/enviar', requireAdminOrMod, async (req, res
         res.json({ success: true, ...resultado });
     } catch (err) {
         responderErrorEvento(res, err, 'Error enviando evento');
+    }
+});
+
+// ═══ MODERACIÓN: reportes de regalos ═══
+// Los mismos reportes que llegan al canal del staff (functions/Regalos/reportesCanal.js).
+// Resolver aquí o con los botones de Discord es lo mismo: el primero que lo haga gana.
+
+// GET /api/admin/moderacion/regalos?estado=abierto|resuelto|todos&limite=30&antesDe=ISO
+app.get('/api/admin/moderacion/regalos', requireAdminOrMod, async (req, res) => {
+    try {
+        const regalos = require('./functions/Regalos/regalos');
+        const { MOTIVOS_REPORTE } = require('./config/regalos');
+        const estado = ['abierto', 'resuelto', 'todos'].includes(req.query.estado) ? req.query.estado : 'abierto';
+        const antesDe = req.query.antesDe ? new Date(String(req.query.antesDe)) : null;
+        const { reportes, totales } = await regalos.listarReportes({
+            estado,
+            limite: req.query.limite,
+            antesDe: antesDe && !isNaN(antesDe) ? antesDe : null,
+        });
+        res.json({
+            reportes: reportes.map(r => ({ ...r, _id: String(r._id), regaloId: String(r.regaloId) })),
+            totales,
+            motivos: MOTIVOS_REPORTE,
+        });
+    } catch (err) {
+        console.error('[Moderación] Error listando reportes de regalos:', err);
+        res.status(500).json({ error: 'No se pudieron cargar los reportes.' });
+    }
+});
+
+// POST /api/admin/moderacion/regalos/:id/resolver   Body: { accion: 'devolver' | 'liberar' }
+app.post('/api/admin/moderacion/regalos/:id/resolver', requireAdminOrMod, async (req, res) => {
+    try {
+        const accion = req.body?.accion;
+        if (!['devolver', 'liberar'].includes(accion)) return res.status(400).json({ error: 'Acción no válida.' });
+        const regalos = require('./functions/Regalos/regalos');
+        const { texto } = require('./config/mensajesRegalos');
+        const r = await regalos.resolverReporte({ reporteId: req.params.id, accion, staffId: req.session.user.id });
+        if (!r.ok) {
+            const status = r.codigo === 'REPORTE_RESUELTO' ? 409 : r.codigo === 'NO_EXISTE' ? 404 : 400;
+            return res.status(status).json({ error: texto(r.codigo), codigo: r.codigo });
+        }
+        // El mensaje del canal deja de tener botones activos
+        if (client) {
+            require('./functions/Regalos/reportesCanal').actualizarMensajeReporte(client, r.reporte)
+                .catch(err => console.error('[Moderación] No se pudo actualizar el mensaje del canal:', err));
+        }
+        console.log(`[Moderación] ${req.session.user.username || req.session.user.id} resolvió el reporte ${req.params.id}: ${accion} → ${r.resultado}`);
+        res.json({ success: true, resultado: r.resultado, reporte: { ...r.reporte, _id: String(r.reporte._id), regaloId: String(r.reporte.regaloId) } });
+    } catch (err) {
+        console.error('[Moderación] Error resolviendo reporte de regalo:', err);
+        res.status(500).json({ error: 'No se pudo resolver el reporte.' });
+    }
+});
+
+// ═══ CLIMA Y HORARIO (functions/Clima) ═══
+// Reloj interno, clima por hora y noticiero. El bot y la web viven en el mismo proceso,
+// así que el dashboard usa la misma caché que los ticks.
+
+function responderErrorClima(res, err, contexto) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error(`[Clima] ${contexto}:`, err);
+    res.status(500).json({ error: `${contexto}.` });
+}
+function regionClima(req, res) {
+    const { REGIONES } = require('./functions/Clima/config');
+    if (!REGIONES[req.params.regionId]) { res.status(404).json({ error: 'Región desconocida.' }); return null; }
+    return req.params.regionId;
+}
+const quienClima = (req) => req.session.user.username || req.session.user.id;
+
+// GET /api/clima/:regionId → hora y clima visibles para el widget "HORA DEL REINO" (cualquier usuario con sesión).
+// Incluye el reloj para que el navegador avance los minutos solo y vuelva a pedir al cambiar de hora.
+app.get('/api/clima/:regionId', async (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+    const regionId = regionClima(req, res); if (!regionId) return;
+    try {
+        const clima = require('./functions/Clima');
+        const { fechaDeHora, msPorHora } = require('./functions/Clima/reloj');
+        const { cargar } = require('./functions/Clima/estadoRegion');
+        const e = await clima.getEstado(regionId);
+        const { reloj } = await cargar(regionId);
+        res.json({
+            regionId,
+            nombre: e.nombre,
+            dia: e.dia,
+            horaDelDia: e.horaDelDia,
+            minuto: e.minuto,
+            fase: e.fase,
+            carpeta: e.carpeta,
+            estacion: e.estacion,
+            estado: e.estado,
+            temperatura: e.temperatura,
+            inicioHora: fechaDeHora(reloj, e.horaIndex),
+            proximaHora: fechaDeHora(reloj, e.horaIndex + 1),
+            msPorHora: msPorHora(reloj),
+            ahora: new Date()   // para corregir la diferencia de reloj del navegador
+        });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo leer el clima');
+    }
+});
+
+// GET /api/admin/clima → regiones disponibles
+app.get('/api/admin/clima', requireAdminOrMod, (req, res) => {
+    const { REGIONES, ESTADOS } = require('./functions/Clima/config');
+    res.json({ regiones: Object.entries(REGIONES).map(([id, c]) => ({ id, nombre: c.nombre })), estados: ESTADOS });
+});
+
+// GET /api/admin/clima/:regionId?horas=24 → estado, pronóstico, historial, noticiero, reloj y revisión de textos
+app.get('/api/admin/clima/:regionId', requireAdminOrMod, async (req, res) => {
+    const regionId = regionClima(req, res); if (!regionId) return;
+    try {
+        const clima = require('./functions/Clima');
+        const horas = Math.max(1, Math.min(72, parseInt(req.query.horas, 10) || 24));
+        const info = await clima.infoAdmin(regionId, horas);
+        const { validarTextos } = require('./scripts/validarTextos');
+        const t = validarTextos(require('./functions/Clima/climaTextos.json'));
+        res.json({
+            ...info,
+            estados: clima.ESTADOS,
+            textos: { sinFrases: t.sinFrases, repetidas: t.repetidas, errores: [...t.faltantes, ...t.titulosVacios, ...t.frasesVacias, ...t.coloresMal] }
+        });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo cargar el clima');
+    }
+});
+
+// POST /api/admin/clima/:regionId/noticiero  Body: { accion: 'iniciar'|'detener'|'refrescar'|'reenviar', canalId? }
+app.post('/api/admin/clima/:regionId/noticiero', requireAdminOrMod, async (req, res) => {
+    const regionId = regionClima(req, res); if (!regionId) return;
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const clima = require('./functions/Clima');
+        const { accion, canalId } = req.body || {};
+        let resultado = null;
+        if (accion === 'iniciar') resultado = await clima.iniciarNoticiero(regionId, String(canalId || '').trim());
+        else if (accion === 'detener') await clima.detenerNoticiero(regionId);
+        else if (accion === 'refrescar') resultado = await clima.actualizarNoticiero(regionId);
+        else if (accion === 'reenviar') resultado = await clima.reenviarNoticiero(regionId);
+        else return res.status(400).json({ error: 'Acción no válida.' });
+        console.log(`[Clima] ${quienClima(req)} → noticiero ${regionId}: ${accion}${canalId ? ` (${canalId})` : ''}`);
+        res.json({ success: true, resultado });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo actualizar el noticiero');
+    }
+});
+
+// POST /api/admin/clima/:regionId/override  Body: { estado, horas, motivo }
+app.post('/api/admin/clima/:regionId/override', requireAdminOrMod, async (req, res) => {
+    const regionId = regionClima(req, res); if (!regionId) return;
+    try {
+        const { estado, horas, motivo } = req.body || {};
+        const override = await require('./functions/Clima').ponerOverride(regionId, { estado, horas, motivo, autor: quienClima(req) });
+        console.log(`[Clima] ${quienClima(req)} forzó ${estado} en ${regionId} durante ${horas} h${motivo ? ` (${motivo})` : ''}`);
+        res.json({ success: true, override });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo forzar el clima');
+    }
+});
+
+// DELETE /api/admin/clima/:regionId/override
+app.delete('/api/admin/clima/:regionId/override', requireAdminOrMod, async (req, res) => {
+    const regionId = regionClima(req, res); if (!regionId) return;
+    try {
+        await require('./functions/Clima').quitarOverride(regionId);
+        console.log(`[Clima] ${quienClima(req)} quitó el clima forzado de ${regionId}`);
+        res.json({ success: true });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo quitar el clima forzado');
+    }
+});
+
+// POST /api/admin/clima/:regionId/corregir  Body: { accion: 'reiniciar', estado? } | { accion: 'adelantar', hora }
+app.post('/api/admin/clima/:regionId/corregir', requireAdminOrMod, async (req, res) => {
+    const regionId = regionClima(req, res); if (!regionId) return;
+    try {
+        const clima = require('./functions/Clima');
+        const { accion, estado, hora } = req.body || {};
+        let resultado;
+        if (accion === 'reiniciar') resultado = { estado: await clima.reiniciarClima(regionId, estado || null) };
+        else if (accion === 'adelantar') resultado = await clima.adelantarReloj(regionId, hora);
+        else return res.status(400).json({ error: 'Acción no válida.' });
+        console.log(`[Clima] ${quienClima(req)} corrigió ${regionId}: ${accion} ${estado || hora || ''}`);
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorClima(res, err, 'No se pudo aplicar la corrección');
     }
 });
 

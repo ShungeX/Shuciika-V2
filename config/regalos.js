@@ -116,6 +116,8 @@ const MOTIVOS_REPORTE = [
     { id: "spam", label: "Spam" },                                                  // ⚙
     { id: "otro", label: "Otro" },                                                  // ⚙
 ]
+// Canal del staff donde llegan los reportes, con botones para resolverlos
+const CANAL_REPORTES = "872702942065606666"                                          // ⚙
 const REPORTE_TEXTO_MAX = 300                                                       // ⚙ PROVISIONAL
 // Por qué hay tope: que reportar no se vuelva una forma de acoso.
 const REPORTES_POR_DIA = 3                                                          // ⚙ PROVISIONAL
@@ -170,6 +172,7 @@ module.exports = {
     RETENCION_DIAS,
     BUZON_LISTA,
     MOTIVOS_REPORTE,
+    CANAL_REPORTES,
     REPORTE_TEXTO_MAX,
     REPORTES_POR_DIA,
     RETENCION_REPORTES_DIAS,

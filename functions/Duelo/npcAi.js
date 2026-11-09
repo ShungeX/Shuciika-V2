@@ -1,4 +1,9 @@
-const { getConfusionReduction, obtenerEfectoIncapacitante } = require("./turnProcessor");
+// IA de NPCs: reglas por prioridad + pool ponderado. Los NPCs no humanos castean por `instinto`
+// (solo Parálisis / Aturdimiento / Congelado / Estasis los frenan); los humanos usan vías como
+// un jugador. Qué puede usar se decide en evaluarCasteo (vía TurnProcessor.npcPuedeUsar).
+const { logSistema, filtrarProvocados } = require("./hechizos/efectos")
+
+const tp = () => require("./turnProcessor")
 
 class NpcAi {
     /**
@@ -56,29 +61,28 @@ class NpcAi {
         // 3. Fallback: weighted draw of attacks available in current phase
         if (!actionExecuted) {
             console.log(`[CONSOLA - NPC IA] 🎯 ${npc.Nombre} seleccionando ataque aleatorio de la fase actual (${npc.fase})...`);
-            const availableAttacks = (npc.ataques || []).filter(attack => {
-                const phases = attack.fases || [1];
-                return phases.includes(npc.fase);
-            });
+            const TurnProcessor = tp();
+            const deFase = (npc.ataques || []).filter(attack => (attack.fases || [1]).includes(npc.fase));
+            // Solo lo que sus vías permiten ahora (un Mutismo no frena a una bestia; una Parálisis sí)
+            let availableAttacks = deFase.filter(a => TurnProcessor.npcPuedeUsar(npc, a));
+            // Tras un corte, cambia de hechizo si tiene alternativa
+            if (npc.ultimoAtaqueInterrumpido && availableAttacks.length > 1) {
+                availableAttacks = availableAttacks.filter(a => String(a.id) !== String(npc.ultimoAtaqueInterrumpido));
+            }
 
-            if (npc.permiteAtaqueBasico !== false && availableAttacks.length === 0) {
-                availableAttacks.push({
-                    id: "basic_attack",
-                    name: "Ataque General",
-                    isGeneric: true,
-                    probabilidad: 50,
-                    fases: [1, 2, 3, 4]
-                });
+            const golpe = { id: "basic_attack", name: "Ataque General", isGeneric: true, probabilidad: 50, fases: [1, 2, 3, 4] };
+            if (npc.permiteAtaqueBasico !== false && availableAttacks.length === 0 && TurnProcessor.npcPuedeUsar(npc, golpe)) {
+                availableAttacks.push(golpe);
             }
 
             if (availableAttacks.length > 0) {
                 const selectedAttack = this.weightedDraw(availableAttacks, 'probabilidad');
                 await this.executeAttack(selectedAttack, npc, session);
+            } else if (npc.permiteDefensaBasica !== false && TurnProcessor.npcPuedeUsar(npc, { id: "basic_defense" })) {
+                console.log(`[CONSOLA - NPC IA] 🛡️ ${npc.Nombre} no puede atacar en fase ${npc.fase}. Se cubre.`);
+                await TurnProcessor.resolveAction(session, npc.ID, { tipo: 'defend' });
             } else {
-                console.log(`[CONSOLA - NPC IA] ⚠️ ${npc.Nombre} no tiene ataques en fase ${npc.fase}. Usando ataque básico de reserva.`);
-                const targetObjs = this.resolveTargets("enemigos", "random", 1, npc, session);
-                const targetId = targetObjs[0]?.ID || null;
-                await TurnProcessor.resolveAction(session, npc.ID, { tipo: 'attack', targetId });
+                logSistema(session, `${npc.Nombre} no encuentra cómo actuar este turno.`, { autor: npc.Nombre });
             }
         }
 
@@ -221,6 +225,13 @@ class NpcAi {
             case "jugador_artefacto_magico":
                 return rivalesVivos.some(r => r.artefactoMagico === true);
 
+            // Le cortaron un cast hace `valor` rondas o menos (por defecto 1): para cambiar de hechizo
+            case "interrumpido_recientemente": {
+                if (npc.interrumpidoRecientemente === undefined || npc.interrumpidoRecientemente === null) return false;
+                const ventana = Number.isFinite(val) && val > 0 ? val : 1;
+                return (session.ronda - Number(npc.interrumpidoRecientemente)) <= ventana;
+            }
+
             default:
                 return false;
         }
@@ -234,25 +245,30 @@ class NpcAi {
 
         for (const act of actions) {
             switch (act.tipo) {
-                case "usar_ataque":
+                case "usar_ataque": {
                     const attack = (npc.ataques || []).find(a => String(a.id) === String(act.ataqueId));
-                    if (attack) {
+                    if (attack && tp().npcPuedeUsar(npc, attack)) {
                         await this.executeAttack(attack, npc, session);
+                    } else if (attack) {
+                        logSistema(session, `${npc.Nombre} intenta usar ${attack.name || attack.Nombre || "un ataque"}, pero no puede en su estado actual.`, { autor: npc.Nombre });
                     }
                     break;
+                }
 
-                case "aplicar_efecto":
+                case "aplicar_efecto": {
                     const targetType = act.efecto.objetivo || "enemigos";
                     const targets = this.resolveTargets(targetType, "random", 1, npc, session);
-                    const TurnProcessor = require("./turnProcessor");
+                    const TurnProcessor = tp();
 
                     targets.forEach(target => {
-                        TurnProcessor._agregarEfectoPendiente(session, {
+                        // Se aplica en el acto (puede interrumpir un cast). Tregua solo existe en PvE.
+                        const aplicado = TurnProcessor._agregarEfectoPendiente(session, {
                             Nombre: act.efecto.Nombre,
                             base: Number(act.efecto.base || 0),
                             duracion: Number(act.efecto.duracion || 1),
                             probabilidad: 1.0
                         }, act.efecto.Nombre, target, npc);
+                        if (!aplicado) return;
 
                         session.addLog("objeto", {
                             autor: npc.Nombre,
@@ -263,6 +279,22 @@ class NpcAi {
                         });
                     });
                     break;
+                }
+
+                // Tregua (V.E): nadie baja de 1 HP durante 1 turno. Solo PvE / eventos (aplicarEfecto lo rechaza en PvP)
+                case "tregua": {
+                    const { aplicarEfecto } = require("./hechizos/efectos");
+                    const { TREGUA } = require("./hechizos/config");
+                    let alguno = false;
+                    for (const target of session.getAllCombatientes().filter(c => !c.defeated)) {
+                        const r = aplicarEfecto({ sesion: session, caster: npc, target, efecto: { tipo: "inmunidad", contra: "muerte", nombre: "Tregua", duracion: Number(act.duracion) || TREGUA.DURACION } });
+                        alguno = alguno || r.aplicado;
+                    }
+                    logSistema(session, alguno
+                        ? `${npc.Nombre} impone una Tregua: nadie puede caer este turno.`
+                        : `${npc.Nombre} intenta imponer una Tregua, pero aquí no tiene poder.`, { autor: npc.Nombre });
+                    break;
+                }
 
                 case "cambiar_fase":
                     if (npc.boss && npc.boss.fases) {
@@ -340,6 +372,8 @@ class NpcAi {
         const attackNameLower = attackName.toLowerCase();
 
         console.log(`[CONSOLA - NPC IA] ⚔️ ${npc.Nombre} EJECUTA ATAQUE: "${attackName}" | OBJETIVOS: [${targetNames || "Ninguno"}]`);
+        // Para saber qué ataque se cortó si lo interrumpen (cambia de hechizo después)
+        npc._ataqueEnCurso = attack.id ?? null;
 
         const isGenericAttack = attack.isGeneric ||
             attack.id === "basic_attack" ||
@@ -400,8 +434,7 @@ class NpcAi {
             // Si es un ataque en línea sin mecánicas definidas, aplicar mecánica según nombre o básico
             if (!damageObj && !healingObj && (!efectosObj || Object.keys(efectosObj).length === 0)) {
                 if (attackName.toLowerCase().includes("defens") || attackName.toLowerCase().includes("escudo")) {
-                    npc.defenseActual = (npc.defenseActual || 0) + 5;
-                    session.addLog("defender", { defensor: npc.Nombre, defensaObtenida: 5 });
+                    await TurnProcessor.resolveAction(session, npc.ID, { tipo: "defend" });
                     return;
                 } else {
                     damageObj = {
@@ -416,7 +449,6 @@ class NpcAi {
                 _id: `inline_${attack.id || Math.random().toString(36).substring(7)}`,
                 Nombre: attackName,
                 Descripcion: attack.description || "",
-                Tipo: "movimiento",
                 Elemento: npc.Elemento || npc.elemento || "Neutro",
                 isActive: true,  // los ataques inline de NPC siempre están activos
                 Mecanicas: {
@@ -432,7 +464,10 @@ class NpcAi {
                         objetivo: targetType
                     } : null,
                     Efectos: efectosObj || null,
-                    cast: attack.cast || { tiempo: 1, probabilidad: 1.0, interruptible: true }
+                    // Vías: los humanos declaran las suyas (por defecto movimiento); los no humanos castean
+                    // por instinto (evaluarCasteo lo fuerza). Un ataque fuerte con tiempo 1–2 e
+                    // interruptible: true es el "tell" que los jugadores aprenden a cortar (VI.C).
+                    cast: { tiempo: 1, probabilidad: 1.0, interruptible: true, ...(attack.cast || {}), vias: attack.vias || attack.cast?.vias || ["movimiento"] }
                 },
                 Costos: {
                     mana: Number(attack.manaCost || 0),
@@ -455,7 +490,7 @@ class NpcAi {
 
         let pool = [];
         if (targetType === "enemigos") {
-            pool = enemigos.filter(c => !c.defeated);
+            pool = filtrarProvocados(enemigos.filter(c => !c.defeated));
         } else if (targetType === "aliados") {
             pool = aliados.filter(c => !c.defeated && c.ID !== npc.ID);
             if (pool.length === 0) pool = aliados.filter(c => !c.defeated); // Incluirse a sí mismo si no hay otros aliados vivos

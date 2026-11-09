@@ -18,6 +18,8 @@ module.exports = crearModal({
         const textoLibre = interaction.fields.getTextInputValue("texto")
 
         const r = await regalos.reportarRegalo({ personaje: character, userId, regaloId, motivo, texto: textoLibre })
+        // Al canal del staff, sin hacer esperar al jugador (si falla, el reporte ya quedó guardado)
+        if (r.ok) require("../../../../functions/Regalos/reportesCanal").enviarReporte(interaction.client, r.reporteId)
         return P.responder(interaction, await P.detalle({
             userId, personaje: character, regaloId,
             lineasExtra: [`> ${texto(r.ok ? "REPORTE_OK" : r.codigo)}`],

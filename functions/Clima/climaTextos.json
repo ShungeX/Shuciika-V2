@@ -1,0 +1,308 @@
+{
+  "_nota": "Textos del noticiero del clima. Migrados de Hora_rol.js (weatherInfo). Las entradas con \"todo\" están pendientes de frases propias. Revisa con: npm run validar-textos",
+  "estados": {
+    "Soleado": {
+      "Amanecer": {
+        "titulo": "Es un amanecer hermoso...",
+        "frases": [
+          "El sol asoma suavemente por el horizonte.",
+          "Que tal si hacemos algo interesante hoy.",
+          "¡Despierta!",
+          "Al parecer hoy hara un bonito dia",
+          "¿Sigues dormido/a?",
+          "La alarma sonara pronto"
+        ],
+        "color": "#f3c471"
+      },
+      "Día": {
+        "titulo": "Es de mañana en Tobeya",
+        "frases": [
+          "Es un dia hermoso",
+          "Dia perfecto para cosas perfectas",
+          "Deberias salir a que te den los primeros rayos de sol",
+          "¡A desayunar!",
+          "Vamos, hay que hacer ejercicio",
+          "Dudo que llueva mas tarde",
+          "El sol es hermoso"
+        ],
+        "color": "#f7de3f"
+      },
+      "Tarde": {
+        "titulo": "Es de tarde en Tobeya",
+        "frases": [
+          "Es una hermosa tarde",
+          "Al parecer... hace bastante calor",
+          "¿Salimos hoy?",
+          "Al parecer todo va bien",
+          "Cielos despejados"
+        ],
+        "color": "#e59f09"
+      },
+      "Atardecer": {
+        "titulo": "Esta atardeciendo en Tobeya",
+        "frases": [
+          "Hace un hermoso atardecer",
+          "Deberiamos mirar el atardecer",
+          "Pronto anochecera",
+          "Me gustan los atardeceres"
+        ],
+        "color": "#fb6316"
+      },
+      "Noche": {
+        "titulo": "Es de noche en Tobeya",
+        "frases": [
+          "Deberias tener cuidado",
+          "¿Compramos algo de cenar?",
+          "Deberias cenar algo",
+          "A dormir",
+          "Que buen dia",
+          "Cielos estrellados",
+          "Podemos observar la luna",
+          "Deberias mirar la luna",
+          "Me da miedo la oscuridad..."
+        ],
+        "color": "#fb6316"
+      },
+      "Madrugada": {
+        "titulo": "Es de madrugada en Tobeya.",
+        "frases": [
+          "Esta tranquila la madrugada...",
+          "zzz...",
+          "¿Que haces despierto a esta hora?",
+          "El que madruga al mago ayuda",
+          "Es de madrugada, ¿que esperas?",
+          "Ve a dormir",
+          "#Miedo"
+        ],
+        "color": "#614327"
+      }
+    },
+    "Caluroso": {
+      "Amanecer": { "titulo": "Amanecio con calor en Tobeya.", "frases": [], "color": "#f59e42", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Día": { "titulo": "Es una mañana calurosa en Tobeya.", "frases": [], "color": "#f97316", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Tarde": { "titulo": "Es una tarde calurosa en Tobeya.", "frases": [], "color": "#ea580c", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Atardecer": { "titulo": "Es un atardecer caluroso en Tobeya.", "frases": [], "color": "#dc4a12", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Noche": { "titulo": "Es una noche calurosa en Tobeya.", "frases": [], "color": "#7c2d12", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Madrugada": { "titulo": "Es una madrugada calurosa en Tobeya.", "frases": [], "color": "#5a2a10", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" }
+    },
+    "Ventoso": {
+      "Amanecer": { "titulo": "Es un amanecer ventoso en Tobeya.", "frases": [], "color": "#8fb3a8", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Día": { "titulo": "Es una mañana ventosa en Tobeya.", "frases": [], "color": "#7fa99b", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Tarde": { "titulo": "Es una tarde ventosa en Tobeya.", "frases": [], "color": "#6b9486", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Atardecer": { "titulo": "Es un atardecer ventoso en Tobeya.", "frases": [], "color": "#a0785a", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Noche": { "titulo": "Es una noche ventosa en Tobeya.", "frases": [], "color": "#2f3e3a", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Madrugada": { "titulo": "Es una madrugada ventosa en Tobeya.", "frases": [], "color": "#253230", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" }
+    },
+    "Nublado": {
+      "Amanecer": {
+        "titulo": "Es un amanecer nublado en Tobeya.",
+        "frases": [
+          "Oh... Puede que llueva el dia de hoy",
+          "de preferencia lleva un paraguas para cualquier cosa",
+          "Las nubes no dejan ver el hermoso amanecer"
+        ],
+        "color": "#201000"
+      },
+      "Día": {
+        "titulo": "Es una mañana nublada en Tobeya.",
+        "frases": [
+          "Tal vez... no sea adecuado lavar hoy",
+          "Si vas a salir lleva un paraguas",
+          "¿Y si mejor nos quedamos en casa?",
+          "Asi no dan ganas de hacer nada",
+          "..."
+        ],
+        "color": "#201000"
+      },
+      "Tarde": {
+        "titulo": "Es una tarde nublada en Tobeya.",
+        "frases": [
+          "¿Metiste la ropa?",
+          "Las nubes cubren el azul del cielo",
+          "Parece que va a llover...",
+          "El cielo se esta nublando",
+          "Ay ma... Espera ese no es el texto"
+        ],
+        "color": "#422203"
+      },
+      "Atardecer": {
+        "titulo": "Es un atardecer nublado en Tobeya.",
+        "frases": [
+          "Esta vez no es posible observar el atardecer...",
+          "Las nubles cubren el atardecer de hoy",
+          "Es posible que llueva para la noche"
+        ],
+        "color": "#915c28"
+      },
+      "Noche": {
+        "titulo": "Es una noche nublada en Tobeya.",
+        "frases": [
+          "Espero no llueva en la madrugada",
+          "Dudo que salgas a esta hora",
+          "La ropa de nuevo..."
+        ],
+        "color": "#111111"
+      },
+      "Madrugada": {
+        "titulo": "Es de madrugada y esta nublado en Tobeya.",
+        "frases": [
+          "zzz...",
+          "¿Que haces despierto a esta hora?",
+          "El que madruga al mago ayuda",
+          "#Miedo"
+        ],
+        "color": "#1a1a19"
+      }
+    },
+    "Lluvioso": {
+      "Amanecer": {
+        "titulo": "Amanecio lloviendo en Tobeya.",
+        "frases": [
+          "Al parecer hoy amanecio lloviendo",
+          "Deberiamos quedarnos mas tarde en cama"
+        ],
+        "color": "#6a8ba9"
+      },
+      "Día": {
+        "titulo": "Es una mañana lluviosa en Tobeya.",
+        "frases": [
+          "Al parecer esta lloviendo bastante...",
+          "Procura no mojarte, te puedes enfermar",
+          "Recuerda llevar un paraguas para no mojarte",
+          "\"¿Salimos a correr bajo la lluvia?\"",
+          "Ten cuidado con los charcos de agua",
+          "Ehm... ¿deberias salir si esta lloviendo?",
+          "¿Y-y la ropa?"
+        ],
+        "color": "#6a8ba9"
+      },
+      "Tarde": {
+        "titulo": "Es una tarde lluviosa en Tobeya.",
+        "frases": [],
+        "color": "#6a8ba9",
+        "todo": "El original tenía aquí las frases de Soleado/Tarde (\"Cielos despejados\"...). Se quitaron: faltan frases de tarde lluviosa."
+      },
+      "Atardecer": {
+        "titulo": "Es un atardecer lluvioso en Tobeya.",
+        "frases": [
+          "La lluvia no deja ver el atardecer"
+        ],
+        "color": "#6a8ba9"
+      },
+      "Noche": {
+        "titulo": "Es una noche lluviosa en Tobeya",
+        "frases": [
+          "Puedes oir las gotas de lluvia caer"
+        ],
+        "color": "#6a8ba9"
+      },
+      "Madrugada": {
+        "titulo": "Es una madrugada lluviosa.",
+        "frases": [
+          "A estas horas se pueden escuchar como caen las gotas"
+        ],
+        "color": "#6a8ba9"
+      }
+    },
+    "Granizada": {
+      "Amanecer": { "titulo": "Amanecio granizando en Tobeya.", "frases": [], "color": "#9fb4c7", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Día": { "titulo": "Es una mañana de granizo en Tobeya.", "frases": [], "color": "#8aa1b5", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Tarde": { "titulo": "Es una tarde de granizo en Tobeya.", "frases": [], "color": "#768ea3", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Atardecer": { "titulo": "Es un atardecer con granizo en Tobeya.", "frases": [], "color": "#6b7a8f", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Noche": { "titulo": "Es una noche de granizo en Tobeya.", "frases": [], "color": "#2a3441", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Madrugada": { "titulo": "Es una madrugada de granizo en Tobeya.", "frases": [], "color": "#222a35", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" }
+    },
+    "Tormenta": {
+      "Amanecer": {
+        "titulo": "Amanecio con tormenta en Tobeya",
+        "frases": [
+          "Truenos y relámpagos anuncian un amanecer tormentoso.",
+          "El cielo se ilumina con relámpagos."
+        ],
+        "color": "#1a0101"
+      },
+      "Día": {
+        "titulo": "Es una mañana de tormenta en Tobeya.",
+        "frases": [
+          "El día es oscuro y la tormenta continúa.",
+          "El viento y la lluvia golpean con fuerza."
+        ],
+        "color": "#1a0101"
+      },
+      "Tarde": {
+        "titulo": "Es una tarde de tormenta en Tobeya.",
+        "frases": [
+          "La tarde se siente peligrosa con esta tormenta.",
+          "Los relámpagos no paran de iluminar el cielo."
+        ],
+        "color": "#1a0101"
+      },
+      "Atardecer": {
+        "titulo": "Es un atardecer de tormenta en Tobeya.",
+        "frases": [
+          "Hoy no se vera el sol..."
+        ],
+        "color": "#1a0101"
+      },
+      "Noche": {
+        "titulo": "Es una noche de tormenta en Tobeya.",
+        "frases": [
+          "La tormenta arrecia durante la noche.",
+          "Truenos rompen el silencio de la noche."
+        ],
+        "color": "#1a0101"
+      },
+      "Madrugada": {
+        "titulo": "Es una madrugada de tormenta en Tobeya.",
+        "frases": [
+          "¿Puedes dormir con todo ese ruido?"
+        ],
+        "color": "#1a0101"
+      }
+    },
+    "Nevada": {
+      "Amanecer": { "titulo": "Amanecio nevando en Tobeya.", "frases": [], "color": "#cfe3f2", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Día": { "titulo": "Es una mañana nevada en Tobeya.", "frases": [], "color": "#dbeaf5", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Tarde": { "titulo": "Es una tarde nevada en Tobeya.", "frases": [], "color": "#c4d9ea", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Atardecer": { "titulo": "Es un atardecer nevado en Tobeya.", "frases": [], "color": "#b9a7c9", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Noche": { "titulo": "Es una noche nevada en Tobeya.", "frases": [], "color": "#3b4a63", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Madrugada": { "titulo": "Es una madrugada nevada en Tobeya.", "frases": [], "color": "#2c3850", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" }
+    },
+    "Niebla": {
+      "Amanecer": { "titulo": "Es un amanecer con niebla en Tobeya.", "frases": [], "color": "#b8b8b0", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Día": { "titulo": "Es una mañana con niebla en Tobeya.", "frases": [], "color": "#a9aaa4", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Tarde": { "titulo": "Es una tarde con niebla en Tobeya.", "frases": [], "color": "#9a9b95", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Atardecer": { "titulo": "Es un atardecer con niebla en Tobeya.", "frases": [], "color": "#8e8577", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Noche": { "titulo": "Es una noche con niebla en Tobeya.", "frases": [], "color": "#3a3b3d", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" },
+      "Madrugada": { "titulo": "Es una madrugada con niebla en Tobeya.", "frases": [], "color": "#2e2f31", "todo": "Faltan frases (estado nuevo, no existía en Hora_rol.js)" }
+    }
+  },
+  "cambios": {
+    "Nublado>Lluvioso": ["Empezo a llover en Tobeya."],
+    "Lluvioso>Tormenta": ["La lluvia se convirtio en tormenta. ¡Busca refugio!"],
+    "Nublado>Tormenta": ["Se desato una tormenta de golpe."],
+    "Lluvioso>Granizada": ["Empezo a caer granizo..."],
+    "Nublado>Nevada": ["Empezo a nevar en Tobeya."],
+    "Tormenta>Lluvioso": ["La tormenta se calmo, pero sigue lloviendo."],
+    "Lluvioso>Nublado": ["Dejo de llover."],
+    "Niebla>Soleado": ["La niebla se disipo."]
+  },
+  "genericos": {
+    "porEstado": {
+      "Caluroso": ["Hace bastante calor hoy", "Busca algo de sombra"],
+      "Ventoso": ["El viento sopla con fuerza", "Sujeta bien tus cosas"],
+      "Lluvioso": ["Sigue lloviendo en Tobeya", "No olvides el paraguas"],
+      "Granizada": ["Esta cayendo granizo", "Mejor no salgas ahora"],
+      "Nevada": ["La nieve cubre la ciudad", "Abrigate bien"],
+      "Niebla": ["La niebla no deja ver nada", "Camina con cuidado"]
+    },
+    "porFase": {
+      "Madrugada": ["La ciudad duerme"],
+      "Amanecer": ["Un nuevo dia empieza"],
+      "Día": ["La ciudad ya esta despierta"],
+      "Tarde": ["La tarde avanza"],
+      "Atardecer": ["El dia se despide"],
+      "Noche": ["La noche cae sobre Tobeya"]
+    }
+  }
+}

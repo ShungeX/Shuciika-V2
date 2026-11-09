@@ -429,8 +429,8 @@ async function reportarRegalo({ personaje, userId, regaloId, motivo, texto = "" 
         },
     }
 
-    // TODO(decisión): destino de los reportes. Hoy van a reportes_regalo (gancho
-    // para el dashboard); si se conecta el sistema de tickets, enviarlo aquí.
+    // Se guarda en reportes_regalo (registro + dashboard); el aviso al canal del
+    // staff (cfg.CANAL_REPORTES) lo manda functions/Regalos/reportesCanal.js.
     // TODO(decisión): confirmar que un regalo PENDIENTE reportado queda congelado
     // (no se abre ni vence) hasta que el staff lo resuelva.
     const r = await c.enTransaccion(async (session) => {
@@ -452,19 +452,85 @@ async function reportarRegalo({ personaje, userId, regaloId, motivo, texto = "" 
  * TODO(decisión): ¿qué acciones quiere el staff y quién puede usarlas?
  */
 async function resolverReporte({ reporteId, accion, staffId }) {
-    const rep = await reportes.findOne({ _id: aObjectId(reporteId) })
-    if (!rep || rep.estado !== "abierto") return c.fallo("NO_EXISTE")
+    if (!["liberar", "devolver"].includes(accion)) return c.fallo("ESTRUCTURA")
+    const _id = aObjectId(reporteId)
+    const rep = _id ? await reportes.findOne({ _id }) : null
+    if (!rep) return c.fallo("NO_EXISTE")
+    // Se "reclama" el reporte primero: dos staff pulsando a la vez no lo resuelven dos veces
+    const claim = await reportes.updateOne(
+        { _id, estado: "abierto" },
+        { $set: { estado: "resuelto", resueltoEn: new Date(), accion, staffId: staffId ? String(staffId) : null } }
+    )
+    if (claim.modifiedCount !== 1) return c.fallo("REPORTE_RESUELTO", { reporte: rep })
+
     const doc = await buzon.findOne({ _id: rep.regaloId })
-    if (doc?.estado === "reportado") {
-        if (accion === "liberar") {
-            await buzon.updateOne({ _id: doc._id, estado: "reportado" }, { $set: { estado: "pendiente", venceEn: new Date(Date.now() + cfg.DIAS_VENCE * cfg.DIA) } })
-        } else if (accion === "devolver") {
-            await buzon.updateOne({ _id: doc._id, estado: "reportado" }, { $set: { estado: "pendiente", venceEn: new Date(0) } })
-            await devolver({ ...doc, estado: "pendiente" }, "reporte")
+    const inst = rep.instantanea || {}
+    const notificarBuzon = (para, titulo, textoAviso) => require("../Buzon/buzon")
+        .notificar({ para, tipo: "sistema", titulo, texto: textoAviso })
+        .catch(e => console.error("[Regalos] Aviso de reporte:", e.message))
+
+    let resultado = "sin_cambios"
+    if (accion === "liberar") {
+        // Vuelve a quien se le regaló: se puede abrir otra vez y la nota deja de estar oculta
+        if (doc?.estado === "reportado") {
+            await buzon.updateOne({ _id: doc._id, estado: "reportado" }, { $set: { estado: "pendiente", venceEn: new Date(Date.now() + cfg.DIAS_VENCE * cfg.DIA), "reporte.notaOculta": false } })
+            resultado = "liberado"
+            notificarBuzon(doc.para, " `🎁` Tu regalo ya está libre", `El Instituto revisó el regalo de ${doc.deNombre} y ya puedes abrirlo desde tu buzón ♡`)
+        } else if (doc?.reporte) {
+            await buzon.updateOne({ _id: doc._id }, { $set: { "reporte.notaOculta": false } })
+            resultado = "nota_visible"
         }
+    } else {
+        // Regresa al autor (si aún no se abrió) y se le avisa
+        if (doc?.estado === "reportado") {
+            await devolver(doc, "reporte")
+            const fresco = await buzon.findOne({ _id: doc._id }, { projection: { estado: 1 } })
+            resultado = fresco?.estado === "devuelto" ? "devuelto" : fresco?.estado === "descartado" ? "descartado" : "sin_cambios"
+        }
+        const para = inst.paraNombre || doc?.paraNombre || "otro personaje"
+        notificarBuzon(inst.de ?? doc?.de, "⚠️ Aviso del Instituto",
+            resultado === "devuelto"
+                ? `Tu regalo para ${para} fue reportado y, tras revisarlo, regresó a tu inventario. Recuerda que los regalos y sus notas deben respetar las normas del servidor.`
+                : `Tu regalo para ${para} fue reportado y revisado por el Instituto. Recuerda que los regalos y sus notas deben respetar las normas del servidor.`)
     }
-    await reportes.updateOne({ _id: rep._id }, { $set: { estado: "resuelto", resueltoEn: new Date(), accion, staffId: staffId ? String(staffId) : null } })
-    return c.ok()
+    await reportes.updateOne({ _id }, { $set: { resultado } })
+    return c.ok({ resultado, reporte: { ...rep, estado: "resuelto", accion, resultado, staffId: staffId ? String(staffId) : null } })
+}
+
+/** Guarda dónde quedó el mensaje del reporte en el canal del staff. */
+async function guardarMensajeReporte(reporteId, discord) {
+    const _id = aObjectId(reporteId)
+    if (_id) await reportes.updateOne({ _id }, { $set: { discord } })
+}
+
+/**
+ * Reportes para el dashboard (más recientes primero), con el estado actual del regalo.
+ * @param {{ estado?: "abierto"|"resuelto"|"todos", limite?: number, antesDe?: Date }} p
+ */
+async function listarReportes({ estado = "abierto", limite = 30, antesDe = null } = {}) {
+    const filtro = {}
+    if (estado !== "todos") filtro.estado = estado
+    if (antesDe) filtro.creadoEn = { $lt: antesDe }
+    limite = Math.max(1, Math.min(Number(limite) || 30, 100))
+    const lista = await reportes.find(filtro).sort({ creadoEn: -1 }).limit(limite).toArray()
+    const regalosVivos = lista.length
+        ? await buzon.find({ _id: { $in: lista.map(r => r.regaloId) } }, { projection: { estado: 1 } }).toArray()
+        : []
+    const estadoDe = new Map(regalosVivos.map(d => [String(d._id), d.estado]))
+    const [abiertos, resueltos] = await Promise.all([
+        reportes.countDocuments({ estado: "abierto" }),
+        reportes.countDocuments({ estado: "resuelto" }),
+    ])
+    return {
+        reportes: lista.map(r => ({ ...r, estadoRegaloActual: estadoDe.get(String(r.regaloId)) || "purgado" })),
+        totales: { abiertos, resueltos },
+    }
+}
+
+/** Un reporte por su id (para el canal del staff y el dashboard). */
+async function obtenerReporte(reporteId) {
+    const _id = aObjectId(reporteId)
+    return _id ? reportes.findOne({ _id }) : null
 }
 
 // ─── Devolución y barrido ────────────────────────────────────────────────────
@@ -476,7 +542,7 @@ async function devolver(doc, motivo) {
     const remitente = await c.leerPersonaje(doc.de, { _id: 1 })
     if (!remitente) {
         // El remitente ya no existe: se descarta con registro (el propio documento).
-        const u = await buzon.updateOne({ _id: doc._id, estado: "pendiente" }, { $set: { estado: "descartado", devueltoEn: new Date(), motivoDevolucion: `${motivo}:remitente_inexistente` } })
+        const u = await buzon.updateOne({ _id: doc._id, estado: { $in: ["pendiente", "reportado"] } }, { $set: { estado: "descartado", devueltoEn: new Date(), motivoDevolucion: `${motivo}:remitente_inexistente` } })
         if (u.modifiedCount === 1) console.log(`[Regalos] Regalo ${doc._id} descartado: el remitente ${doc.de} ya no existe`)
         return
     }
@@ -485,7 +551,7 @@ async function devolver(doc, motivo) {
     const lumens = Number(doc.contenido?.lumens || 0)
     const r = await c.enTransaccion(async (session) => {
         const u = await buzon.updateOne(
-            { _id: doc._id, estado: "pendiente" },
+            { _id: doc._id, estado: { $in: ["pendiente", "reportado"] } },
             { $set: { estado: "devuelto", devueltoEn: new Date(), motivoDevolucion: motivo, pendienteLumens: lumens > 0 } },
             { session }
         )
@@ -496,7 +562,7 @@ async function devolver(doc, motivo) {
     if (!r.ok) return
 
     await completarLumens({ ...doc, estado: "devuelto" })
-    const porque = motivo === "vencido" ? "pasaron muchos días sin que lo abrieran" : "no pudo entregarse"
+    const porque = motivo === "vencido" ? "pasaron muchos días sin que lo abrieran" : motivo === "reporte" ? "el Instituto lo revisó tras un reporte" : "no pudo entregarse"
     notificar(doc.de, "🎁 Tu regalo volvió a casa", `El regalo para ${doc.paraNombre} regresó porque ${porque}. Todo está otra vez en tu inventario ♡`)
 }
 
@@ -592,6 +658,9 @@ module.exports = {
     abrirRegalo,
     reportarRegalo,
     resolverReporte,
+    obtenerReporte,
+    guardarMensajeReporte,
+    listarReportes,
     procesarVencidos,
     alBorrarPersonaje,
     iniciarBarrido,

@@ -1,4 +1,3 @@
-const { Duelv2, duelEmitter } = require('../duels');
 const crypto = require("crypto");
 const clientdb = require("../../Server")
 const interfazCreate = require('./combateUI');
@@ -54,6 +53,9 @@ class duelManager {
             }
         }
 
+        // Hechizos en memoria antes del primer turno (el combate nunca consulta Mongo por cast)
+        require("./hechizos/cache").asegurar().catch(e => console.error("[duelManager] No se pudo precargar la caché de hechizos:", e.message))
+
         const sesion = new sesionesCombate({ sessionId, type: duelType, teams, apuestas, tipoApuesta, modeTest })
         sesion.on('jugadorDerrotado', (datos) => {
             console.log(`[Combate ${sessionId}] ${datos.victima?.Nombre} fue derrotado por ${datos.atacante?.Nombre}`)
@@ -67,6 +69,9 @@ class duelManager {
 
             // Historial de duelos de la pareja (/rol amistad). Solo 1 vs 1 entre jugadores.
             registrarDueloAmistad(sesion, arrayWinner).catch(e => console.error("[duelManager] Error al registrar el duelo en amistades:", e.message));
+
+            // Maestría de hechizos: usos contados en este combate (con topes anti-farmeo)
+            require("./hechizos/maestria").persistirSesion(sesion).catch(e => console.error("[duelManager] Error al guardar la maestría:", e.message));
 
             // 1. Mostrar estado de 0 HP y log de derrota "sucumbido 💀" en la UI regular
             await interfazCreate.update(sesion, this.client);

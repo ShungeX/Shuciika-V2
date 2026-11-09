@@ -5,7 +5,18 @@
 // Excepción: los combates amistosos no los consumen ni los guardan.
 
 /** Campos de un estado que se conservan entre combates (lo demás es propio de la sesión). */
-const CAMPOS_EFECTO = ["id", "Nombre", "nombre", "base", "duracion", "modStat", "grado", "objetivo"]
+const CAMPOS_EFECTO = [
+    "id", "Nombre", "nombre", "base", "duracion", "modStat", "grado", "objetivo",
+    // Formato de efectos de hechizo (Sistema de hechizos): sin esto, un control guardado
+    // perdería las vías que bloquea al volver a cargarse.
+    "tipo", "bloquea", "degrada", "stat", "valor", "cero", "puntos", "contra", "rompeConDanio",
+]
+
+/**
+ * Estados que solo tienen sentido dentro del combate en que nacieron: marcas internas del motor
+ * (inmunidad tras control, anti-Estasis), la propia Estasis, Guardia, Provocar, Tregua y escudos.
+ */
+const TIPOS_SOLO_COMBATE = new Set(["estasis", "guardia", "provocar", "inmunidad", "escudo"])
 
 /**
  * Combate amistoso: los efectos no se guardan en los personajes.
@@ -30,7 +41,7 @@ function hayApuestas(apuestas) {
 /** Copia limpia de los estados activos de un combatiente, lista para guardarse en BD. */
 function serializarEfectos(statusEffect = []) {
     return (statusEffect || [])
-        .filter(e => e && (Number(e.duracion) || 0) > 0)
+        .filter(e => e && (Number(e.duracion) || 0) > 0 && !e.interno && !TIPOS_SOLO_COMBATE.has(e.tipo))
         .map(e => {
             const limpio = {}
             for (const campo of CAMPOS_EFECTO) {
@@ -63,6 +74,8 @@ function cargarEfectos(combatiente, efectosGuardados = []) {
 /** ¿El efecto beneficia al personaje? (para colorearlo en la UI) */
 function esBeneficioso(efecto = {}) {
     if (efecto.modStat) return (Number(efecto.modStat.delta) || 0) > 0
+    if (["buff", "hot", "escudo", "guardia", "estasis", "inmunidad", "provocar"].includes(efecto.tipo)) return true
+    if (["control", "degradacion", "dot", "debuff"].includes(efecto.tipo)) return false
     const id = String(efecto.id || efecto.nombre || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     return /curacion|heal|regeneracion|pasive|acelerado|hasted|speed|velocidad|inmun|escudo|furia/.test(id)
 }

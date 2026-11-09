@@ -158,7 +158,7 @@ module.exports = {
                         "components": [
                             {
                                 "type": 10,
-                                "content": `## ${gObj.Nombre} (${etiquetaPoder(gObj, "LV")}) - ${gObj.isNPC ? "[NPC]" : ""}  Ganador ✨ ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
+                                "content": `## ${gObj.Nombre} (${etiquetaPoder(gObj, "LV")})${gObj.isNPC ? " - [NPC]" : ""}${context?.empate ? "" : " - Ganador ✨"} ` + "\n*`HP:`*" + `${barraCustom(gObj.HP, gObj.stats?.hpMax ?? gObj.HP, 1)}`
                             }
                         ]
                     },
@@ -253,7 +253,7 @@ module.exports = {
                         "accessory": {
                             "type": 11,
                             "media": {
-                                "url": `${ganadores[0].avatarURL ?? "https://i.pinimg.com/1200x/6c/50/e8/6c50e8fc7cc13cfc7bc4abb312282f15.jpg"}`
+                                "url": `${ganadores[0]?.avatarURL ??"https://i.pinimg.com/1200x/6c/50/e8/6c50e8fc7cc13cfc7bc4abb312282f15.jpg"}`
                             },
                             "description": null,
                             "spoiler": false
@@ -275,7 +275,7 @@ module.exports = {
                         "accessory": {
                             "type": 11,
                             "media": {
-                                "url": `${perdedores[0].avatarURL ?? "https://i.pinimg.com/736x/2c/28/1d/2c281dee4b5a459dd2054d9dfca41498.jpg"}`
+                                "url": `${perdedores[0]?.avatarURL ??"https://i.pinimg.com/736x/2c/28/1d/2c281dee4b5a459dd2054d9dfca41498.jpg"}`
                             },
                             "description": null,
                             "spoiler": false

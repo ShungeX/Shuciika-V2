@@ -220,10 +220,14 @@ class CombatUI {
     }
 
     formatEfectos(c, sesion) {
-        const activos = (c.statusEffect || []).map(e => {
+        // Las marcas internas del motor (inmunidad tras control, anti-Estasis) no se muestran
+        const activos = (c.statusEffect || []).filter(e => !e.interno && (Number(e.duracion) || 0) > 0).map(e => {
             const name = e.Nombre || e.nombre || e.id || "Efecto";
             return `${name} (${e.duracion} turnos)`;
         });
+        if (c.activeCast) {
+            activos.unshift(`Canalizando ${c.activeCast.baseSpell?.Nombre || "un hechizo"} (${c.activeCast.remainingTurns})`);
+        }
 
         const pendientes = [];
         if (sesion && sesion.pendingEffects) {
@@ -523,7 +527,15 @@ class CombatUI {
     buildEndMessage(sesion, combatiente, esGanador, arrayWinner = [], arrayLosser = [], context, rewardsMap = null) {
         const winList = Array.isArray(arrayWinner) ? arrayWinner : [];
         const lossList = Array.isArray(arrayLosser) ? arrayLosser : [];
-        const esGrupo = (winList.length > 1) || (lossList.length > 1);
+
+        // Final neutral (todos AFK): no hay ganador ni perdedor, se muestran los equipos tal cual
+        const esEmpate = context.type === "afk" || (winList.length === 0 && lossList.length === 0);
+        context.empate = esEmpate;
+        const [equipoA = [], equipoB = []] = sesion?.teams || [];
+        const ladoA = esEmpate ? equipoA : winList;
+        const ladoB = esEmpate ? equipoB : lossList;
+
+        const esGrupo = (ladoA.length > 1) || (ladoB.length > 1);
         const loserNombre = lossList.map(c => c ? c.Nombre : "").filter(Boolean).join(", ") || "Nadie";
         const winnerNombre = winList.map(c => c ? c.Nombre : "").filter(Boolean).join(", ") || "Nadie";
 
@@ -557,12 +569,18 @@ class CombatUI {
         if (context.vista === 1) {
             console.log("Generando mensaje espectador")
             componente = !esGrupo
-                ? plantillasDuelo.endEspectador1vs1(sesion, arrayWinner[0], arrayLosser[0], context, message, rewardsMap)
-                : plantillasDuelo.endEspectadorNvsN(sesion, arrayWinner, arrayLosser, context, message, rewardsMap)
+                ? plantillasDuelo.endEspectador1vs1(sesion, ladoA[0], ladoB[0], context, message, rewardsMap)
+                : plantillasDuelo.endEspectadorNvsN(sesion, ladoA, ladoB, context, message, rewardsMap)
             return componente
         } else {
-            const rivales = esGanador ? arrayLosser : arrayWinner;
-            componente = plantillasDuelo.endGameDuel(sesion, combatiente, arrayWinner, rivales, context, message, rewardsMap)
+            let rivales;
+            if (esEmpate) {
+                const enEquipoA = equipoA.some(c => String(c.ID) === String(combatiente?.ID));
+                rivales = enEquipoA ? equipoB : equipoA;
+            } else {
+                rivales = esGanador ? lossList : winList;
+            }
+            componente = plantillasDuelo.endGameDuel(sesion, combatiente, winList, rivales, context, message, rewardsMap)
             return componente
         }
     }
@@ -858,6 +876,9 @@ class CombatUI {
         if (!actor) return [];
         const esNPC = actor.isNPC
         const restrictions = esNPC ? actor.restrictions : {}
+        // Golpe, Guardia y objetos exigen movimiento: si está bloqueado, el botón se deshabilita
+        const { evaluarCasteo, ACCIONES } = require("./hechizos/casteo")
+        const sinMovimiento = !evaluarCasteo(actor, ACCIONES.GOLPE).ok
 
         return [
             { type: 14, divider: true, spacing: 1 },
@@ -868,21 +889,21 @@ class CombatUI {
                         type: 2, style: 2,
                         label: "Atacar",
                         emoji: { name: "sword", id: "1370631600454504498" },
-                        disabled: restrictions.Attack === true,
+                        disabled: restrictions.Attack === true || sinMovimiento,
                         custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-attack-${sesion.sessionId}`
                     },
                     {
                         type: 2, style: 2,
                         label: "Defenderse",
                         emoji: { name: "yellowShield", id: "1370631300616159233" },
-                        disabled: restrictions.Defend === true,
+                        disabled: restrictions.Defend === true || sinMovimiento,
                         custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-defend-${sesion.sessionId}`
                     },
                     {
                         type: 2, style: 2,
                         label: (sesion?.type === "exploration" || sesion?.duelType === "exploration" || sesion?.isExploracion === true) ? "Mochila" : "Inventario",
                         emoji: { name: "EmuNui", id: "1370631281028890727" },
-                        disabled: restrictions.Bag === true,
+                        disabled: restrictions.Bag === true || sinMovimiento,
                         custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-bag-${sesion.sessionId}`
                     },
                     {
@@ -905,6 +926,8 @@ class CombatUI {
     }
 
     buildTarget(sesion, actor, rivales, action, spellId = null) {
+        // Provocar: si algún rival provoca, solo se le puede atacar a él
+        if (action === "attack") rivales = require("./hechizos/efectos").filtrarProvocados(rivales)
 
         const opciones = rivales.map(target => {
             const levelTag = etiquetaPoder(target, "Lv");
@@ -1614,131 +1637,126 @@ class CombatUI {
     }
 
     async buildSpellList(sesion, actor, page = 1) {
-        const emojiMap = {
-            "Pyró": "🔥",
-            "Kryo": "❄️",
-            "Rakau": "🌳",
-            "Electro": "⚡",
-            "Lux": "✨",
-            "Wind": "🍃",
-            "Aqua": "💧",
-            "Lapis": "🪨"
-        }
-
+        const { normalizarElemento } = require("./hechizos/elementos")
+        const { evaluarCasteo, enKit, elementoActivo, nivelMaestria, datosNivel } = require("./hechizos/casteo")
+        const { nombreEscalon } = require("./hechizos/adaptador")
+        const { MENU, UNIVERSALES_INICIALES } = require("./hechizos/config")
+        const cacheHechizos = require("./hechizos/cache")
         const TurnProcessor = require("./turnProcessor");
-        const hechizosColl = db_rol.collection("Hechizos_globales");
 
-        const userSpellsIds = actor.hechizos || [];
-        const idsDeHechizos = userSpellsIds.map(hechizo => hechizo.ID);
+        const emojiMap = {
+            "Pyrós": "🔥", "Kryo": "❄️", "Rakau": "🌳", "Electro": "⚡",
+            "Lux": "✨", "Wind": "🍃", "Aqua": "💧", "Lapis": "🪨",
+        }
+        const emojiDe = (h) => h.Elemento ? (emojiMap[normalizarElemento(h.Elemento)] || '❓') : '🌟'
+        const ICONO_VIA = { hablado: "🗣️", movimiento: "✋", escritura: "✍️", mental: "🧠", instinto: "🐾" }
 
+        // Golpe y Guardia ya son los botones "Atacar" y "Defenderse": no se listan
+        const ids = [...new Set([...(actor.hechizos || []).map(h => h?.ID ?? h), ...UNIVERSALES_INICIALES])]
+            .filter(id => id && id !== "default_001" && id !== "univ-001")
 
-        if (userSpellsIds.length === 0) {
+        if (ids.length === 0) {
             return "No tienes hechizos disponibles en tu grimorio";
         }
 
-        const allSpells = await hechizosColl.find({ _id: { $in: idsDeHechizos } }).toArray();
-        const validSpells = [];
+        // Un desafinado puede conocer más de 25 hechizos: solo se lista su kit (elemento activo + universales)
+        const conocidos = await cacheHechizos.obtenerVarios(ids);
+        const kit = conocidos.filter(h => h.isActive && enKit(actor, h));
+        if (kit.length === 0) {
+            return `No conoces hechizos de tu elemento activo (${elementoActivo(actor)}).`;
+        }
 
-        console.log(allSpells, "Todos los hechizos del usuario");
-
-        for (const spell of allSpells) {
+        // Los bloqueados NO se esconden: se muestran deshabilitados con el motivo
+        const filas = [];
+        for (const spell of kit) {
             const check = await TurnProcessor.checkSpellRequirements(actor, spell, sesion);
-            console.log(check, "Resultado de la verificación del hechizo");
-            if (check.success) {
-                validSpells.push(spell);
-            }
+            const ev = check.evaluacion?.ok ? check.evaluacion : evaluarCasteo(actor, spell, { ignorarCostos: true });
+            const motivo = check.success ? null : (check.evaluacion && !check.evaluacion.ok ? check.evaluacion.motivo : check.message);
+            filas.push({ spell, ok: check.success, motivo, ev });
         }
+        filas.sort((a, b) => (Number(b.ok) - Number(a.ok)) || ((a.spell.Escalon ?? 9) - (b.spell.Escalon ?? 9)));
 
-        console.log(validSpells, "Hechizos válidos después de la verificación");
-
-        if (validSpells.length === 0) {
-            return "No cumples con los requisitos (maná, cooldown, etc.) para lanzar ninguno de tus hechizos actualmente.";
-        }
-
-        const itemsPerPage = 5;
-        const totalPages = Math.ceil(validSpells.length / itemsPerPage) || 1;
+        const itemsPerPage = Math.min(MENU.POR_PAGINA, MENU.MAX_OPCIONES);
+        const totalPages = Math.ceil(filas.length / itemsPerPage) || 1;
         const currentPage = Math.max(1, Math.min(totalPages, page));
         const startIndex = (currentPage - 1) * itemsPerPage;
-        const paginatedSpells = validSpells.slice(startIndex, startIndex + itemsPerPage);
+        const pagina = filas.slice(startIndex, startIndex + itemsPerPage);
 
-        const listText = paginatedSpells.map(spell => {
-            const manaCost = spell.Costos?.mana ?? 0;
-            const castTime = spell.Mecanicas?.cast?.tiempo ?? 1;
+        const listText = pagina.map(({ spell, ok, motivo, ev }) => {
+            const manaCost = ev?.ok ? ev.costoMana : (spell.Costos?.mana ?? 0);
+            const castTime = ev?.ok ? ev.tiempo : (spell.Mecanicas?.cast?.tiempo ?? 1);
+            const vias = (ev?.ok ? ev.usadas : spell.Mecanicas?.cast?.vias || []).map(v => ICONO_VIA[v] || v).join("");
+            const nivel = datosNivel(nivelMaestria(actor, spell._id)).nombre;
 
             const effectsList = [];
-            if (spell.Mecanicas?.damage) {
-                effectsList.push(`Daño base: ${spell.Mecanicas.damage.base}`);
-            }
-            if (spell.Mecanicas?.healing) {
-                effectsList.push(`Curación base: ${spell.Mecanicas.healing.base}`);
-            }
-            if (spell.Mecanicas?.Efectos) {
-                for (const [k, v] of Object.entries(spell.Mecanicas.Efectos)) {
-                    effectsList.push(`${v.Nombre || k} (${v.duracion} turnos)`);
-                }
+            if (spell.Mecanicas?.damage) effectsList.push(`Daño base: ${spell.Mecanicas.damage.base}${spell.Mecanicas.damage.alcance !== "single" ? ` (${spell.Mecanicas.damage.alcance})` : ""}`);
+            if (spell.Mecanicas?.healing) effectsList.push(`Curación base: ${spell.Mecanicas.healing.base}${spell.Mecanicas.healing.alcance !== "single" ? ` (${spell.Mecanicas.healing.alcance})` : ""}`);
+            for (const e of (spell.Mecanicas?.Efectos || [])) {
+                effectsList.push(e.duracion ? `${e.nombre || e.tipo} (${e.duracion} turnos)` : `${e.nombre || e.tipo}`);
             }
             const effectsStr = effectsList.length > 0 ? effectsList.join(', ') : 'Ninguno';
 
             let desc = spell.Descripcion || 'Sin descripción';
-            if (desc.length > 100) {
-                desc = desc.substring(0, 97) + '...';
-            }
+            if (desc.length > 100) desc = desc.substring(0, 97) + '...';
 
-            return `-# ➺ ${emojiMap[spell.Elemento] || '`❓`'} | **${spell.Nombre}** [${manaCost} de mana] - [\`⏳\`: ${castTime}]\n-# *${desc}*\n-# *Efectos: [${effectsStr}]*`;
+            const cabecera = ok
+                ? `-# ➺ ${emojiDe(spell)} | **${spell.Nombre}** · ${nombreEscalon(spell.Escalon)} ${vias} [${manaCost} de mana] - [\`⏳\`: ${castTime}]${ev?.modo === "mental" ? " · 🧠 solo mental" : ""}`
+                : `-# ➺ 🔒 | ~~**${spell.Nombre}**~~ · ${nombreEscalon(spell.Escalon)} ${vias} — *${motivo}*`;
+            return `${cabecera}\n-# *${desc}*\n-# *Efectos: [${effectsStr}]* · Maestría: ${nivel}`;
         }).join('\n');
 
         const hpMax = actor.stats?.hpMax ?? actor.perfil?.HP ?? actor.HP ?? 100;
         const manaMax = actor.stats?.manaMax ?? actor.perfil?.Mana ?? actor.Mana ?? 100;
 
-        const mainContent = `### Hechizos Disponibles\n\n- -# Mana Disponible: ${actor.Mana}/${manaMax}\n- -# HP disponible: ${actor.HP}/${hpMax}`;
-        const spellsDetailContent = `${listText}`;
+        const mainContent = `### Hechizos Disponibles\n\n- -# Mana Disponible: ${actor.Mana}/${manaMax}\n- -# HP disponible: ${actor.HP}/${hpMax}\n- -# Elemento activo: ${elementoActivo(actor)}`;
 
-        const dropdownOptions = paginatedSpells.map(spell => {
-            const manaCost = spell.Costos?.mana ?? 0;
-            const castTime = spell.Mecanicas?.cast?.tiempo ?? 1;
+        // Discord: máximo 25 opciones por select. Un bloqueado aparece con el motivo en la descripción.
+        const dropdownOptions = pagina.slice(0, MENU.MAX_OPCIONES).map(({ spell, ok, motivo, ev }) => {
+            const manaCost = ev?.ok ? ev.costoMana : (spell.Costos?.mana ?? 0);
+            const castTime = ev?.ok ? ev.tiempo : (spell.Mecanicas?.cast?.tiempo ?? 1);
             return {
-                label: spell.Nombre.substring(0, 100),
-                value: `duelo*${spell._id}`,
-                description: `Costo mana: ${manaCost}, ⏳: ${castTime}.`,
-                emoji: emojiMap[spell.Elemento] || '❓',
+                label: `${ok ? "" : "🔒 "}${spell.Nombre}`.substring(0, 100),
+                value: `duelo${MENU.SEPARADOR}${spell._id}`,
+                description: (ok ? `Costo mana: ${manaCost}, ⏳: ${castTime}.` : `Bloqueado: ${motivo}`).substring(0, 100),
+                emoji: ok ? emojiDe(spell) : '🔒',
                 default: false
             };
         });
 
         const sesId = sesion ? (sesion.sessionId || sesion.id) : "grimorio";
-        const firstSpellImg = paginatedSpells[0]?.imagenURL || paginatedSpells[0]?.imagen || 'https://i.pinimg.com/1200x/93/ac/38/93ac3824d9c66ee139aa873a13feed33.jpg';
+        const firstSpellImg = pagina[0]?.spell?.imagenURL || pagina[0]?.spell?.imagen || 'https://i.pinimg.com/1200x/93/ac/38/93ac3824d9c66ee139aa873a13feed33.jpg';
 
-        const jsonPlantilla = [
+        const boton = (label, style, extra, disabled) => ({
+            "type": 2,
+            "style": style,
+            "label": label,
+            "emoji": null,
+            "disabled": disabled,
+            "custom_id": crearCustomId({
+                action: "DuelAct",
+                characterId: actor.ID,
+                userId: actor.ownerId,
+                extras: [extra, `${sesId}`, `${currentPage}`]
+            })
+        });
+
+        return [
             {
                 "type": 17,
                 "accent_color": null,
                 "spoiler": false,
                 "components": [
-                    {
-                        "type": 10,
-                        "content": mainContent
-                    },
-                    {
-                        "type": 14,
-                        "divider": true,
-                        "spacing": 1
-                    },
+                    { "type": 10, "content": mainContent },
+                    { "type": 14, "divider": true, "spacing": 1 },
                     {
                         "type": 9,
                         "accessory": {
                             "type": 11,
-                            "media": {
-                                "url": firstSpellImg
-                            },
+                            "media": { "url": firstSpellImg },
                             "description": "Imagen del hechizo",
                             "spoiler": false
                         },
-                        "components": [
-                            {
-                                "type": 10,
-                                "content": spellsDetailContent
-                            }
-                        ]
+                        "components": [{ "type": 10, "content": listText.slice(0, 3900) }]
                     },
                     {
                         "type": 1,
@@ -1747,7 +1765,7 @@ class CombatUI {
                                 "type": 3,
                                 "custom_id": crearCustomId({
                                     action: "UseSpell",
-                                    characterId: actor.id,
+                                    characterId: actor.ID,
                                     userId: actor.ownerId,
                                     extras: [`${sesId}`]
                                 }),
@@ -1764,63 +1782,13 @@ class CombatUI {
             {
                 "type": 1,
                 "components": [
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": "<",
-                        "emoji": null,
-                        "disabled": currentPage <= 1,
-                        "custom_id": crearCustomId({
-                            action: "DuelAct",
-                            characterId: actor.ID,
-                            userId: actor.ownerId,
-                            extras: ["spells_atras", `${sesId}`, `${currentPage}`]
-                        })
-                    },
-                    {
-                        "type": 2,
-                        "style": 2,
-                        "label": ">",
-                        "emoji": null,
-                        "disabled": currentPage >= totalPages,
-                        "custom_id": crearCustomId({
-                            action: "DuelAct",
-                            characterId: actor.ID,
-                            userId: actor.ownerId,
-                            extras: ["spells_adelante", `${sesId}`, `${currentPage}`]
-                        })
-                    },
-                    {
-                        "type": 2,
-                        "style": 4,
-                        "label": "Cerrar grimorio",
-                        "emoji": null,
-                        "disabled": false,
-                        "custom_id": crearCustomId({
-                            action: "DuelAct",
-                            characterId: actor.ID,
-                            userId: actor.ownerId,
-                            extras: ["spells_cerrar", `${sesId}`, `${currentPage}`]
-                        })
-                    },
-                    {
-                        "type": 2,
-                        "style": 3,
-                        "label": "¿Suerte?",
-                        "emoji": null,
-                        "disabled": false,
-                        "custom_id": crearCustomId({
-                            action: "DuelAct",
-                            characterId: actor.ID,
-                            userId: actor.ownerId,
-                            extras: ["spells_suerte", `${sesId}`, `${currentPage}`]
-                        })
-                    }
+                    boton("<", 2, "spells_atras", currentPage <= 1),
+                    boton(">", 2, "spells_adelante", currentPage >= totalPages),
+                    boton("Cerrar grimorio", 4, "spells_cerrar", false),
+                    boton("¿Suerte?", 3, "spells_suerte", !filas.some(f => f.ok)),
                 ]
             }
         ];
-
-        return jsonPlantilla;
     }
 }
 

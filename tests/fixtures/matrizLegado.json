@@ -1,0 +1,11 @@
+{
+  "_origen": "matrizTransicion copiada tal cual de handlers/CMDHandler/Utilidad/Hora rol.js. No editar: es la referencia del test de legado.",
+  "Soleado":   { "Soleado": 0.6, "Caluroso": 0.2, "Ventoso": 0.1, "Nublado": 0.1, "Lluvioso": 0, "Granizada": 0, "Tormenta": 0, "Nevada": 0 },
+  "Caluroso":  { "Soleado": 0.5, "Caluroso": 0.2, "Ventoso": 0.2, "Nublado": 0.1, "Lluvioso": 0, "Granizada": 0, "Tormenta": 0, "Nevada": 0 },
+  "Ventoso":   { "Soleado": 0.4, "Caluroso": 0, "Ventoso": 0.2, "Nublado": 0.4, "Lluvioso": 0, "Granizada": 0, "Tormenta": 0, "Nevada": 0 },
+  "Nublado":   { "Soleado": 0.2, "Caluroso": 0, "Ventoso": 0.3, "Nublado": 0.2, "Lluvioso": 0.2, "Granizada": 0.05, "Tormenta": 0.05, "Nevada": 0 },
+  "Lluvioso":  { "Soleado": 0, "Caluroso": 0, "Ventoso": 0.1, "Nublado": 0.3, "Lluvioso": 0.4, "Granizada": 0.1, "Tormenta": 0.1, "Nevada": 0 },
+  "Granizada": { "Soleado": 0, "Caluroso": 0, "Ventoso": 0.1, "Nublado": 0.1, "Lluvioso": 0.2, "Granizada": 0.3, "Tormenta": 0.2, "Nevada": 0 },
+  "Tormenta":  { "Soleado": 0, "Caluroso": 0, "Ventoso": 0, "Nublado": 0.2, "Lluvioso": 0.3, "Granizada": 0.2, "Tormenta": 0.3, "Nevada": 0 },
+  "Nevada":    { "Soleado": 0, "Caluroso": 0, "Ventoso": 0, "Nublado": 0.3, "Lluvioso": 0.1, "Granizada": 0.2, "Tormenta": 0, "Nevada": 0.4 }
+}

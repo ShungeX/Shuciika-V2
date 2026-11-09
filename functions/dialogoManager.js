@@ -33,6 +33,7 @@ class DialogueSystem {
         this.registerCommandHandler('close_inventory', this.handleCloseInventory.bind(this));
         this.registerCommandHandler('resume_exploracion', this.handleResumeExploracion.bind(this));
         this.registerCommandHandler('dar_item', this.handleDarItem.bind(this));
+        this.registerCommandHandler('dar_hechizo', this.handleDarHechizo.bind(this));
         this.registerCommandHandler('show_perfil', this.handleShowPerfil.bind(this));
         this.registerCommandHandler('show_guía_principiante', this.handleShowGuiaPrincipiante.bind(this));
         this.registerCommandHandler('show_guia_principiante', this.handleShowGuiaPrincipiante.bind(this));
@@ -148,6 +149,25 @@ class DialogueSystem {
             }
         } catch (err) {
             console.error('[dialogoManager] Error en handler dar_item:', err);
+        }
+        return '';
+    }
+
+    /** {dar_hechizo:ID} — enseña un hechizo (pruebas narrativas de Cánticos, regalos de evento). */
+    async handleDarHechizo(param, { user, userData }) {
+        if (!param) return '';
+        try {
+            const charDoc = await this.obtenerPersonajeActivo(user.id, userData?.charId);
+            if (!charDoc) return '';
+            const { darHechizo } = require('./Duelo/hechizos/adquisicion');
+            const r = await darHechizo(charDoc._id, String(param).trim());
+            if (!r.ok) {
+                console.warn(`[dialogoManager] {dar_hechizo} No se pudo enseñar ${param} a ${charDoc._id}: ${r.motivo}`);
+                return '';
+            }
+            return r.yaLoConocia ? '' : `\n-# ✨ Has aprendido **${r.hechizo.Nombre}**.`;
+        } catch (err) {
+            console.error('[dialogoManager] Error en handler dar_hechizo:', err);
         }
         return '';
     }

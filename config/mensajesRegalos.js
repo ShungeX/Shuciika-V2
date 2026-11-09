@@ -65,6 +65,7 @@ const MENSAJES = {
     REPORTE_LIMITE: "Por hoy ya enviaste varios reportes. Si es urgente, busca a alguien del Instituto.",
     REPORTE_YA: "Ya habías reportado este regalo; está en revisión.",
     REPORTE_MOTIVO: "Elige un motivo de la lista, ¿sí?",
+    REPORTE_RESUELTO: "Ese reporte ya lo resolvió alguien más.",
     REPORTE_OK: `Gracias por contármelo. Guardé la nota lejos de tu vista y alguien del Instituto la revisará con cuidado ${FIRMA}`,
 
     // ── Genéricos ───────────────────────────────────────────────────────────
