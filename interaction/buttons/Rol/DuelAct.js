@@ -29,7 +29,8 @@ module.exports = crearBoton({
         }
 
         try {
-            const actor = sesion.getCurrentActor()
+            // El turno abierto manda sobre la cola: si el jugador tiene botones, puede usarlos
+            const actor = sesion.actorEnTurno()
 
             if (actor?.ownerId !== interaction.user.id) {
                 return interaction.reply({
@@ -43,7 +44,7 @@ module.exports = crearBoton({
             const rivalesVivos = rivales.filter(c => !c.defeated)
 
             console.log("=== Acción recibida ===")
-            console.log("Actor:", sesion.getCurrentActor()?.Nombre)
+            console.log("Actor:", actor?.Nombre)
             console.log("Acción:", { tipo: actions, targetId: rivalesVivos[0]?.ID })
 
             if (actions === "cancel" || actions === "cancelar") {
@@ -117,6 +118,11 @@ module.exports = crearBoton({
                 // Múltiples rivales → mostrar selector
                 const componente = CombatUI.buildTarget(sesion, actor, rivalesVivos, "attack", null)
                 return interaction.update({ components: componente, flags: ["IsComponentsV2"] })
+            }
+
+            // Alma Desafinada: abrir el selector de elemento activo (el cambio lo resuelve DuelElemento)
+            if (actions === "elemento") {
+                return interaction.update({ components: CombatUI.buildElementSelect(sesion, actor), flags: ["IsComponentsV2"] })
             }
 
             if (actions === "spells") {

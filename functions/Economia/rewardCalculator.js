@@ -14,6 +14,7 @@ const { aplicarCalor } = require("./sistemaCalor")
 const updateInventario = require("../updateInventario")
 const catalogoObjetos = require("../catalogoObjetos")
 const utilidadesTexto = require("../../utils/utilidadesTexto")
+const { esDesafinado } = require("../Contenedores/nucleo")
 
 /** "30-50" → entero al azar en el rango; "5" → 5 */
 function tirarCantidad(texto) {
@@ -62,7 +63,9 @@ class RewardCalculator {
                 sesion.getAllCombatientes()
                     .filter(c => !c.isNPC)
                     .map(c => {
-                        const set = { "nucleo.HP": c.HP, "nucleo.Mana": c.Mana };
+                        // El maná de un desafinado es la carga de su contenedor: lo guarda Contenedores/servicio
+                        const set = { "nucleo.HP": c.HP };
+                        if (!esDesafinado(c)) set["nucleo.Mana"] = c.Mana;
                         if (!amistoso) set["nucleo.efectos"] = serializarEfectos(c.statusEffect);
                         return souls.updateOne({ _id: Number(c.ID) }, { $set: set });
                     })

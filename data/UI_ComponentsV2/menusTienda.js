@@ -99,7 +99,7 @@ function reciboTienda({ tienda, lineas, total, saldoFinal, ids }) {
         separador,
         { type: 10, content: lineas.map(lineaObjeto).join("\n") },
         separador,
-        { type: 10, content: `-# Pagado: **${total}** ${EMOJI_LUMENS}  ── .✦ te quedan **${saldoFinal}** ${EMOJI_LUMENS}` },
+        { type: 10, content: total > 0 ? `-# Pagado: **${total}** ${EMOJI_LUMENS}  ── .✦ te quedan **${saldoFinal}** ${EMOJI_LUMENS}` : `-# Sin costo: es un obsequio. Tu saldo sigue en **${saldoFinal}** ${EMOJI_LUMENS}` },
         separador,
         { type: 1, components: [boton(idSeguir, "Seguir comprando", 2)] }
     ])]
@@ -136,29 +136,55 @@ const campoCantidad = (descripcion) => {
     return descripcion ? label.setDescription(descripcion) : label
 }
 
+/** customIds de los selects del modal de agregar (un modal admite 5 componentes: hasta 4 selects + cantidad). */
+const SELECTS_AGREGAR = Object.freeze(["objeto", "objeto_2", "objeto_3", "objeto_4"])
+const POR_SELECT = 25   // límite de Discord por select
+
+const opcionObjeto = (o) => ({
+    label: o.Nombre.slice(0, 100),
+    value: o.clave,
+    description: `${o.precio} Lumens${o.Rareza ? ` · ${o.Rareza}` : ""}${o.porPersona ? ` · máx. ${o.porPersona} por persona` : ""}`.slice(0, 100)
+})
+
 /**
- * Modal para agregar: un select con lo que hay en la estantería y la cantidad.
- * @param {Array<{ clave: string, Nombre: string, precio: number, Rareza?: string }>} objetos - Máximo 25 (límite de Discord)
+ * Reparte la estantería en grupos de ≤ 25: primero los objetos y luego las páginas de hechizo
+ * (en tantos grupos como hagan falta, hasta 4 selects en total).
+ * @returns {Array<{ etiqueta: string, objetos: Array }>}
+ */
+function gruposEstanteria(objetos) {
+    if (objetos.length <= POR_SELECT) return [{ etiqueta: "Objeto", objetos }]
+    const esPagina = (o) => Boolean(o.definicion?.hechizo)
+    const trozos = (lista) => Array.from({ length: Math.ceil(lista.length / POR_SELECT) }, (_, i) => lista.slice(i * POR_SELECT, (i + 1) * POR_SELECT))
+    const grupos = [
+        ...trozos(objetos.filter(o => !esPagina(o))).map((l, i) => ({ etiqueta: i ? "Más objetos" : "Objeto", objetos: l })),
+        ...trozos(objetos.filter(esPagina)).map((l, i, t) => ({ etiqueta: t.length > 1 ? `Páginas de hechizo (${i + 1}/${t.length})` : "Página de hechizo", objetos: l })),
+    ]
+    return grupos.filter(g => g.objetos.length).slice(0, SELECTS_AGREGAR.length)
+}
+
+/**
+ * Modal para agregar: lo que hay en la estantería y la cantidad. Hasta 25 objetos, un select
+ * obligatorio; con más, varios selects opcionales (se elige en uno solo).
+ * @param {Array<{ clave: string, Nombre: string, precio: number, Rareza?: string, definicion?: Object }>} objetos
  */
 function modalAgregar({ tienda, ids, objetos }) {
+    const grupos = gruposEstanteria(objetos)
+    const varios = grupos.length > 1
     return new ModalBuilder()
         .setCustomId(crearCustomId({ action: "tienda_pedido_modal", userId: ids.userId, characterId: ids.characterId, extras: [tienda._id, "agregar"] }))
         .setTitle("Agregar al pedido")
         .addLabelComponents(
-            new LabelBuilder()
-                .setLabel("Objeto")
-                .setDescription("Lo que hay ahora en la estantería")
+            ...grupos.map((g, i) => new LabelBuilder()
+                .setLabel(g.etiqueta)
+                .setDescription(varios ? (i === 0 ? "Elige en una sola de las listas" : "O elige aquí") : "Lo que hay ahora en la estantería")
                 .setStringSelectMenuComponent(
                     new StringSelectMenuBuilder()
-                        .setCustomId("objeto")
-                        .setPlaceholder("Elige un objeto...")
-                        .setRequired(true)
-                        .addOptions(objetos.slice(0, 25).map(o => ({
-                            label: o.Nombre.slice(0, 100),
-                            value: o.clave,
-                            description: `${o.precio} Lumens${o.Rareza ? ` · ${o.Rareza}` : ""}${o.porPersona ? ` · máx. ${o.porPersona} por persona` : ""}`.slice(0, 100)
-                        })))
-                ),
+                        .setCustomId(SELECTS_AGREGAR[i])
+                        .setPlaceholder(varios && i > 0 ? "Elige una página..." : "Elige un objeto...")
+                        .setRequired(!varios)
+                        .setMinValues(varios ? 0 : 1)
+                        .addOptions(g.objetos.map(opcionObjeto))
+                )),
             campoCantidad()
         )
 }
@@ -322,5 +348,7 @@ module.exports = {
     pedidoDesvanecido,
     mensajeLugar,
     modalAgregar,
-    modalQuitar
+    modalQuitar,
+    SELECTS_AGREGAR,
+    gruposEstanteria
 }

@@ -1,18 +1,29 @@
 // Entorno de pruebas del combate sin Discord ni Mongo: reemplaza Server.js y bot.js por dobles
 // en memoria (la caché de hechizos se llena con el catálogo semilla).
 const Module = require("module")
-const { CATALOGO } = require("../../functions/Duelo/hechizos/catalogo")
+const { CATALOGO: SEMILLA } = require("../../functions/Duelo/hechizos/catalogo")
+const { NOTAS_RESPLANDOR_I } = require("../../functions/Duelo/hechizos/notasResplandor")
+// La base falsa sirve el catálogo semilla y las Notas de Resplandor I
+const CATALOGO = [...SEMILLA, ...NOTAS_RESPLANDOR_I]
+
+/** Escrituras que el código bajo prueba mandó a la base de datos falsa. */
+const escrituras = []
+/** Documentos que la base de datos falsa devuelve por _id: documentos.Personajes.set(id, doc) */
+const documentos = { Personajes: new Map(), Soul: new Map(), NPCs: new Map() }
 
 const coleccionFalsa = (nombre) => ({
     find: () => ({ toArray: async () => (nombre === "Hechizos_globales" ? CATALOGO.map(h => JSON.parse(JSON.stringify(h))) : []) }),
     findOne: async (q) => {
         if (nombre === "Hechizos_globales") return CATALOGO.find(h => h._id === q?._id) ?? null
+        const id = q?._id ?? q?.$or?.[0]?._id
+        if (documentos[nombre]?.has(id)) return documentos[nombre].get(id)
+        if (nombre === "NPCs") return null
         if (nombre === "Personajes") return { _id: q?._id }
         if (nombre === "Soul") return { _id: q?._id, sendero: { StelarFragmentsTotal: 500, resplandor: "VII" } }
         return {}
     },
     createIndex: async () => null,
-    updateOne: async () => ({ modifiedCount: 0 }),
+    updateOne: async (filtro, update, opciones) => { escrituras.push({ coleccion: nombre, filtro, update, opciones }); return { modifiedCount: 1 } },
     countDocuments: async () => 1,
 })
 const ServerFalso = { db: () => ({ collection: coleccionFalsa }) }
@@ -25,6 +36,7 @@ Module._load = function (req, parent, isMain) {
 }
 
 const { Personaje, NPC } = require("../../functions/Duelo/combatientes")
+const { crearInstancia } = require("../../functions/Contenedores/nucleo")
 const sesionesCombate = require("../../functions/Duelo/sesionesCombate")
 const TurnProcessor = require("../../functions/Duelo/turnProcessor")
 const cache = require("../../functions/Duelo/hechizos/cache")
@@ -33,12 +45,22 @@ const cache = require("../../functions/Duelo/hechizos/cache")
 console.log = () => {}
 
 let siguienteId = 100
-function jugador({ nombre = "Jugador", elemento = "Aqua", hechizos = [], maestrias = {}, resonancia = 1, disonancia = 0, equipo = [], stats = {} } = {}) {
+/**
+ * @param {Object} [o]
+ * @param {boolean} [o.desafinado] - Alma Desafinada (nucleo.artefactoMagico)
+ * @param {string|Object|null} [o.contenedor] - 'cortesia' | 'artesanal' | instancia ya armada | null (sin contenedor)
+ * @param {string} [o.elementoActivo] - elemento que traduce el contenedor (por defecto, el del alma)
+ */
+function jugador({ nombre = "Jugador", elemento = "Aqua", hechizos = [], maestrias = {}, resonancia = 1, disonancia = 0, equipo = [], stats = {}, desafinado = false, contenedor = "artesanal", elementoActivo } = {}) {
     const id = siguienteId++
+    const manaMax = stats.manaMax ?? 200
+    if (desafinado && contenedor) {
+        equipo = [...equipo, typeof contenedor === "string" ? crearInstancia(contenedor, { manaMaxBase: manaMax }) : contenedor]
+    }
     return new Personaje(id, {
         ownerId: `u${id}`,
         perfil: { Nombre: nombre },
-        nucleo: { HP: 200, Mana: 200, Elemento: elemento },
+        nucleo: { HP: 200, Mana: 200, Elemento: elemento, ...(desafinado ? { artefactoMagico: true, elementoActivo: elementoActivo ?? elemento } : {}) },
         stats: { hpMax: 200, manaMax: 200, inteligencia: 10, agilidad: 5, ...stats },
         sendero: { resonancia, disonancia, resplandor: "VII" },
         dominio: { hechizos: hechizos.map(h => ({ ID: h, InCombat: true, ...(maestrias[h] ? { maestria: maestrias[h] } : {}) })), equipo },
@@ -72,4 +94,4 @@ async function conAzarAsync(valor, fn) {
     try { return await fn() } finally { Math.random = original }
 }
 
-module.exports = { jugador, npc, sesion, conAzar, conAzarAsync, TurnProcessor, cache, CATALOGO }
+module.exports = { jugador, npc, sesion, conAzar, conAzarAsync, TurnProcessor, cache, CATALOGO, escrituras, documentos }

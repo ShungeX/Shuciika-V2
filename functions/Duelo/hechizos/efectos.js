@@ -11,6 +11,7 @@ const {
 const { quitarTildes } = require("./elementos")
 const { MARCAS, perfilEstado, efectosActivos, tieneInmunidad, esNegativo, esControl } = require("./estados")
 const { interrumpe } = require("./casteo")
+const { ganarMana, manaMaximo } = require("./mana")
 
 const clave = (t) => quitarTildes(t).replace(/\s+/g, "_")
 
@@ -73,6 +74,17 @@ function agregarEstado(target, entrada) {
     return entrada
 }
 
+// ─── Contenedor (desafinados) ────────────────────────────────────────────────
+
+/**
+ * Aviso de ruptura del contenedor. El desgaste lo hace Combatiente.aplicarDaño (daño recibido);
+ * aquí solo se cuenta en el log: desde ahí el portador solo tiene Golpe, Guardia e ítems.
+ */
+function avisarContenedorRoto(sesion, pj) {
+    logSistema(sesion, `¡El contenedor de ${pj.Nombre} se quiebra! Su maná se escapa entre los cristales.`, { autor: pj.Nombre })
+    sesion?.emit?.("contenedor_roto", { pjId: pj.ID, contenedorId: pj.contenedor?.instanciaID ?? null })
+}
+
 // ─── Interrupción (VI.A) ─────────────────────────────────────────────────────
 
 /**
@@ -126,6 +138,8 @@ function aplicarEfecto({ sesion, caster, target, efecto, ctx = {} }) {
 
     if (tipo === "revive") return aplicarRevive({ sesion, caster, target, efecto, ctx })
     if (target.defeated) return { aplicado: false, motivo: "derrotado" }
+    // "Solo a otro aliado" (Savia Vital): el lanzador nunca lo recibe, ni por un desvío de Confusión
+    if (efecto.excluirLanzador && caster && target.ID === caster.ID) return { aplicado: false, motivo: "excluye_lanzador" }
 
     // Estasis: inmunidad total, no recibe efectos nuevos (ni de aliados)
     if (tieneInmunidad(target, "todo")) return { aplicado: false, motivo: "inmune", log: { ...base, tipo: "custom", clausula: "resistido el efecto (Estasis)" } }
@@ -199,7 +213,8 @@ function aplicarEfecto({ sesion, caster, target, efecto, ctx = {} }) {
         case "buff":
         case "debuff": {
             const stat = clave(efecto.stat || nombre)
-            const def = BUFFS[stat] ?? 0
+            // BUFFS usa "daño" con tilde y la clave normalizada es "dano"
+            const def = BUFFS[stat] ?? BUFFS[efecto.stat] ?? (stat === "dano" ? BUFFS["daño"] : 0) ?? 0
             let valor = efecto.valor !== undefined && efecto.valor !== null ? Number(efecto.valor) : def
             if (tipo === "debuff" && valor > 0 && stat !== "esquive") valor = -valor
             const entrada = { id: `${tipo}_${stat}_${k}`, Nombre: nombre, nombre, tipo, stat, valor, duracion, fuente: caster?.ID }
@@ -243,15 +258,20 @@ function aplicarEfecto({ sesion, caster, target, efecto, ctx = {} }) {
         }
 
         case "mana": {
-            const max = target.stats?.manaMax ?? 99999
             const valor = efecto.base !== undefined
                 ? valorEscalado(efecto, caster)
-                : Math.max(CONCENTRAR.MANA_MIN, Math.floor(max * CONCENTRAR.MANA_PCT))
-            const antes = target.Mana
-            target.Mana = Math.min(max, (Number(target.Mana) || 0) + valor)
-            const delta = target.Mana - antes
+                : Math.max(CONCENTRAR.MANA_MIN, Math.floor(manaMaximo(target) * CONCENTRAR.MANA_PCT))
+            const delta = ganarMana(target, valor)
             if (!delta) return { aplicado: false, motivo: "mana_lleno" }
             return { aplicado: true, log: { ...base, tipo: "mana", valor: delta, stat: "Mana" } }
+        }
+
+        // Bonus temporal de regeneración: se suma al +2 base de un afinado (a un desafinado no le aplica)
+        case "regen_mana": {
+            const valor = Number(efecto.valor ?? efecto.base) || 0
+            if (!valor || !duracion) return { aplicado: false, motivo: "sin_valor" }
+            agregarEstado(target, { id: `regen_mana_${k}`, Nombre: nombre, nombre, tipo: "regen_mana", valor, duracion, fuente: caster?.ID })
+            return { aplicado: true, log: { ...base, tipo: "estado", Nombre: `${nombre} (+${valor} maná/turno)`, duracion } }
         }
 
         default:
@@ -407,5 +427,5 @@ function procesarFinDeTurno(pj, hooks = {}) {
 module.exports = {
     esPvE, aplicarEfecto, interrumpirCast, intentarInterrumpir, modificadores, absorberConEscudo,
     alRecibirDanio, filtrarProvocados, procesarFinDeTurno, valorEscalado, agregarEstado, ponerMarca,
-    logSistema,
+    logSistema, avisarContenedorRoto,
 }

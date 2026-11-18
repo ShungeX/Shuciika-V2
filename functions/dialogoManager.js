@@ -61,7 +61,6 @@ class DialogueSystem {
                 const idKey = String(doc._id || doc.id);
                 this.dbDialogues.set(idKey, doc);
             }
-            console.log(`💬 [DialogueSystem] ${this.dbDialogues.size} eventos de diálogo cargados localmente desde MongoDB (Rol_db.Dialogos).`);
         } catch (err) {
             console.error("⚠️ [DialogueSystem] Error cargando diálogos desde MongoDB:", err.message);
         }
@@ -238,7 +237,7 @@ class DialogueSystem {
 
     async handleShowPerfil(param, { user, userData, messageOptions }) {
         try {
-            const { construirPerfilV2, obtenerBannerPerfil } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
+            const { construirPerfilV2, obtenerBannerPerfil, obtenerApoyoPerfil } = require('../handlers/CMDHandler/Rol/Personajes/Perfil');
             let charDoc = userData?.charDoc;
             if (!charDoc && user) {
                 const targetCharId = userData?.context?.characterId || userData?.charId || userData?.soulId;
@@ -248,7 +247,8 @@ class DialogueSystem {
 
             if (charDoc) {
                 const bannerURL = await obtenerBannerPerfil(charDoc, user?.client);
-                const perfilV2 = construirPerfilV2(charDoc, user.id, bannerURL);
+                const apoyo = await obtenerApoyoPerfil(charDoc, user?.client);
+                const perfilV2 = construirPerfilV2(charDoc, user.id, bannerURL, apoyo);
                 if (messageOptions) {
                     messageOptions.components = perfilV2;
                     messageOptions.flags = ["IsComponentsV2", "SuppressNotifications"];

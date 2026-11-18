@@ -15,6 +15,7 @@ const { sanitizarObjetoInventario } = require("../catalogoObjetos")
 const menus = require("../../data/UI_ComponentsV2/menusTienda")
 const { moverLumens } = require("../Economia/lumens")
 const { limitesDe, reservarCompra, liberarCompra, motivoLimite, excedeInventarioTrasEntrega } = require("./limitesCompra")
+const { motivoCompraPaginaDe, filtrarPaginasUsables } = require("../Aprendizaje/tienda")
 
 const CADUCIDAD_MS = 15 * 60 * 1000
 const MAX_CANTIDAD = 99
@@ -139,7 +140,8 @@ async function construirPedido({ userId, shopId, character, avisos = [], bloquea
 /** Modal de agregar con la estantería actual, o null si está vacía. */
 async function modalAgregar({ userId, shopId, character }) {
     const tienda = await tiendaAbierta(shopId)
-    const objetos = await objetosDeTienda(tienda.tienda.lugar)
+    // Las páginas que este personaje no podría usar no se ofrecen (la compra las rechazaría igual)
+    const objetos = await filtrarPaginasUsables(await objetosDeTienda(tienda.tienda.lugar), character._id)
     if (!objetos.length) return null
     return menus.modalAgregar({ tienda, ids: { userId, characterId: character._id }, objetos })
 }
@@ -170,7 +172,7 @@ async function agregarAlPedido({ userId, shopId, character, clave, cantidadTexto
     const pedido = obtenerPedido(userId, shopId, character._id, { crear: true })
     if (!pedido.items.has(clave) && pedido.items.size >= MAX_LINEAS) throw new ErrorTienda(`No caben más de ${MAX_LINEAS} objetos distintos en un solo pedido.`)
     const nueva = (pedido.items.get(clave) || 0) + cantidad
-    const motivo = motivoLimite(obj, nueva, character)
+    const motivo = motivoLimite(obj, nueva, character) || await motivoCompraPaginaDe(obj.definicion, character._id)
     if (motivo) throw new ErrorTienda(motivo)
     pedido.items.set(clave, nueva)
 }
@@ -269,7 +271,7 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
     if (avisos.length) return redibujar(avisos, fresco)
 
     for (const l of lineas) {
-        const motivo = motivoLimite(l.obj, l.cantidad, fresco)
+        const motivo = motivoLimite(l.obj, l.cantidad, fresco) || await motivoCompraPaginaDe(l.obj.definicion, fresco._id)
         if (motivo) return redibujar([motivo], fresco)
     }
     if (total !== totalMostrado) return redibujar(["Los precios cambiaron mientras elegías; revisa el total antes de pagar."], fresco)
@@ -277,10 +279,13 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
     // 1. Cobro atómico: solo descuenta si el saldo alcanza en este instante
     const lugar = tienda.tienda.lugar
     const items = lineas.map(l => ({ itemId: l.obj.ID, qty: l.cantidad, total: l.subtotal }))
-    const cobro = await moverLumens({
-        personajeId: fresco._id, userId, delta: -total, motivo: "tienda", opId: `pedido:${interaction.id}`,
-        ref: { shopId, lugar, items },
-    })
+    // Un pedido gratuito (p. ej. las páginas del Instituto) no pasa por el libro de Lumens
+    const cobro = total > 0
+        ? await moverLumens({
+            personajeId: fresco._id, userId, delta: -total, motivo: "tienda", opId: `pedido:${interaction.id}`,
+            ref: { shopId, lugar, items },
+        })
+        : { ok: true }
     if (!cobro.ok) return redibujar(["No te alcanzan los Lumens para esto."], fresco)
 
     const stockDescontado = []
@@ -320,7 +325,7 @@ async function procesarPago(interaction, { userId, shopId, character, totalMostr
         }
     } catch (err) {
         // Reembolso: se deshace en orden inverso todo lo que llegó a aplicarse
-        await moverLumens({
+        if (total > 0) await moverLumens({
             personajeId: fresco._id, userId, delta: total, motivo: "reembolso", opId: `reembolso:${interaction.id}`,
             ref: { shopId, lugar, items },
         }).catch(e => console.error("[Tiendas] Reembolso fallido:", e))

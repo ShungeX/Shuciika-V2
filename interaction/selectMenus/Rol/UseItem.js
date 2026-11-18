@@ -4,19 +4,24 @@ const { responder } = require("../../../utils/utilidadesTexto")
 
 module.exports = {
     customId: "UseItem",
-    selectAutor: true,
+    soloAutor: true,
+    // El router pasa lo elegido en `options` (no en componentData) y la sesión va en el customId:
+    //   UseItem-<ownerId>-<characterId>-<sessionId>   ·   valor: "duelo*<itemID>*<region>"
+    optionNames: ["seleccion"],
 
-    ejecutar: async ({ client, interaction, character, componentData, options: { option1: sesionID } }) => {
-        // componentData format: "Type: {duelo_o_general}*<itemID>*<region>"
-        const [Type, IDString, region] = String(componentData || "").split("*")
-        if (Type !== "duelo") return
+    ejecutar: async ({ client, interaction, character, componentData: { extras }, options: { seleccion } }) => {
+        const [Type, IDString, region] = String(seleccion || "").split("*")
+        const sesionID = extras?.[0]
+        if (Type !== "duelo") {
+            return responder(interaction, { content: "Ese objeto no se puede usar aquí ＞﹏＜", flags: ["Ephemeral"] })
+        }
 
         const sesion = duelSystem.getSesion(sesionID)
         if (!sesion || sesion.state === "FINALIZADO") {
             return responder(interaction, { content: "No se ha podido usar el objeto porque el duelo ya no es válido", flags: ["Ephemeral"] })
         }
 
-        const actor = sesion.getCurrentActor()
+        const actor = sesion.actorEnTurno()
         // Un selector viejo no debe permitir usar objetos en el turno de otro combatiente
         if (!actor || String(actor.ownerId) !== String(interaction.user.id)) {
             return responder(interaction, { content: "No es tu turno ＞﹏＜", flags: ["Ephemeral"] })

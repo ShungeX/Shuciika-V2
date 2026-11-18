@@ -13,6 +13,7 @@ module.exports = {
         .setContexts(['Guild']),
 
     subcommands: new Collection(),
+    carpetas: new Map(),   // subcomando → carpeta de handlers/CMDHandler/Rol (Combate, Economia...)
 
     /**
      * Carga todos los subcomandos de la carpeta handlers/CMDHandler/Rol
@@ -34,6 +35,7 @@ module.exports = {
                 if ('data' in subcommand && 'ejecutar' in subcommand) {
                     this.data.addSubcommand(subcommand.data);
                     this.subcommands.set(subcommand.data.name, subcommand);
+                    this.carpetas.set(subcommand.data.name, folder);   // para agrupar en el dashboard
                 } else {
                     console.warn(`[ADVERTENCIA] El subcomando en ${filePath} no tiene la propiedad "data" o "ejecutar"`)
                 }

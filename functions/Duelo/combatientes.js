@@ -6,8 +6,9 @@ const { resplandorANumero } = require("../Economia/progresionEstelar")
 const { cargarEfectos } = require("./efectosPersistentes")
 const { normalizarElemento } = require("./hechizos/elementos")
 const { tieneInmunidad, efectosActivos } = require("./hechizos/estados")
-const { modificadores, absorberConEscudo, alRecibirDanio } = require("./hechizos/efectos")
+const { modificadores, absorberConEscudo, alRecibirDanio, avisarContenedorRoto } = require("./hechizos/efectos")
 const { mapaMaestrias } = require("./hechizos/maestria")
+const contenedores = require("../Contenedores/nucleo")
 
 const ESCALADO = {
     BONUS_DANIO_RESPLANDOR_POR_RANGO: 0.12, // ⚙ I = ×1.00, II = ×1.12 ... VII = ×1.72
@@ -61,13 +62,8 @@ function normalizarStats(stats = {}) {
     return s
 }
 
-/** Contenedor elemental equipado (desafinados). PENDIENTE: los objetos contenedor aún no existen en el catálogo. */
-function esContenedor(item) {
-    if (!item) return false
-    const t = item.tipo ?? item.Type ?? item.type ?? item.Tipo
-    const lista = Array.isArray(t) ? t : [t]
-    return item.contenedor === true || lista.some(x => String(x).toLowerCase() === "contenedor")
-}
+/** Contenedor elemental (desafinados): instancia de Soul.dominio.equipo. Ver functions/Contenedores/nucleo.js */
+const esContenedor = contenedores.esContenedor
 
 /** Reconoce un arma equipada sin importar el formato ({Type: 1}, {Type: "arma"}, {tipo: "arma"}, {Tipo: ["Arma"]}) */
 function esArma(item) {
@@ -123,26 +119,41 @@ class Combatiente {
      * Aplica daño respetando Estasis (inmune), escudos, Tregua (piso de 1 HP) y los estados que
      * se rompen al recibir daño (Congelado). Todas las fuentes de daño pasan por aquí.
      * @param {number} cantidad
-     * @param {{ castId?: string }} [origen] - el daño del mismo cast no rompe su propio Congelado
+     * @param {{ castId?: string, tipo?: "fisico"|"magico"|"disonancia", sesion?: Object }} [origen]
+     *   castId: el daño del mismo cast no rompe su propio Congelado · tipo y sesion: desgaste del contenedor
      * @returns {number} daño que llegó a la vida
      */
     aplicarDaño(cantidad, origen = {}) {
         cantidad = Math.max(0, Number(cantidad) || 0);
         if (tieneInmunidad(this, "todo")) return 0;
+        // Daño recibido potenciado (señuelos del Anfitrión)
+        if (Number(this.multDanioRecibido) > 0) cantidad = Math.round(cantidad * Number(this.multDanioRecibido));
         cantidad = absorberConEscudo(this, cantidad);
         this.ultimoDanioRecibido = cantidad;
         this.vidaAntesDelGolpe = this.HP;
         let hp = Math.max(0, this.HP - cantidad);
         if (hp < 1 && this.HP >= 1 && tieneInmunidad(this, "muerte")) hp = 1;   // Tregua
+        const piso = this.pisoVida();                                          // p. ej. la Ruptura del Anfitrión
+        if (piso > 0 && hp < piso && this.HP >= piso) hp = piso;
         this.HP = hp;
         if (this.fueDerrotado()) this.defeated = true;
         if (cantidad > 0) alRecibirDanio(this, origen);
-        return this.vidaAntesDelGolpe - this.HP;
+        const efectivo = this.vidaAntesDelGolpe - this.HP;
+        this.alRecibirDanioEfectivo(efectivo, origen);
+        return efectivo;
     }
+
+    /** Gancho tras restar la vida (los jugadores desgastan aquí su contenedor). */
+    alRecibirDanioEfectivo() { }
+
+    /** Vida por debajo de la cual no puede bajar (0 = sin piso). */
+    pisoVida() { return 0; }
 
     aplicarCuracion(cantidad, esAccionInstantanea = false) {
         if (this.defeated && !esAccionInstantanea) return;
         if (tieneInmunidad(this, "todo")) return;   // Estasis: tampoco recibe curas
+        // Tope de curación por golpe (los señuelos del Anfitrión apenas se curan)
+        if (Number(this.curaMaxima) > 0) cantidad = Math.min(cantidad, Number(this.curaMaxima));
         const hpMax = this.stats?.hpMax ?? 99999;
         this.HP = Math.min(hpMax, this.HP + cantidad);
         if (this.HP > 0 && !this.surrender) {
@@ -240,8 +251,45 @@ class Personaje extends Combatiente {
         // Maestría por hechizo (dominio.hechizos[i].usos / .maestria)
         this.maestrias = mapaMaestrias(this.hechizos);
 
-        // Contenedor equipado (desafinados): fija el elemento con el que puede lanzar
-        this.contenedor = (this.equipamiento || []).find(esContenedor) || null;
+        // ── Alma Desafinada: el maná vive en el contenedor equipado ──────────
+        // La elección se hizo en el Despertar (nucleo.artefactoMagico), no depende de la resonancia.
+        this.artefactoMagico = nucleo.artefactoMagico === true;
+        this.desafinado = this.artefactoMagico;
+        // Heraldo elegido (solo nombre; sus bendiciones no se roban ni se anulan)
+        this.heraldo = sendero.heraldo?.Nombre || sendero.heraldo?.nombre || (typeof sendero.heraldo === "string" ? sendero.heraldo : null);
+        this.manaMaxBase = this.stats.manaMax;          // la curva del personaje, sin el factor del contenedor
+        this.contenedor = null;
+        this._elementoActivo = normalizarElemento(nucleo.elementoActivo ?? nucleo.Elemento);
+        this._elementoInicial = this._elementoActivo;
+        if (contenedores.esDesafinado(this)) {
+            this.contenedor = contenedores.aCombate(contenedores.entradaEquipada(this.equipamiento), this.manaMaxBase);
+            this.stats.manaMax = this.contenedor?.capacidad ?? 0;
+        }
+    }
+
+    /**
+     * Maná del combatiente. En un desafinado es la carga de su contenedor: si no hay contenedor
+     * o está roto, vale 0 y no admite recargas. (Los accesores oficiales están en hechizos/mana.js)
+     */
+    get Mana() {
+        if (!contenedores.esDesafinado(this)) return this._mana;
+        return contenedores.contenedorFunciona(this) ? this.contenedor.esencia.carga : 0;
+    }
+
+    set Mana(valor) {
+        const n = Math.max(0, Number(valor) || 0);
+        if (!contenedores.esDesafinado(this)) { this._mana = n; return; }
+        if (contenedores.contenedorFunciona(this)) this.contenedor.esencia.carga = Math.min(n, this.contenedor.capacidad);
+    }
+
+    /**
+     * Alma Desafinada: el contenedor se desgasta con el daño efectivo recibido (lo absorbido por un
+     * escudo, la Estasis o el piso de Tregua ya no llega aquí). Cada tic de un DoT pasa por aquí.
+     */
+    alRecibirDanioEfectivo(efectivo, origen = {}) {
+        const r = contenedores.desgastarPorDano(this, efectivo, origen.tipo);
+        if (r.roto) avisarContenedorRoto(origen.sesion, this);
+        return r;
     }
 
     get nivelCombate() {
@@ -252,20 +300,21 @@ class Personaje extends Combatiente {
         return multiplicadorResplandor(this.resplandor);
     }
 
-    /** Afinado: resonancia ≥ disonancia. */
+    /** Afinado: no eligió ser un Alma Desafinada en el Despertar. */
     get afinado() {
-        return (Number(this.resonancia) || 0) >= (Number(this.disonancia) || 0);
+        return !contenedores.esDesafinado(this);
     }
 
     /**
-     * Elemento lanzable (III.E): un afinado lanza su elemento; un desafinado, el del contenedor
-     * equipado (si no lleva ninguno con elemento, el suyo).
-     * PENDIENTE: si cambiar de contenedor en combate consume un turno (propuesta: sí).
+     * Elemento lanzable: un afinado lanza su elemento; un desafinado, el que su contenedor
+     * traduce ahora mismo (cambiarlo en combate consume un turno).
      */
     get elementoActivo() {
-        if (this.afinado || !this.contenedor) return this.elemento;
-        const el = this.contenedor.Elemento ?? this.contenedor.elemento;
-        return el ? normalizarElemento(el) : this.elemento;
+        return contenedores.esDesafinado(this) ? this._elementoActivo : this.elemento;
+    }
+
+    set elementoActivo(valor) {
+        this._elementoActivo = normalizarElemento(valor);
     }
 }
 
@@ -291,6 +340,8 @@ class NPC extends Combatiente {
         this.esHeraldo = data.heraldo === true || String(this.tipoNPC).toLowerCase() === "heraldo";
         this.esJefe = this.esHeraldo || !!this.boss || String(this.tipoNPC).toLowerCase() === "boss";
         this.comportamiento = data.comportamiento || [];
+        this.habilidadUnica = data.habilidadUnica || null;   // functions/Duelo/habilidadesNPC
+        this.anfitrionDatos = data.anfitrionDatos || null;   // datos de cuenta para la voz del Anfitrión
         // Humano: vías normales, como un jugador (puede tener maestría). Resto: solo instinto (VI.B)
         this.esHumano = String(data.tipo ?? data.naturaleza ?? "").toLowerCase() === "humano";
         this.maestrias = mapaMaestrias(data.maestrias || {});
@@ -318,6 +369,14 @@ class NPC extends Combatiente {
 
     get nivelCombate() {
         return this.nivel;
+    }
+
+    pisoVida() {
+        return this.habilidadUnica ? require("./habilidadesNPC").pisoVida(this) : 0;
+    }
+
+    alRecibirDanioEfectivo(efectivo, origen = {}) {
+        if (this.habilidadUnica) require("./habilidadesNPC").alRecibirDanio(this, efectivo, origen);
     }
 }
 

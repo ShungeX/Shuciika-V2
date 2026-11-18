@@ -71,6 +71,9 @@ function unidadesPoseidas(character, obj) {
  */
 function motivoLimite(obj, cantidad, character) {
     if (obj.stock !== null && obj.stock !== undefined && cantidad > obj.stock) {
+        // Las páginas del Instituto tienen su propia excusa (Aprendizaje, existencias semanales)
+        const agotado = obj.stock <= 0 && obj.definicion ? require("../Aprendizaje/tienda").mensajeAgotado(obj.definicion) : null
+        if (agotado) return agotado
         return obj.stock <= 0 ? `**${obj.Nombre}** se agotó.` : `Solo quedan ${obj.stock} de **${obj.Nombre}**.`
     }
     if (obj.porCompra && cantidad > obj.porCompra) return `No puedes llevar más de ${obj.porCompra} de **${obj.Nombre}** por compra.`

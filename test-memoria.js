@@ -8,12 +8,8 @@ function medir(nombre, fn) {
 }
 
 console.log(`RSS inicial (Node vacío): ${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)} MB`);
-medir('canvas', () => require('canvas'));
 medir('discord.js', () => require('discord.js'));
 medir('mongodb', () => require('mongodb'));
-medir('@discordjs/opus', () => require('@discordjs/opus'));
-medir('@discordjs/voice', () => require('@discordjs/voice'));
-medir('moment', () => require('moment'));
 medir('luxon', () => require('luxon'));
 medir('cloudinary', () => require('cloudinary'));
 medir('express', () => require('express'));

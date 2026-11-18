@@ -16,6 +16,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { evaluarPermisoPrivacidad } = require('./functions/privacidad.js');
+const premium = require('./functions/Premium/premium.js');
+const apoyoEtiqueta = require('./functions/Premium/apoyo.js');
+const apoyoEstilos = require('./functions/Premium/apoyoEstilo.js');
 
 cloudinary.config({
     cloud_name: process.env.CLOUD_NAME,
@@ -679,7 +682,7 @@ app.get('/api/combat/roles', async (req, res) => {
             '737058095599058995',
             '810198633705766962',
             '734142447256469584',
-            '796205038665072661'
+            ...premium.ROLES_PREMIUM
         ];
         const ROLES_ADMIN = [
             '737058095599058995',
@@ -687,7 +690,8 @@ app.get('/api/combat/roles', async (req, res) => {
         ];
 
         const userRoles = member ? member.roles.cache.map(r => r.id) : [];
-        const esBooster = member ? member.roles.cache.has("796205038665072661") : false;
+        // Mejoras de sala = beneficio en rol: cuenta el personaje activo (create-room valida el personaje elegido)
+        const esBooster = await premium.esPremiumEnPersonaje(client, req.session.user.id, usuario?.nix?.personajeActivo, { usuarioServer: usuario, member });
         const tieneRolEspecial = member ? (member.roles.cache.has("810198633705766962") || member.roles.cache.has("737058095599058995")) : false;
 
         res.json({
@@ -850,6 +854,12 @@ function esEquipoObjeto(tipo) {
     return lista.some(t => TIPOS_CON_DURABILIDAD.includes(String(t).toLowerCase()));
 }
 
+// Solo los huevos tienen tiempo de eclosión (functions/Mascotas). Vacío = el tiempo base (3 días)
+function esHuevoObjeto(tipo) {
+    const lista = Array.isArray(tipo) ? tipo : (tipo ? [tipo] : []);
+    return lista.some(t => String(t).toLowerCase() === "huevo");
+}
+
 /** Límite entero positivo o null (sin límite). */
 function normalizarLimiteObjeto(valor) {
     const n = Number(valor);
@@ -903,6 +913,17 @@ function normalizarEfectosObjeto(lista) {
     })
         .filter(ef => !((ef.tipo === "suma" || ef.tipo === "resta") && !ef.stat))   // stat desconocido: se descarta
         .map(ef => Object.fromEntries(Object.entries(ef).filter(([, v]) => v !== undefined)));
+}
+
+// El bot lee los objetos de una caché en memoria (catalogoObjetos) que solo se llena al arrancar:
+// tras crear o editar un objeto desde el dashboard se recarga su región para que el cambio
+// (contexto de uso, efectos...) se vea sin reiniciar. Import diferido: catalogoObjetos requiere este archivo.
+async function recargarCatalogoObjetos(collection, region) {
+    try {
+        await require('./functions/catalogoObjetos').recargarRegion(collection, region);
+    } catch (e) {
+        console.error(`[Objetos] No se pudo recargar el catálogo de ${region}:`, e);
+    }
 }
 
 app.post('/api/admin/objetos', async (req, res) => {
@@ -985,6 +1006,8 @@ app.post('/api/admin/objetos', async (req, res) => {
             valor_base: normalizarEnteroObjeto(objeto.valor_base, 0, 1000000),
             durabilidad: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.durabilidad, 1, 200) : null,
             resistencia: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.resistencia, 0, 100) : null,
+            // Huevos: horas que tarda en eclosionar cuidado a mano (null = tiempo base)
+            eclosion_horas: esHuevoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.eclosion_horas, 1, 720) : null,
             contaminable: typeof objeto.contaminable !== "undefined" ? Boolean(objeto.contaminable) : false,
             purificable: typeof objeto.purificable !== "undefined" ? Boolean(objeto.purificable) : false,
             tiempo_limite: objeto.tiempo_limite || null,
@@ -1012,6 +1035,7 @@ app.post('/api/admin/objetos', async (req, res) => {
         };
 
         await collection.updateOne({ _id: region }, { $push: { Objetos: normalizedObjeto } });
+        await recargarCatalogoObjetos(collection, region);
         refrescarTiendasEnSegundoPlano(normalizedObjeto.en_tienda);
         res.json({ success: true, message: 'Objeto creado exitosamente.', objeto: normalizedObjeto });
     } catch (err) {
@@ -1091,6 +1115,10 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
             valor_base: normalizarEnteroObjeto(objeto.valor_base, 0, 1000000),
             durabilidad: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.durabilidad, 1, 200) : null,
             resistencia: esEquipoObjeto(objeto.Tipo) ? normalizarEnteroObjeto(objeto.resistencia, 0, 100) : null,
+            // Huevos: horas de eclosión (null = tiempo base). Si el formulario no lo manda se conserva
+            eclosion_horas: esHuevoObjeto(objeto.Tipo)
+                ? normalizarEnteroObjeto(objeto.eclosion_horas !== undefined ? objeto.eclosion_horas : targetObj.eclosion_horas, 1, 720)
+                : null,
             contaminable: typeof objeto.contaminable !== "undefined" ? Boolean(objeto.contaminable) : false,
             purificable: typeof objeto.purificable !== "undefined" ? Boolean(objeto.purificable) : false,
             tiempo_limite: objeto.tiempo_limite || null,
@@ -1121,6 +1149,7 @@ app.put('/api/admin/objetos/:region/:id', async (req, res) => {
             { _id: region, "Objetos.ID": Number(id) },
             { $set: { "Objetos.$": normalizedObjeto } }
         );
+        await recargarCatalogoObjetos(collection, region);
 
         // Las tiendas donde estaba y donde está ahora (precio, nombre o estantería pueden haber cambiado)
         refrescarTiendasEnSegundoPlano([...(targetObj.en_tienda || []), ...normalizedObjeto.en_tienda]);
@@ -1421,6 +1450,8 @@ function normalizeNpc(npc) {
         // Los NPCs sí tienen nivel (los jugadores usan FE + Resplandor)
         nivel: new Int32(Number(npc.nivel ?? npc.restrictions?.fe_min) || 1),
         heraldo: npc.heraldo === true || String(npc.Type || "").toLowerCase() === "heraldo",
+        // Habilidad única del NPC (functions/Duelo/habilidadesNPC): solo valores conocidos
+        habilidadUnica: require("./functions/Duelo/habilidadesNPC").HABILIDADES.includes(npc.habilidadUnica) ? npc.habilidadUnica : null,
         restrictions: {
             fe_min: npc.restrictions?.fe_min ? new Int32(Number(npc.restrictions.fe_min)) : new Int32(0),
             fe_max: npc.restrictions?.fe_max ? new Int32(Number(npc.restrictions.fe_max)) : new Int32(0),
@@ -2559,6 +2590,113 @@ app.post('/api/admin/moderacion/regalos/:id/resolver', requireAdminOrMod, async 
     }
 });
 
+// ═══ NOTICIAS / BLOG (functions/Noticias) ═══
+// Lo público (portada del sitio y perfil del dashboard) solo ve las publicadas.
+// El panel de admins crea, edita, publica y borra; los archivos van a Cloudinary.
+
+function responderErrorNoticias(res, err, contexto) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error(`[Noticias] ${contexto}:`, err);
+    res.status(500).json({ error: `${contexto}.` });
+}
+
+// GET /api/noticias?limite=10&pagina=1&etiqueta=Eventos
+app.get('/api/noticias', async (req, res) => {
+    try {
+        const { limite, pagina, etiqueta } = req.query;
+        res.json(await require('./functions/Noticias/noticias').listarPublicadas({
+            limite, pagina, etiqueta: typeof etiqueta === 'string' ? etiqueta : '',
+        }));
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudieron cargar las noticias');
+    }
+});
+
+// GET /api/noticias/:slug
+app.get('/api/noticias/:slug', async (req, res) => {
+    try {
+        const noticia = await require('./functions/Noticias/noticias').obtenerPublicada(req.params.slug);
+        if (!noticia) return res.status(404).json({ error: 'Esa noticia no existe o ya no está publicada.' });
+        res.json({ noticia });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo cargar la noticia');
+    }
+});
+
+// GET /api/admin/noticias?estado=publicada|borrador
+app.get('/api/admin/noticias', requireAdminOrMod, async (req, res) => {
+    try {
+        const noticias = require('./functions/Noticias/noticias');
+        res.json({ ...(await noticias.listarTodas({ estado: req.query.estado })), limites: noticias.LIMITES });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudieron cargar las noticias');
+    }
+});
+
+// POST /api/admin/noticias/media   Body: { tipo: 'imagen' | 'audio', data: <Data URL base64> }
+app.post('/api/admin/noticias/media', requireAdminOrMod, async (req, res) => {
+    try {
+        res.json(await require('./functions/Noticias/noticias').subirArchivo({ tipo: req.body?.tipo, data: req.body?.data }));
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo subir el archivo');
+    }
+});
+
+app.get('/api/admin/noticias/:id', requireAdminOrMod, async (req, res) => {
+    try {
+        res.json({ noticia: await require('./functions/Noticias/noticias').obtener(req.params.id) });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo cargar la noticia');
+    }
+});
+
+app.post('/api/admin/noticias', requireAdminOrMod, async (req, res) => {
+    try {
+        const u = req.session.user;
+        const noticia = await require('./functions/Noticias/noticias').crear(req.body, {
+            id: u.id,
+            nombre: u.global_name || u.username,
+        });
+        console.log(`[Noticias] ${u.username || u.id} creó "${noticia.titulo}" (${noticia.estado})`);
+        res.json({ success: true, noticia });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo guardar la noticia');
+    }
+});
+
+app.put('/api/admin/noticias/:id', requireAdminOrMod, async (req, res) => {
+    try {
+        const noticia = await require('./functions/Noticias/noticias').actualizar(req.params.id, req.body);
+        console.log(`[Noticias] ${req.session.user.username || req.session.user.id} editó "${noticia.titulo}" (${noticia.estado})`);
+        res.json({ success: true, noticia });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo guardar la noticia');
+    }
+});
+
+// POST /api/admin/noticias/:id/estado   Body: { estado?: 'publicada' | 'borrador', fijada?: boolean }
+app.post('/api/admin/noticias/:id/estado', requireAdminOrMod, async (req, res) => {
+    try {
+        const noticia = await require('./functions/Noticias/noticias').cambiarEstado(req.params.id, {
+            estado: req.body?.estado,
+            fijada: req.body?.fijada,
+        });
+        res.json({ success: true, noticia });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo cambiar el estado de la noticia');
+    }
+});
+
+app.delete('/api/admin/noticias/:id', requireAdminOrMod, async (req, res) => {
+    try {
+        const noticia = await require('./functions/Noticias/noticias').eliminar(req.params.id);
+        console.log(`[Noticias] ${req.session.user.username || req.session.user.id} eliminó "${noticia.titulo}"`);
+        res.json({ success: true });
+    } catch (err) {
+        responderErrorNoticias(res, err, 'No se pudo eliminar la noticia');
+    }
+});
+
 // ═══ CLIMA Y HORARIO (functions/Clima) ═══
 // Reloj interno, clima por hora y noticiero. El bot y la web viven en el mismo proceso,
 // así que el dashboard usa la misma caché que los ticks.
@@ -2604,6 +2742,21 @@ app.get('/api/clima/:regionId', async (req, res) => {
         });
     } catch (err) {
         responderErrorClima(res, err, 'No se pudo leer el clima');
+    }
+});
+
+// ═══ Estado del bot (panel de admins) ═══
+// GET /api/admin/estado-bot → latencias de Discord, MongoDB y Cloudinary, memoria y veredicto general.
+// Es la misma medición que muestra el comando /ping (functions/diagnostico.js).
+app.get('/api/admin/estado-bot', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'El bot todavía está arrancando.' });
+    try {
+        const { obtenerDiagnostico } = require('./functions/diagnostico');
+        res.set('Cache-Control', 'no-store');
+        res.json(await obtenerDiagnostico(client));
+    } catch (err) {
+        console.error('[Estado del bot] No se pudo completar el diagnóstico:', err);
+        res.status(500).json({ error: 'No se pudo completar el diagnóstico del bot.' });
     }
 });
 
@@ -2861,9 +3014,148 @@ app.post('/api/admin/mensajes-servidor/vista-previa', requireAdminOrMod, async (
         const { config, eleccion } = req.body || {};
         // El id solo importa para el custom_id del menú; un borrador nuevo puede no tenerlo aún
         const normalizada = mensajesServidor.normalizarConfig({ ...config, _id: config?._id || 'borrador' });
-        res.json(await mensajesServidor.construirMensaje(normalizada, clientdb.db(dbname), eleccion || {}));
+        res.json(await mensajesServidor.construirMensaje(normalizada, clientdb.db(dbname), eleccion || {}, null, { dbServer: clientdb.db("Server_db") }));
     } catch (err) {
         responderErrorEvento(res, err, 'Error construyendo la vista previa');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/webhooks (Perfiles de webhook guardados: nombre + foto reutilizables)
+app.get('/api/admin/mensajes-servidor/webhooks', requireAdminOrMod, async (req, res) => {
+    try {
+        res.json(await require('./functions/mensajesServidor').listarPerfilesWebhook(clientdb.db("Server_db")));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando los perfiles de webhook');
+    }
+});
+
+// PUT /api/admin/mensajes-servidor/webhooks/:perfilId (Crea o actualiza un perfil de webhook)
+app.put('/api/admin/mensajes-servidor/webhooks/:perfilId', requireAdminOrMod, async (req, res) => {
+    try {
+        const perfil = await require('./functions/mensajesServidor').guardarPerfilWebhook(clientdb.db("Server_db"), req.params.perfilId, req.body, req.session.user.id);
+        res.json({ success: true, perfil });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error guardando el perfil de webhook');
+    }
+});
+
+// DELETE /api/admin/mensajes-servidor/webhooks/:perfilId
+app.delete('/api/admin/mensajes-servidor/webhooks/:perfilId', requireAdminOrMod, async (req, res) => {
+    try {
+        await require('./functions/mensajesServidor').eliminarPerfilWebhook(clientdb.db("Server_db"), req.params.perfilId);
+        res.json({ success: true });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error eliminando el perfil de webhook');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/emojis (Emojis de la aplicación y de los servidores donde está el bot)
+app.get('/api/admin/mensajes-servidor/emojis', requireAdminOrMod, async (req, res) => {
+    try {
+        res.json(await require('./functions/mensajesWebhooks').listarEmojis(client, GUILD_ID));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando emojis');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/webhooks-servidor (Webhooks que ya existen en el servidor + los añadidos por URL; sin tokens)
+app.get('/api/admin/mensajes-servidor/webhooks-servidor', requireAdminOrMod, async (req, res) => {
+    try {
+        res.json(await require('./functions/mensajesWebhooks').listarWebhooksServidor(client, GUILD_ID, clientdb.db("Server_db")));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando los webhooks del servidor');
+    }
+});
+
+// POST /api/admin/mensajes-servidor/webhooks-servidor { url } (Comprueba y guarda la URL de un webhook del servidor)
+app.post('/api/admin/mensajes-servidor/webhooks-servidor', requireAdminOrMod, async (req, res) => {
+    try {
+        const webhook = await require('./functions/mensajesWebhooks').registrarWebhookExterno(client, GUILD_ID, clientdb.db("Server_db"), req.body?.url, req.session.user.id);
+        res.json({ success: true, webhook });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error añadiendo el webhook');
+    }
+});
+
+// DELETE /api/admin/mensajes-servidor/webhooks-servidor/:webhookId (Olvida una URL guardada; no borra el webhook de Discord)
+app.delete('/api/admin/mensajes-servidor/webhooks-servidor/:webhookId', requireAdminOrMod, async (req, res) => {
+    try {
+        await require('./functions/mensajesWebhooks').olvidarWebhookExterno(clientdb.db("Server_db"), req.params.webhookId);
+        res.json({ success: true });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error olvidando el webhook');
+    }
+});
+
+// POST /api/admin/mensajes-servidor/adjuntos?nombre=foto.png (Cuerpo: la imagen en bruto; se adjunta al mensaje con attachment://)
+app.post('/api/admin/mensajes-servidor/adjuntos', requireAdminOrMod, express.raw({ type: 'image/*', limit: '8mb' }), async (req, res) => {
+    try {
+        const adjunto = await require('./functions/mensajesWebhooks').guardarAdjunto(clientdb.db("Server_db"), {
+            buffer: Buffer.isBuffer(req.body) ? req.body : null,
+            tipo: req.get('content-type'),
+            nombre: req.query.nombre,
+            autorId: req.session.user.id
+        });
+        res.json({ success: true, adjunto });
+    } catch (err) {
+        if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'La imagen pesa más de 8 MB.' });
+        responderErrorEvento(res, err, 'Error subiendo la imagen');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/adjuntos/:adjuntoId (La imagen, para la vista previa del dashboard)
+app.get('/api/admin/mensajes-servidor/adjuntos/:adjuntoId', requireAdminOrMod, async (req, res) => {
+    try {
+        const { doc, buffer } = await require('./functions/mensajesWebhooks').leerAdjunto(clientdb.db("Server_db"), req.params.adjuntoId);
+        res.set('Content-Type', doc.tipo).set('Cache-Control', 'private, max-age=86400').send(buffer);
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error leyendo la imagen');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/servidor (Canales y roles del servidor, para los selectores de los vestíbulos)
+app.get('/api/admin/mensajes-servidor/servidor', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        res.json(await require('./functions/vestibulos').listarServidor(client, GUILD_ID));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando canales y roles');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/canales/:canalId/hilos (Hilos de un canal, activos y archivados, para listarlos en el vestíbulo)
+// Respuesta: { canalId, hilos: [{ id, nombre, archivado }], hayMas }
+app.get('/api/admin/mensajes-servidor/canales/:canalId/hilos', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        res.json(await require('./functions/vestibulos').listarHilos(client, GUILD_ID, req.params.canalId));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error listando los hilos del canal');
+    }
+});
+
+// GET /api/admin/mensajes-servidor/:id/permisos (Qué canales del área están bien ocultos tras el rol del vestíbulo)
+app.get('/api/admin/mensajes-servidor/:id/permisos', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const doc = await require('./functions/mensajesServidor').obtenerVestibulo(clientdb.db("Server_db"), req.params.id);
+        res.json(await require('./functions/vestibulos').estadoPermisos(client, GUILD_ID, doc));
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error comprobando permisos');
+    }
+});
+
+// POST /api/admin/mensajes-servidor/:id/permisos (Oculta los canales del área a @everyone y los abre al rol del vestíbulo)
+app.post('/api/admin/mensajes-servidor/:id/permisos', requireAdminOrMod, async (req, res) => {
+    if (!client) return res.status(503).json({ error: 'Bot no disponible aún' });
+    try {
+        const doc = await require('./functions/mensajesServidor').obtenerVestibulo(clientdb.db("Server_db"), req.params.id);
+        const autor = req.session.user.username || req.session.user.id;
+        const resultado = await require('./functions/vestibulos').aplicarPermisos(client, GUILD_ID, doc, autor);
+        console.log(`[Vestíbulos] ${autor} aplicó permisos de '${doc._id}': ${resultado.aplicados.length} canales, ${resultado.fallos.length} fallos`);
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        responderErrorEvento(res, err, 'Error aplicando permisos');
     }
 });
 
@@ -2872,7 +3164,11 @@ app.put('/api/admin/mensajes-servidor/:id', requireAdminOrMod, async (req, res) 
     try {
         const mensajesServidor = require('./functions/mensajesServidor');
         const doc = await mensajesServidor.guardarMensaje(clientdb.db("Server_db"), req.params.id, req.body, req.session.user.id);
-        res.json({ success: true, mensaje: doc });
+        // Guardar un vestíbulo solo deja pendientes a los que de verdad cambian (él mismo y los que lo tienen como destino)
+        const desactualizados = doc.tipo === 'vestibulo'
+            ? await mensajesServidor.vestibulosDesactualizados(clientdb.db("Server_db"), clientdb.db(dbname)).catch(() => null)
+            : null;
+        res.json({ success: true, mensaje: doc, desactualizados });
     } catch (err) {
         responderErrorEvento(res, err, 'Error guardando el mensaje');
     }
@@ -2974,6 +3270,212 @@ app.get('/api/me', async (req, res) => {
     }
 });
 
+// ─── Amistades destacadas del perfil ─────────────────────────────────────────
+// Se eligen entre las parejas de Rol_db.amistades con MÁS de 50 puntos (ya
+// enfriados, los mismos que ve /rol amistad). La elección vive en
+// Personajes.perfil.amistadesDestacadas (ids de personaje como texto).
+const UMBRAL_AMISTAD_DESTACADA = 50;
+const MAX_AMISTADES_DESTACADAS = 3;
+
+/**
+ * Parejas del personaje que pueden destacarse, ordenadas por puntos.
+ * @returns {Promise<Array<{ id: string, nombre: string, avatarURL: string, puntos: number }>>}
+ */
+async function obtenerAmistadesElegibles(dbRol, pjId) {
+    const { estadoAmistad } = require('./functions/Amistad/reglasAmistad');
+    const id = String(pjId);
+    const ahora = Date.now();
+    const docs = await dbRol.collection("amistades")
+        .find({ miembros: id }, { projection: { historial: 0, ultimaPorTipo: 0, diario: 0 } })
+        .toArray();
+
+    const parejas = [];
+    for (const doc of docs) {
+        const otroId = (doc.miembros || []).find(m => m !== id);
+        if (!otroId) continue;
+        const { puntos } = estadoAmistad(doc, ahora);
+        if (puntos > UMBRAL_AMISTAD_DESTACADA) parejas.push({ id: otroId, puntos });
+    }
+    if (!parejas.length) return [];
+
+    const ids = parejas.map(p => p.id);
+    const idsNum = ids.map(Number).filter(n => !isNaN(n));
+    const pjs = await dbRol.collection("Personajes")
+        .find({ _id: { $in: [...ids, ...idsNum] } }, { projection: { "perfil.Nombre": 1, "perfil.avatarURL": 1, avatarURL: 1 } })
+        .toArray();
+    const porId = new Map(pjs.map(p => [String(p._id), p]));
+
+    return parejas
+        .filter(p => porId.has(p.id))   // personaje borrado: no se muestra
+        .map(p => {
+            const pj = porId.get(p.id);
+            return {
+                id: p.id,
+                nombre: pj.perfil?.Nombre || `Personaje ${p.id}`,
+                avatarURL: pj.perfil?.avatarURL || pj.avatarURL || '',
+                puntos: Math.round(p.puntos)
+            };
+        })
+        .sort((a, b) => b.puntos - a.puntos);
+}
+
+/** Destacadas guardadas que siguen siendo elegibles (si bajan de 50 dejan de mostrarse). */
+async function obtenerAmistadesDestacadas(dbRol, charDoc) {
+    const elegidas = Array.isArray(charDoc?.perfil?.amistadesDestacadas)
+        ? charDoc.perfil.amistadesDestacadas.map(String)
+        : [];
+    if (!elegidas.length) return [];
+    const elegibles = await obtenerAmistadesElegibles(dbRol, charDoc._id);
+    const porId = new Map(elegibles.map(e => [e.id, e]));
+    return elegidas.map(id => porId.get(id)).filter(Boolean).slice(0, MAX_AMISTADES_DESTACADAS);
+}
+
+/**
+ * ¿Ya se rompió la racha de recompensa diaria? Misma regla que
+ * /rol recompensa_diaria: racha > 1 y ya pasó el límite del día N+2 (hora México).
+ */
+function rachaRecompensaPerdida(charDoc) {
+    const racha = charDoc?.social?.rachas?.recompensaDiaria || 0;
+    const ultima = charDoc?.cooldowns?.recompensa_diaria?.ultimaInteraccion;
+    if (racha <= 1 || !ultima) return false;
+    const utilidadesTexto = require('./utils/utilidadesTexto');
+    return Math.floor(Date.now() / 1000) > utilidadesTexto.getDeadlineRacha(ultima);
+}
+
+/**
+ * Etiqueta de apoyo ("Support") del dueño de un personaje para el perfil del dashboard. Solo cosmética.
+ * Devuelve { estado: 'activo'|'alguna_vez'|'ninguno', desde } y nada del tipo de apoyo.
+ * Si el dueño la ocultó (apoyoEstilo.mostrarEtiqueta = false), los visitantes reciben 'ninguno'; el dueño siempre la ve.
+ */
+async function apoyoParaDashboard(ownerID, usuarioServer, esDueño) {
+    const sinEtiqueta = { estado: 'ninguno', desde: null };
+    if (!ownerID) return sinEtiqueta;
+    try {
+        const coleccion = clientdb.db("Server_db").collection("usuarios_server");
+        const doc = usuarioServer || await coleccion.findOne({ _id: String(ownerID) }, { projection: { apoyo: 1, apoyoEstilo: 1 } });
+        const { estado, desde, estilo } = await apoyoEtiqueta.obtenerApoyo({ client, ownerID, usuarioServer: doc, coleccion });
+        if (estado === 'ninguno' || (!esDueño && !estilo.mostrarEtiqueta)) return sinEtiqueta;
+        return { estado, desde };
+    } catch (err) {
+        console.warn("[apoyo] No se pudo resolver la etiqueta del dashboard:", err?.message || err);
+        return sinEtiqueta;
+    }
+}
+
+// ── Configuración de apoyo (dashboard → Configuración → Apoyo) ──────────────────────────────
+// Estilo de la etiqueta (apoyoEstilo) y los personajes que reciben los beneficios en rol (máx. 2, cambio cada 30 días).
+
+async function datosApoyoUsuario(discordID) {
+    const coleccion = clientdb.db("Server_db").collection("usuarios_server");
+    const usuario = await coleccion.findOne({ _id: discordID });
+    const member = await premium.obtenerMiembro(client, discordID);
+    const apoyo = await apoyoEtiqueta.obtenerApoyo({ client, ownerID: discordID, usuarioServer: usuario, coleccion });
+    const esPremiumUsuario = await premium.esPremium(client, discordID, { usuarioServer: usuario, member });
+    const sinLimite = premium.esStaffPremium(discordID, usuario, member);
+    return { coleccion, usuario, member, apoyo, esPremiumUsuario, sinLimite };
+}
+
+// GET /api/apoyo/config - Estado, estilo y personajes elegidos del usuario en sesión
+app.get('/api/apoyo/config', async (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+    try {
+        const discordID = String(req.session.user.id);
+        const { usuario, apoyo, esPremiumUsuario, sinLimite } = await datosApoyoUsuario(discordID);
+
+        const ids = premium.idsPersonajes(usuario);
+        const nombresNix = new Map((usuario?.nix?.personajes || []).map(p => [String(p?.id), p?.nombre]));
+        const docs = ids.length
+            ? await clientdb.db("Rol_db").collection("Personajes")
+                .find({ _id: { $in: ids.flatMap(id => (Number.isFinite(Number(id)) ? [id, Number(id)] : [id])) } },
+                    { projection: { "perfil.Nombre": 1, "perfil.Apodo": 1, "perfil.avatarURL": 1 } })
+                .toArray()
+            : [];
+        const personajes = ids.map(id => {
+            const d = docs.find(x => String(x._id) === id);
+            return { id, nombre: d?.perfil?.Nombre || nombresNix.get(id) || 'Personaje', apodo: d?.perfil?.Apodo || '', avatar: d?.perfil?.avatarURL || null };
+        });
+
+        res.json({
+            success: true,
+            estado: apoyo.estado,
+            desde: apoyo.desde,
+            estilo: apoyo.estilo,
+            nombreDueño: apoyo.nombreDueño,
+            esPremium: esPremiumUsuario,
+            sinLimite,
+            personajes,
+            elegidos: premium.personajesConBeneficio(usuario),
+            eligio: Array.isArray(usuario?.apoyo?.personajes) && usuario.apoyo.personajes.length > 0,
+            maximo: premium.MAX_PERSONAJES_BENEFICIO,
+            diasCambio: premium.DIAS_CAMBIO_PERSONAJES,
+            proximoCambio: premium.proximoCambioPersonajes(usuario)
+        });
+    } catch (err) {
+        console.error("Error en GET /api/apoyo/config:", err);
+        res.status(500).json({ error: 'Error al cargar la configuración de apoyo' });
+    }
+});
+
+// POST /api/apoyo/estilo - { estilo: { modo, paleta, posicion, mostrarEtiqueta } } (se sanea; nunca se confía en el cliente)
+app.post('/api/apoyo/estilo', async (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+    try {
+        const discordID = String(req.session.user.id);
+        const { coleccion, apoyo } = await datosApoyoUsuario(discordID);
+        if (apoyo.estado === 'ninguno') {
+            return res.status(403).json({ error: 'El estilo de la etiqueta es para quienes apoyan o apoyaron el servidor.' });
+        }
+        const estilo = apoyoEstilos.validarApoyoEstilo(req.body?.estilo);
+        await coleccion.updateOne({ _id: discordID }, { $set: { apoyoEstilo: estilo } });
+        res.json({ success: true, estilo });
+    } catch (err) {
+        console.error("Error en POST /api/apoyo/estilo:", err);
+        res.status(500).json({ error: 'Error al guardar el estilo' });
+    }
+});
+
+// POST /api/apoyo/personajes - { ids: [id, id] } personajes con beneficios en rol (máx. 2; un cambio cada 30 días)
+app.post('/api/apoyo/personajes', async (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ error: 'No autenticado' });
+    try {
+        const discordID = String(req.session.user.id);
+        const { coleccion, usuario, esPremiumUsuario, sinLimite } = await datosApoyoUsuario(discordID);
+        if (!esPremiumUsuario) return res.status(403).json({ error: 'Elegir personajes es un beneficio de apoyo (Boost o Support).' });
+        if (sinLimite) return res.status(400).json({ error: 'Tu cuenta no tiene límite de personajes.' });
+
+        const propios = premium.idsPersonajes(usuario);
+        const max = premium.MAX_PERSONAJES_BENEFICIO;
+        if (propios.length <= max) return res.status(400).json({ error: 'Todos tus personajes ya tienen los beneficios.' });
+
+        const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(String))] : [];
+        if (!ids.length || ids.length > max || ids.some(id => !propios.includes(id))) {
+            return res.status(400).json({ error: `Elige entre 1 y ${max} de tus personajes.` });
+        }
+
+        const actuales = premium.personajesConBeneficio(usuario);
+        if (usuario?.apoyo?.personajes?.length && ids.length === actuales.length && ids.every(id => actuales.includes(id))) {
+            return res.json({ success: true, elegidos: actuales, proximoCambio: premium.proximoCambioPersonajes(usuario), sinCambios: true });
+        }
+
+        const proximo = premium.proximoCambioPersonajes(usuario);
+        if (proximo) return res.status(429).json({ error: 'Ya cambiaste tus personajes este mes.', proximoCambio: proximo });
+
+        // Filtro atómico: si otro guardado ganó la carrera, este no pisa la fecha del cambio
+        const ultimo = usuario?.apoyo?.personajesCambio;
+        const ahora = Math.floor(Date.now() / 1000);
+        const r = await coleccion.updateOne(
+            { _id: discordID, "apoyo.personajesCambio": ultimo === undefined ? { $exists: false } : ultimo },
+            { $set: { "apoyo.personajes": ids, "apoyo.personajesCambio": ahora } }
+        );
+        if (!r.modifiedCount) return res.status(409).json({ error: 'Tus personajes cambiaron mientras guardabas. Recarga e inténtalo de nuevo.' });
+
+        res.json({ success: true, elegidos: ids, proximoCambio: ahora + premium.DIAS_CAMBIO_PERSONAJES * 86400 });
+    } catch (err) {
+        console.error("Error en POST /api/apoyo/personajes:", err);
+        res.status(500).json({ error: 'Error al guardar tus personajes' });
+    }
+});
+
 // GET /api/personaje/activo - Obtiene el personaje activo del jugador según usuarios_server / Personajes / Soul
 app.get('/api/personaje/activo', async (req, res) => {
     if (!req.session.user) {
@@ -2996,14 +3498,15 @@ app.get('/api/personaje/activo', async (req, res) => {
         });
         charDoc.soul = soulDoc || null;
 
-        // Cargar Mascota si existe
+        // Cargar la mascota activa del personaje si existe (los huevos en crianza no cuentan)
         const mascotaDoc = await dbRol.collection("Mascotas").findOne({
             $or: [
                 { characterID: charDoc._id },
                 { characterID: Number(charDoc._id) },
                 { characterID: String(charDoc._id) }
-            ]
-        });
+            ],
+            etapa: { $ne: "Huevo" }
+        }, { sort: { activePet: -1 } });
         if (mascotaDoc) {
             charDoc.mascota = mascotaDoc;
         }
@@ -3013,14 +3516,23 @@ app.get('/api/personaje/activo', async (req, res) => {
         const esAdmin = usuarioServer?.roles && Array.isArray(usuarioServer.roles)
             ? ROLES_ADMIN.some(r => usuarioServer.roles.includes(r))
             : false;
-        const isBooster = Boolean(isWhitelisted || esAdmin || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        const isBooster = Boolean(isWhitelisted || esAdmin || await premium.esPremium(client, discordID, { usuarioServer }));
+
+        charDoc.rachaPerdida = rachaRecompensaPerdida(charDoc);
+        const amistadesDestacadas = await obtenerAmistadesDestacadas(dbRol, charDoc).catch(err => {
+            console.error("Error cargando amistades destacadas:", err);
+            return [];
+        });
 
         res.json({
             success: true,
             personaje: charDoc,
+            amistadesDestacadas,
             isOwner: true,
             canEditBanner: isBooster,
             ownerIsBooster: isBooster,
+            beneficiosEnRol: Boolean(isWhitelisted || await premium.esPremiumEnPersonaje(client, discordID, charDoc._id, { usuarioServer })),
+            apoyo: await apoyoParaDashboard(discordID, usuarioServer, true),
             personajeActivo: activePjId,
             misPersonajes
         });
@@ -3335,14 +3847,15 @@ app.get('/api/personaje/:id', async (req, res) => {
         });
         charDoc.soul = soulDoc || null;
 
-        // Cargar Mascota si existe
+        // Cargar la mascota activa del personaje si existe (los huevos en crianza no cuentan)
         const mascotaDoc = await dbRol.collection("Mascotas").findOne({
             $or: [
                 { characterID: charDoc._id },
                 { characterID: Number(charDoc._id) },
                 { characterID: String(charDoc._id) }
-            ]
-        });
+            ],
+            etapa: { $ne: "Huevo" }
+        }, { sort: { activePet: -1 } });
         if (mascotaDoc) {
             charDoc.mascota = mascotaDoc;
         }
@@ -3351,7 +3864,7 @@ app.get('/api/personaje/:id', async (req, res) => {
         const isOwner = Boolean(discordID && String(charDoc.ownerID) === discordID);
         const isWhitelisted = discordID === '665421882694041630';
         const usuarioServer = discordID ? await dbServer.collection("usuarios_server").findOne({ _id: discordID }) : null;
-        const isBooster = Boolean(isWhitelisted || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        const isBooster = Boolean(isWhitelisted || (discordID && await premium.esPremium(client, discordID, { usuarioServer })));
 
         // Verificar si el dueño del personaje es booster (para la cartelera / funciones premium)
         const ownerDiscordID = String(charDoc.ownerID || '');
@@ -3363,7 +3876,7 @@ app.get('/api/personaje/:id', async (req, res) => {
         const ownerIsAdmin = ownerUsuarioServer?.roles && Array.isArray(ownerUsuarioServer.roles)
             ? ROLES_ADMIN.some(r => ownerUsuarioServer.roles.includes(r))
             : false;
-        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerIsAdmin || ownerUsuarioServer?.roles?.includes('booster') || ownerUsuarioServer?.isBooster);
+        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerIsAdmin || (ownerDiscordID && await premium.esPremium(client, ownerDiscordID, { usuarioServer: ownerUsuarioServer })));
 
         let permisosVisitante = {
             verAlma: true,
@@ -3440,18 +3953,99 @@ app.get('/api/personaje/:id', async (req, res) => {
 
         const misPersonajes = isOwner ? (usuarioServer?.nix?.personajes ?? usuarioServer?.usuario?.nix?.personajes ?? []) : [];
 
+        charDoc.rachaPerdida = rachaRecompensaPerdida(charDoc);
+        const amistadesDestacadas = permisosVisitante.amistades
+            ? await obtenerAmistadesDestacadas(dbRol, charDoc).catch(err => {
+                console.error("Error cargando amistades destacadas:", err);
+                return [];
+            })
+            : [];
+
         res.json({
             success: true,
             personaje: charDoc,
+            amistadesDestacadas,
             isOwner,
             canEditBanner: Boolean(isOwner && isBooster),
             ownerIsBooster,
+            // Beneficios en rol (cartelera, galería ampliada) solo en los personajes elegidos del dueño
+            beneficiosEnRol: Boolean(ownerDiscordID && (isOwnerWhitelisted || await premium.esPremiumEnPersonaje(client, ownerDiscordID, charDoc._id, { usuarioServer: ownerUsuarioServer }))),
             misPersonajes,
-            permisosVisitante
+            permisosVisitante,
+            apoyo: await apoyoParaDashboard(ownerDiscordID, ownerUsuarioServer, isOwner)
         });
     } catch (err) {
         console.error("Error en /api/personaje/:id:", err);
         res.status(500).json({ error: "Error interno al obtener personaje" });
+    }
+});
+
+// Personaje por id, solo si pertenece al usuario de la sesión
+async function obtenerPersonajePropio(req, dbRol) {
+    if (!req.session?.user) return { error: 401 };
+    const idParam = String(req.params.id);
+    const asNum = Number(idParam);
+    const charDoc = await dbRol.collection("Personajes").findOne(
+        !isNaN(asNum) ? { $or: [{ _id: asNum }, { _id: idParam }] } : { _id: idParam },
+        { projection: { ownerID: 1, "perfil.amistadesDestacadas": 1 } }
+    );
+    if (!charDoc) return { error: 404 };
+    if (String(charDoc.ownerID) !== String(req.session.user.id)) return { error: 403 };
+    return { charDoc };
+}
+
+// GET /api/personaje/:id/amistades/elegibles - Amistades con más de 50 puntos (solo el autor)
+app.get('/api/personaje/:id/amistades/elegibles', async (req, res) => {
+    try {
+        const dbRol = clientdb.db("Rol_db");
+        const { charDoc, error } = await obtenerPersonajePropio(req, dbRol);
+        if (error) return res.status(error).json({ error: 'No autorizado' });
+
+        const elegibles = await obtenerAmistadesElegibles(dbRol, charDoc._id);
+        const seleccion = Array.isArray(charDoc.perfil?.amistadesDestacadas) ? charDoc.perfil.amistadesDestacadas.map(String) : [];
+        res.json({
+            success: true,
+            elegibles,
+            seleccion,
+            umbral: UMBRAL_AMISTAD_DESTACADA,
+            max: MAX_AMISTADES_DESTACADAS
+        });
+    } catch (err) {
+        console.error("Error en GET /api/personaje/:id/amistades/elegibles:", err);
+        res.status(500).json({ error: "Error interno al obtener amistades" });
+    }
+});
+
+// POST /api/personaje/:id/amistades/destacadas - Guarda la selección { ids: [...] } (solo el autor)
+app.post('/api/personaje/:id/amistades/destacadas', async (req, res) => {
+    try {
+        const dbRol = clientdb.db("Rol_db");
+        const { charDoc, error } = await obtenerPersonajePropio(req, dbRol);
+        if (error) return res.status(error).json({ error: 'No autorizado' });
+
+        const pedidos = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(String))] : null;
+        if (!pedidos) return res.status(400).json({ error: 'Formato inválido' });
+        if (pedidos.length > MAX_AMISTADES_DESTACADAS) {
+            return res.status(400).json({ error: `Solo puedes destacar ${MAX_AMISTADES_DESTACADAS} amistades` });
+        }
+
+        const elegibles = await obtenerAmistadesElegibles(dbRol, charDoc._id);
+        const validos = new Set(elegibles.map(e => e.id));
+        const invalido = pedidos.find(id => !validos.has(id));
+        if (invalido) {
+            return res.status(400).json({ error: `Solo puedes destacar amistades con más de ${UMBRAL_AMISTAD_DESTACADA} puntos` });
+        }
+
+        await dbRol.collection("Personajes").updateOne(
+            { _id: charDoc._id },
+            { $set: { "perfil.amistadesDestacadas": pedidos } }
+        );
+
+        const porId = new Map(elegibles.map(e => [e.id, e]));
+        res.json({ success: true, amistadesDestacadas: pedidos.map(id => porId.get(id)) });
+    } catch (err) {
+        console.error("Error en POST /api/personaje/:id/amistades/destacadas:", err);
+        res.status(500).json({ error: "Error interno al guardar amistades destacadas" });
     }
 });
 
@@ -3497,6 +4091,9 @@ app.post('/api/personaje/cambiar-activo', async (req, res) => {
                 }
             }
         );
+
+        // El miembro pasa a llevar el rol del área donde quedó este personaje (no bloquea la respuesta)
+        require('./functions/vestibulos').sincronizarUbicacion(client, GUILD_ID, dbServer, dbRol, discordID, nuevoActivoId);
 
         const nuevoPj = {
             id: String(charDoc._id),
@@ -3612,9 +4209,9 @@ app.post('/api/personaje/banner', async (req, res) => {
         }
 
         const isWhitelisted = discordID === '665421882694041630';
-        const isBooster = Boolean(isWhitelisted || esAdmin || usuarioServer?.roles?.includes('booster') || usuarioServer?.isBooster);
+        const isBooster = Boolean(isWhitelisted || esAdmin || await premium.esPremium(client, discordID, { usuarioServer }));
         if (!isBooster && !isWhitelisted && !esAdmin) {
-            return res.status(403).json({ error: 'Función exclusiva para Server Boosters.' });
+            return res.status(403).json({ error: 'Función exclusiva para Server Boosters y Supporters.' });
         }
 
         const bannerInput = String(req.body.bannerURL || req.body.bannerData || '').trim();
@@ -3761,10 +4358,11 @@ app.post('/api/personaje/:id/cartelera', async (req, res) => {
         const ownerDiscordID = String(charDoc.ownerID || '');
         const isOwnerWhitelisted = ownerDiscordID === '665421882694041630';
         const ownerUserDoc = ownerDiscordID ? await dbServer.collection("usuarios_server").findOne({ _id: ownerDiscordID }) : null;
-        const ownerIsBooster = Boolean(isOwnerWhitelisted || ownerUserDoc?.roles?.includes('booster') || ownerUserDoc?.isBooster);
+        // Beneficio en rol: el dueño apoya y este personaje está entre sus elegidos
+        const ownerIsBooster = Boolean(isOwnerWhitelisted || (ownerDiscordID && await premium.esPremiumEnPersonaje(client, ownerDiscordID, charDoc._id, { usuarioServer: ownerUserDoc })));
 
         if (!ownerIsBooster && !isOwnerWhitelisted) {
-            return res.status(403).json({ error: 'Esta función premium requiere que el autor del personaje sea Server Booster.' });
+            return res.status(403).json({ error: 'La cartelera está disponible en los personajes elegidos de quienes son Server Booster o Supporter.' });
         }
 
         const texto = String(req.body.texto || '').trim();
@@ -4122,9 +4720,9 @@ app.post('/api/personaje/:id/galeria', async (req, res) => {
             return res.json({ success: true, galeria });
         }
 
-        // 3. Reordenar array completo (máximo 9 en DB)
+        // 3. Reordenar array completo (máximo premium en DB: las extras ocultas sin premium se conservan)
         if (Array.isArray(req.body.galeria)) {
-            const nuevaGaleria = req.body.galeria.slice(0, 9);
+            const nuevaGaleria = req.body.galeria.slice(0, premium.LIMITES.galeriaPremium);
             // Destruir en Cloudinary fotos eliminadas del array si las hubiera
             const prevGaleria = Array.isArray(charDoc.social?.galeria) ? charDoc.social.galeria : [];
             const newUrls = new Set(nuevaGaleria.map(i => i.url));
@@ -4150,8 +4748,15 @@ app.post('/api/personaje/:id/galeria', async (req, res) => {
         const imgData = req.body.imagenData || req.body.fotoData;
         if (imgData) {
             let galeriaActual = Array.isArray(charDoc.social?.galeria) ? [...charDoc.social.galeria] : [];
-            if (galeriaActual.filter(item => item.tipo === 'imagen').length >= 9) {
-                return res.status(400).json({ error: 'Has alcanzado el límite máximo de 9 imágenes' });
+            // Galería ampliada: 10 imágenes con premium (Boost/Support), 3 sin él
+            const ownerGaleriaID = String(charDoc.ownerID || '');
+            const ownerGaleriaDoc = ownerGaleriaID
+                ? await clientdb.db(dbserverName || "Server_db").collection("usuarios_server").findOne({ _id: ownerGaleriaID })
+                : null;
+            const ownerGaleriaPremium = ownerGaleriaID ? await premium.esPremiumEnPersonaje(client, ownerGaleriaID, charDoc._id, { usuarioServer: ownerGaleriaDoc }) : false;
+            const limiteGaleria = ownerGaleriaPremium ? premium.LIMITES.galeriaPremium : premium.LIMITES.galeriaLibre;
+            if (galeriaActual.filter(item => item.tipo === 'imagen').length >= limiteGaleria) {
+                return res.status(400).json({ error: `Has alcanzado el límite máximo de ${limiteGaleria} imágenes${ownerGaleriaPremium ? '' : ' (con Boost o Support, en tus personajes elegidos, son 10)'}` });
             }
 
             const imgBuffer = await obtenerYValidarBufferImagen(imgData, MAX_IMAGE_BYTES);
@@ -4223,6 +4828,18 @@ const handleLogout = (req, res) => {
 app.get('/api/auth/logout', handleLogout);
 app.get('/api/logout', handleLogout);
 
+// Imágenes de sala predeterminadas: cualquiera puede elegirlas (el dashboard las muestra como miniaturas).
+// Mantener sincronizado con IMAGENES_SALA_PREDETERMINADAS de webDiscord/js/dashboard.js
+const IMAGENES_SALA_PREDETERMINADAS = [
+    'https://i.pinimg.com/736x/9e/5e/4d/9e5e4df60d4af5e0407acacdaa5478ba.jpg',
+    'https://i.pinimg.com/736x/2a/4a/dc/2a4adc1ed0b8492634b2e0fc5e1fb4d0.jpg',
+    'https://i.pinimg.com/736x/ff/72/d3/ff72d3810bdfcb11a2b43866a61acd1a.jpg',
+    'https://i.pinimg.com/736x/9a/a9/e7/9aa9e76a3143ee44b521a0fc3435e8c5.jpg',
+    'https://i.pinimg.com/736x/83/b8/1d/83b81dad513b1407d5bdc25da701aac1.jpg',
+    'https://i.pinimg.com/1200x/b2/c3/24/b2c324c553fc02a76be9f86b71b099ea.jpg',
+    'https://i.pinimg.com/736x/8e/1f/2f/8e1f2fec55f05146be2a05dbe9f58f04.jpg'
+];
+
 // POST /api/combat/create-room
 app.post('/api/combat/create-room', async (req, res) => {
     const transaccionCache = require("./utils/cache");
@@ -4252,7 +4869,8 @@ app.post('/api/combat/create-room', async (req, res) => {
         const guild = client.guilds.cache.get("716342375303217285");
         const member = guild ? await guild.members.fetch(req.session.user.id).catch(() => null) : null;
         
-        const esBooster = member ? member.roles.cache.has("796205038665072661") : false;
+        // Mejoras de sala (entrada libre, imagen propia) = beneficio en rol del personaje con el que se crea la sala
+        const esBooster = await premium.esPremiumEnPersonaje(client, req.session.user.id, personajeId, { usuarioServer: usuario, member });
         const tieneRolEspecial = member ? (member.roles.cache.has("810198633705766962") || member.roles.cache.has("737058095599058995")) : false;
         const esDonador = usuario && (usuario.donadores === true || usuario.donador === true);
 
@@ -4279,16 +4897,17 @@ app.post('/api/combat/create-room', async (req, res) => {
         // Validar permisos para tipo de apuesta "libre" (Entrada Libre)
         if (apuestasOn && tipoApuesta === 'libre') {
             if (!esBooster && !tieneRolEspecial && !esDonador) {
-                return res.status(403).json({ error: 'No tienes permisos para crear salas con tipo de apuesta "Entrada Libre". Esta opción es exclusiva para Boosters, Donadores y roles especiales.' });
+                return res.status(403).json({ error: 'No tienes permisos para crear salas con tipo de apuesta "Entrada Libre". Esta opción es exclusiva para Boosters y Supporters (en sus personajes elegidos), Donadores y roles especiales.' });
             }
         }
 
         // Validar enlace de imagen si fue proporcionado
-        if (imageSala && imageSala.trim() !== '') {
+        // (las imágenes predeterminadas están disponibles para todos, sin validar rol)
+        if (imageSala && imageSala.trim() !== '' && !IMAGENES_SALA_PREDETERMINADAS.includes(imageSala.trim())) {
             const puedeSubirImagen = esBooster || tieneRolEspecial || esDonador;
 
             if (!puedeSubirImagen) {
-                return res.status(403).json({ error: 'No tienes permisos para agregar una imagen a la sala. Esta opción es exclusiva para Boosters, Donadores y roles autorizados.' });
+                return res.status(403).json({ error: 'No tienes permisos para agregar una imagen a la sala. Esta opción es exclusiva para Boosters y Supporters (en sus personajes elegidos), Donadores y roles autorizados.' });
             }
 
             const isGif = /\.(gif)(?:\?.*)?$/i.test(imageSala);
@@ -4649,7 +5268,20 @@ app.get('/api/combat/npc-choices', async (req, res) => {
         const npcsDefeated = character.registros?.npcDefeat || [];
 
         // Fetch all NPCs from NPCs collection
-        const npcs = await dbRol.collection("NPCs").find({}).toArray();
+        let npcs = await dbRol.collection("NPCs").find({}).toArray();
+
+        // El Anfitrión (NPC real, oculto): solo lo ven los administradores del Salón de los Espejos.
+        // Para ellos se etiqueta aparte; en combate sale con el nombre y las stats del Sosias original.
+        const { ANFITRION } = require("./functions/Duelo/habilidadesNPC/anfitrion/config");
+        const esAdminSalon = ANFITRION.PRUEBA.ADMINS.includes(req.session.user.id);
+        if (!esAdminSalon) {
+            npcs = npcs.filter(n => n._id !== ANFITRION.PRUEBA.ID);
+        } else {
+            npcs = npcs.map(n => (n._id === ANFITRION.PRUEBA.ID
+                ? { ...n, Nombre: "El Anfitrión (prueba)", Descripcion: n.notaAdmin || n.Descripcion }
+                : n));
+            if (npcs.some(n => n._id === ANFITRION.PRUEBA.ID)) npcsDefeated.push(ANFITRION.PRUEBA.ID);
+        }
 
         res.json({
             npcsDefeated,
@@ -4704,6 +5336,21 @@ app.post('/api/combat/room/:code/update-npc-teams', async (req, res) => {
         const allNpcIds = [...new Set([...team1List.filter(e => e.isNPC).map(e => e.id), ...team2List.filter(e => e.isNPC).map(e => e.id)])];
         const npcDocs = await dbRol.collection("NPCs").find({ _id: { $in: allNpcIds } }).toArray();
         const npcDocsMap = new Map(npcDocs.map(n => [n._id, n]));
+
+        // El Anfitrión (NPC real de la colección, oculto): solo administradores, y nunca premia.
+        // Sale disfrazado con las stats del Sosias original (encuentros.prepararEnemigo).
+        const { ANFITRION } = require("./functions/Duelo/habilidadesNPC/anfitrion/config");
+        if (allNpcIds.includes(ANFITRION.PRUEBA.ID)) {
+            if (!ANFITRION.PRUEBA.ADMINS.includes(req.session.user.id)) {
+                return res.status(403).json({ error: 'El Anfitrión de prueba es solo para administradores.' });
+            }
+            const jefe = npcDocsMap.get(ANFITRION.PRUEBA.ID);
+            if (!jefe) return res.status(400).json({ error: 'No se encontró al Anfitrión (ejecuta scripts/seedAnfitrion.js).' });
+            const base = await dbRol.collection("NPCs").findOne({ _id: ANFITRION.NPC_BASE });
+            // El Sosias de la BD manda sobre lo guardado: el disfraz siempre va al día
+            npcDocsMap.set(ANFITRION.PRUEBA.ID, { ...jefe, ...(base || {}), _id: ANFITRION.PRUEBA.ID, habilidadUnica: "anfitrion", anfitrionDatos: { huidas: {}, prueba: true } });
+        }
+
 
         for (let i = 0; i < team1List.length; i++) {
             const entry = team1List[i];
@@ -4895,7 +5542,26 @@ app.get('/api/combat/active-room', async (req, res) => {
                 const sala = transaccionCache.get(code);
                 if (sala) {
                     req.session.personajeCombateId = personajeId; // Sincronizar el id en la sesión
+                    const listarMiembros = (team, equipo) => Object.entries(team || {}).map(([id, ch]) => ({
+                        id,
+                        equipo,
+                        nombre: ch.perfil?.Nombre || ch.Nombre || ch.name || 'Combatiente',
+                        avatarURL: ch.perfil?.avatarURL || ch.avatarURL || '',
+                        isNPC: !!ch.isNPC || String(id).startsWith('NPC-'),
+                        esCreador: ch.ownerId === sala.autor,
+                        esMio: ch.ownerId === req.session.user.id
+                    }));
                     return res.json({
+                        imageSala: sala.imageSala || null,
+                        isPrivate: !!sala.isPrivate,
+                        esAutor: sala.autor === req.session.user.id,
+                        autorCharacter: sala.autorCharacter,
+                        tipoApuesta: sala.tipoApuesta || null,
+                        apuestas: sala.apuestas ? {
+                            lumens: sala.apuestas.lumens || 0,
+                            objetos: (sala.apuestas.objetos || []).map(o => ({ nombre: o.nombre, cantidad: o.cantidad }))
+                        } : null,
+                        miembros: [...listarMiembros(sala.team1, 1), ...listarMiembros(sala.team2, 2)],
                         code: sala.code,
                         creado: sala.creado,
                         estado: sala.estado,
@@ -5029,6 +5695,88 @@ app.put('/api/combat/room/:code', async (req, res) => {
     } catch (error) {
         console.error("Error al modificar sala:", error);
         res.status(500).json({ error: 'Error interno al modificar la sala' });
+    }
+});
+
+// POST /api/combat/room/:code/kick
+// El creador (o un admin) saca a un personaje de la sala antes de que empiece el combate.
+app.post('/api/combat/room/:code/kick', async (req, res) => {
+    const transaccionCache = require("./utils/cache");
+    if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+
+    const code = req.params.code;
+    const sala = transaccionCache.get(code);
+    if (!sala) return res.status(404).json({ error: 'Sala no encontrada' });
+
+    try {
+        const guild = client.guilds.cache.get("716342375303217285");
+        const member = guild ? await guild.members.fetch(req.session.user.id).catch(() => null) : null;
+        const ROLES_ADMIN = ['737058095599058995', '746581152717865041'];
+        const esAdmin = member ? ROLES_ADMIN.some(r => member.roles.cache.has(r)) : false;
+
+        if (sala.autor !== req.session.user.id && !esAdmin) {
+            return res.status(403).json({ error: 'Solo el creador de la sala puede sacar jugadores' });
+        }
+        if (sala.estado === 'En combate') {
+            return res.status(400).json({ error: 'El combate ya comenzó, no se puede sacar a nadie' });
+        }
+
+        const personajeId = String(req.body.personajeId ?? '');
+        const equipo = [sala.team1, sala.team2].find(t => t && Object.prototype.hasOwnProperty.call(t, personajeId));
+        if (!personajeId || !equipo) {
+            return res.status(404).json({ error: 'Ese personaje no está en la sala' });
+        }
+
+        const objetivo = equipo[personajeId];
+        if (objetivo.isNPC || personajeId.startsWith('NPC-')) {
+            return res.status(400).json({ error: 'Los NPC se gestionan desde la configuración de la sala' });
+        }
+        if (objetivo.ownerId === sala.autor) {
+            return res.status(400).json({ error: 'No puedes sacar al creador de la sala' });
+        }
+
+        // Devolver lo que el jugador tenía congelado por la apuesta (igual que al salirse desde Discord)
+        const character = await clientdb.db(dbname).collection("Personajes").findOne({ _id: Number(personajeId) });
+        if (character && character.economia?.congelado) {
+            const congelarHelper = require("./functions/Economia/congelarHelper");
+            await congelarHelper.descongelar(character._id, character.economia.congelado.lumens, character.economia.congelado.objetos);
+        }
+
+        delete equipo[personajeId];
+        await transaccionCache.deleteStatus(Number(personajeId));
+
+        // Reflejar el cambio en los mensajes de Discord de la sala
+        if (client && !sala.isNPC) {
+            try {
+                const { buildSalaMessage } = require("./functions/Duelo/combateUI");
+                const autor = await client.users.fetch(sala.autor);
+                const messages = await buildSalaMessage(autor, sala.isPrivate, sala);
+                if (sala.messageAutor?.channel && sala.messageAutor?.message) {
+                    const canal = await client.channels.fetch(sala.messageAutor.channel);
+                    const msg = await canal.messages.fetch(sala.messageAutor.message);
+                    await msg.edit({ components: messages.salaMessage });
+                }
+                if (sala.messageServer?.channel && sala.messageServer?.message) {
+                    const canal = await client.channels.fetch(sala.messageServer.channel);
+                    const msg = await canal.messages.fetch(sala.messageServer.message);
+                    await msg.edit({ components: messages.serverMessage });
+                }
+            } catch (e) {
+                console.error("No se pudieron actualizar los mensajes de la sala tras sacar a un jugador:", e);
+            }
+        }
+
+        // Avisar al jugador expulsado
+        if (client && objetivo.ownerId) {
+            client.users.fetch(objetivo.ownerId)
+                .then(u => u.send({ content: `Has sido retirado de la sala de duelo \`${code}\` por su creador.` }))
+                .catch(() => null);
+        }
+
+        res.json({ ok: true });
+    } catch (error) {
+        console.error("Error al sacar jugador de la sala:", error);
+        res.status(500).json({ error: 'Error interno al sacar al jugador' });
     }
 });
 
@@ -5788,7 +6536,10 @@ app.get('/api/admin/system-config', async (req, res) => {
             success: true,
             global: globalDoc || { _id: "global", prefix: "s!", version: "1.5.0 ✨", versionEco: "0.1", versionSV: "0.1", versionRol: "0.1", versionPETS: "0.1", token: null },
             rol: rolDoc || { _id: "rol", maxEnergy: 140, regeneracionMinutos: 10 },
-            staff: staffDoc || { _id: "staff", Director: [], Subdirector: [], Administradores: [], Vigilantes: [], Ayudantes: [] }
+            staff: staffDoc || { _id: "staff", Director: [], Subdirector: [], Administradores: [], Vigilantes: [], Ayudantes: [] },
+            // Miniaturas del mensaje de administradores (lo guardado o, si no hay, las de la plantilla)
+            staffImagenes: { ...require('./functions/staffMensaje').IMAGENES_DEFECTO, ...(staffDoc?.mensajeImagenes || {}) },
+            staffBanner: require('./functions/staffMensaje').BANNER_STAFF
         });
     } catch (error) {
         console.error("Error al obtener system-config:", error);
@@ -5842,6 +6593,13 @@ app.post('/api/admin/system-config/save', async (req, res) => {
             };
             await configColl.updateOne({ _id: "staff" }, { $set: updateObj }, { upsert: true });
             config.refrescarLocal("staff", updateObj);
+        } else if (target === "comandos") {
+            // Acceso restringido y T0 por categoría / sub-comando (config/accesoComandos.js)
+            const accesoComandos = require('./config/accesoComandos');
+            const limpio = accesoComandos.sanear(data);
+            await configColl.updateOne({ _id: "comandos" }, { $set: limpio }, { upsert: true });
+            accesoComandos.refrescar(limpio);
+            return res.json({ success: true, message: "Acceso a comandos guardado correctamente.", config: limpio });
         } else {
             return res.status(400).json({ error: "Target de configuración no válido" });
         }
@@ -5850,6 +6608,87 @@ app.post('/api/admin/system-config/save', async (req, res) => {
     } catch (error) {
         console.error("Error al guardar system-config:", error);
         return res.status(500).json({ error: "Error interno al guardar configuración de sistema" });
+    }
+});
+
+// GET /api/admin/system-config/comandos - Catálogo de comandos del bot + su acceso restringido y T0
+// catalogo: [{ nombre, descripcion, devOnly, subcomandos: [{ nombre, descripcion, grupo?, carpeta?, devOnly, mantenimiento }] }]
+// config:   lo guardado en Server_db.config (_id: "comandos"), ya saneado
+app.get('/api/admin/system-config/comandos', async (req, res) => {
+    if (!req.session?.user) {
+        return res.status(401).json({ error: "No autenticado" });
+    }
+    if (!req.session.systemConfigUnlocked) {
+        return res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" });
+    }
+    try {
+        const accesoComandos = require('./config/accesoComandos');
+        const doc = await clientdb.db("Server_db").collection("config").findOne({ _id: "comandos" });
+
+        const catalogo = [];
+        for (const cmd of require('./utils/getLocalCommands')()) {
+            if (!cmd?.data || cmd.deleted === true) continue;
+            const json = typeof cmd.data.toJSON === 'function' ? cmd.data.toJSON() : cmd.data;
+            if (!json?.name) continue;
+
+            const subcomandos = [];
+            const describir = (opcion, grupo = null) => {
+                const nombre = grupo ? `${grupo} ${opcion.name}` : opcion.name;
+                const handler = cmd.subcommands?.get?.(opcion.name);
+                subcomandos.push({
+                    nombre,
+                    descripcion: opcion.description || '',
+                    grupo,
+                    carpeta: cmd.carpetas?.get?.(opcion.name) || null,
+                    devOnly: Boolean(handler?.isDevOnly),
+                    mantenimiento: Boolean(handler?.enMantenimiento)
+                });
+            };
+            for (const opcion of json.options || []) {
+                if (opcion.type === 1) describir(opcion);
+                else if (opcion.type === 2) for (const sub of opcion.options || []) if (sub.type === 1) describir(sub, opcion.name);
+            }
+
+            catalogo.push({
+                nombre: json.name,
+                descripcion: json.description || '',
+                devOnly: Boolean(cmd.devOnly),
+                subcomandos
+            });
+        }
+        catalogo.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        return res.json({
+            success: true,
+            creador: accesoComandos.CREADOR,
+            catalogo,
+            config: accesoComandos.sanear(doc)
+        });
+    } catch (error) {
+        console.error("Error al obtener el acceso a comandos:", error);
+        return res.status(500).json({ error: "Error interno al obtener los comandos" });
+    }
+});
+
+// POST /api/admin/system-config/staff-mensaje - Publica (o edita) el mensaje de administradores
+// Body: { canalId, plantilla: 'imagenes' | 'simple', imagenes?: { director, administradores, vigilantes, ayudantes },
+//         remitente?: { modo: 'bot' | 'propio' | 'existente', webhookId?, nombre?, avatar? } }
+// Los webhooks y perfiles son los de Mensajes del servidor (/api/admin/mensajes-servidor/webhooks*).
+// Usa el staff guardado en Server_db.config.
+app.post('/api/admin/system-config/staff-mensaje', requireAdminOrMod, async (req, res) => {
+    if (!req.session.systemConfigUnlocked) {
+        return res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" });
+    }
+    try {
+        const { publicarMensajeStaff } = require('./functions/staffMensaje');
+        const { canalId, plantilla, imagenes, remitente } = req.body || {};
+        const r = await publicarMensajeStaff({ client, dbClient: clientdb, guildId: GUILD_ID, canalId, plantilla, imagenes, remitente });
+        console.log(`[StaffMensaje] ${req.session.user.username || req.session.user.id} ${r.editado ? 'actualizó' : 'envió'} el mensaje de administradores en ${r.mensaje.channelId}`);
+        return res.json({ success: true, ...r });
+    } catch (err) {
+        if (err.status) return res.status(err.status).json({ error: err.message });
+        console.error("Error al publicar el mensaje de administradores:", err);
+        return res.status(500).json({ error: "Error interno al publicar el mensaje de administradores" });
     }
 });
 
@@ -6553,8 +7392,9 @@ clientdb.iniciarServidorWeb = () => {
         }
     });
 
-    app.listen(port, () => {
-        console.log(`🌐 Escuchando servidor web correctamente (${port})`);
+    // Devuelve una promesa para que el arranque sepa cuándo el puerto está abierto (o si falló)
+    return new Promise((resolve, reject) => {
+        app.listen(port, (error) => error ? reject(error) : resolve(port));
     });
 };
 

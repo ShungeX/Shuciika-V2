@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const getGifs = require("../getGifs")
 const { getActiveCharacter } = require("../../utils/getDataCharacters")
+const { esInactivo, TEXTO_INACTIVO } = require("../../utils/personajeInactivo")
 const incInteractions = require("./incInteractions")
 const { menuInteraccion } = require("../../data/UI_ComponentsV2/menuInteraccion")
 const { ACCIONES, azar } = require("./accionesInteraccion")
@@ -72,6 +73,7 @@ module.exports = async function ejecutarInteraccion(client, interaction, subcoma
         if (!pjReceptor) {
             return efimero(interaction, `No encuentro a ningún alumno con el ID **${pjObjetivoId}** (・・ ) ?\n-# ¿Lo revisamos otra vez?`)
         }
+        if (esInactivo(pjReceptor)) return efimero(interaction, TEXTO_INACTIVO)
         if (String(pjReceptor._id) === String(pjEmisor._id)) {
             const gif = accion.aSiMismo.gifs ? azar(accion.aSiMismo.gifs) : await obtenerGif(accion, interaction.guildId)
             return responderSimple(interaction, { texto: sustituir(accion.aSiMismo.texto, nombrePj(pjEmisor)), gif })

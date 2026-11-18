@@ -35,7 +35,7 @@ function hechizo({ id, nombre, desc, elemento, escalon, rol, vias, mana, vida = 
         Escalon: escalon,
         Rol: rol,
         isActive: true,
-        Req: { fe_min: 1, fe_max: null, resplandor_min: RESPLANDOR_POR_ESCALON[escalon] ?? null, resplandor_max: null, clase: null, stats: null },
+        Req: { fe_min: null, fe_max: null, resplandor_min: RESPLANDOR_POR_ESCALON[escalon] ?? null, resplandor_max: null, clase: null, stats: null },
         Adquisicion: adquisicion(escalon),
         Mecanicas: {
             Efectos: efectos,
@@ -170,7 +170,7 @@ function universal({ id, nombre, desc, via, mana, cd, efectos = [], healing, adq
         _id: id, Nombre: nombre, Descripcion: desc, Elemento: null, Escalon: null,
         Rol: healing ? "curación" : (efectos[0]?.tipo === "guardia" || efectos[0]?.tipo === "estasis" ? "defensa" : "soporte"),
         isActive: true,
-        Req: { fe_min: 1, fe_max: null, resplandor_min: resplandor, resplandor_max: null, clase: null, stats: null },
+        Req: { fe_min: null, fe_max: null, resplandor_min: resplandor, resplandor_max: null, clase: null, stats: null },
         Adquisicion: adq,
         Mecanicas: { Efectos: efectos, cast: { vias: [via], mental: { permitido: false }, tiempo: 1, probabilidad: prob, interruptible: true } },
         Costos: { mana, Vida: 0, Dinero: 0, Cooldown: cd },

@@ -54,7 +54,8 @@ async function cargarConfiguracionDesdeDB(dbClient) {
             configState.staff = { ...configState.staff, ...staffDoc };
         }
 
-        console.log("📋 [ConfigManager] Configuraciones globales (global, rol, staff) cargadas localmente desde MongoDB.");
+        // Acceso restringido a comandos y marca T0 (_id: "comandos")
+        await require("./accesoComandos").cargarDesdeDB(dbClient);
     } catch (error) {
         console.error("⚠️ [ConfigManager] Error al cargar configuraciones desde MongoDB, usando valores por defecto:", error.message);
     }

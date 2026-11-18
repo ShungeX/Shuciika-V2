@@ -408,6 +408,10 @@ async function startBattle(client, interaction, character, soul, enemy, data, ca
             sendero: soul.sendero,
         });
 
+        // El Anfitrión: tras 10 peleas contra Sosias (o con la Invitación), este Sosias es el jefe oculto
+        enemy = await require("../Duelo/habilidadesNPC/anfitrion/encuentros")
+            .prepararEnemigo(enemy, [{ ownerId: interaction.user.id, characterId: character._id }])
+
         const npcInstance = new NPC(enemy._id ?? enemy.ID, {
             ...enemy,
             Nombre: enemy.Nombre || enemy.nombre || "NPC"

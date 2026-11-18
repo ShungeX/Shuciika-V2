@@ -12,6 +12,7 @@ const { ModalBuilder,
     CheckboxGroupBuilder,
     CheckboxBuilder } = require("discord.js")
 const { crearCustomId } = require("../../utils/constructores/customId")
+const contenedores = require("../Contenedores/nucleo")
 
 
 /**
@@ -246,12 +247,38 @@ class CombatUI {
         return total.join(", ");
     }
 
-    async update(sesion, client) {
+    /**
+     * Redibuja el combate (canal espectador y MD de cada jugador).
+     * Las llamadas llegan en paralelo (antes y después de cada turno de NPC, al pulsar botones...).
+     * Si dos ediciones del mismo mensaje se cruzaban, una vista vieja —armada cuando le tocaba a otro,
+     * sin botones— podía llegar a Discord DESPUÉS de la nueva y borrar los botones de quien tiene el
+     * turno. Por eso se serializan por sesión: mientras una actualización corre, las demás se
+     * agrupan en una sola que se vuelve a armar con el estado más reciente al terminar.
+     */
+    update(sesion, client) {
+        if (sesion._uiFinal) return Promise.resolve()
+        if (sesion._uiEnCurso) {
+            sesion._uiPendiente = true
+            return sesion._uiEnCurso
+        }
+        sesion._uiEnCurso = (async () => {
+            do {
+                sesion._uiPendiente = false
+                if (sesion._uiFinal) break
+                await this._actualizarAhora(sesion, client)
+            } while (sesion._uiPendiente)
+        })().finally(() => { sesion._uiEnCurso = null })
+        return sesion._uiEnCurso
+    }
+
+    async _actualizarAhora(sesion, client) {
         console.log("=== CombatUI.update ===")
         console.log("Sesion ID:", sesion.sessionId)
         console.log("Teams:", sesion.teams.map(t => t.map(c => c.Nombre)))
         console.log("Actor actual:", sesion.getCurrentActor()?.Nombre)
-        const actor = sesion.getCurrentActor()
+        // El actor del turno abierto, no el que toque en la cola: una actualización de fondo no
+        // puede borrarle los botones a quien está esperando para actuar
+        const actor = sesion.actorEnTurno ? sesion.actorEnTurno() : sesion.getCurrentActor()
         const primeraVez = !sesion.mensajes.espectador.messageId
 
         //Espectador (canal público)
@@ -281,6 +308,9 @@ class CombatUI {
 
     async updateGameOver(sesion, client, datosVictoria, rewardsMap) {
         console.log("=== CombatUI.updateGameOver ===")
+        // Ninguna actualización en cola puede pisar la pantalla final
+        await sesion._uiEnCurso?.catch(() => { })
+        sesion._uiFinal = true
         const { sessionId, winners, arrayWinner = [], lossers, arrayLosser = [], typeWin } = datosVictoria || {};
 
         const winArr = arrayWinner || [];
@@ -408,7 +438,9 @@ class CombatUI {
         const formatStatsPlayer = statsPlayer ? `${statsPlayer}` : `❧ **${actor.Nombre} (${playerLevelTag})**:\n` +
             `-# ${barraCustom(actor.HP, actor.stats?.hpMax ?? actor.HP, 1, 10)}` +
             `\n-# Mana: ${barraCustom(actor.Mana, actor.stats?.manaMax ?? actor.Mana, 2, 5)}` +
+            this.lineaContenedor(actor) +
             `\n\nEfectos: ${this.formatEfectos(actor, sesion)}`
+        const statsConEquipo = `${formatStatsPlayer}${this.lineaAliados(sesion, actor)}`
 
         const ultimasAcciones = sesion.log
             .slice(-6)
@@ -422,6 +454,11 @@ class CombatUI {
                 tituloCalculado = "Has sido derrotado en combate 💀";
             } else if (turnoActual && turnoActual.ID && String(actor.ID) === String(turnoActual.ID)) {
                 tituloCalculado = "¡Es tu turno!";
+            } else if (sesion.npcPensando) {
+                tituloCalculado = `${sesion.npcPensando} está pensando...`;
+            } else if (turnoActual?.ID != null && !(rivales || []).some(r => String(r.ID) === String(turnoActual.ID))) {
+                // Le toca a alguien de tu equipo: no estás esperando al enemigo
+                tituloCalculado = `Esperando a ${turnoActual.Nombre}...`;
             } else {
                 tituloCalculado = "Esperando la acción del rival...";
             }
@@ -489,7 +526,7 @@ class CombatUI {
                             },
                             {
                                 "type": 10,
-                                "content": `${formatStatsPlayer}`
+                                "content": `${statsConEquipo}`
                             },
                         ]
                     },
@@ -514,6 +551,76 @@ class CombatUI {
         }
 
         return component
+    }
+
+    /**
+     * Vida de tus aliados, en pequeño, debajo de tus estadísticas: barra mini (5 corazones) y
+     * vida actual/máxima. Lo justo para saber a quién hay que curar sin salir de tu panel.
+     */
+    lineaAliados(sesion, actor) {
+        const yo = Array.isArray(actor) ? actor[0] : actor
+        if (!yo || !Array.isArray(sesion?.teams)) return ""
+        const equipo = sesion.teams.find(t => t.some(c => String(c.ID) === String(yo.ID))) || []
+        const aliados = equipo.filter(c => String(c.ID) !== String(yo.ID))
+        if (!aliados.length) return ""
+        const lineas = aliados.map(a => {
+            const max = a.stats?.hpMax ?? a.HP
+            // barraCustom ya escribe la vida actual/máxima al final de la barra
+            const estado = (a.defeated || a.HP <= 0)
+                ? "💀 *derrotado*"
+                : barraCustom(a.HP, max, 1, 5)
+            return `- -# **${a.Nombre}**: ${estado}`
+        })
+        return `\n\n-# **Tu equipo**\n${lineas.join("\n")}`
+    }
+
+    /**
+     * Estado del contenedor de un Alma Desafinada: barra de durabilidad, etapa y elemento activo.
+     * Es información privada: solo se usa en el mensaje directo del portador, nunca en la vista
+     * de espectadores ni en la de sus rivales.
+     */
+    lineaContenedor(actor) {
+        if (!contenedores.esDesafinado(actor)) return ""
+        const c = actor.contenedor
+        if (!c) return "\n-# Contenedor: *no llevas ninguno* — sin magia elemental"
+        const roto = c.durabilidad.actual <= 0
+        return `\n-# ${c.nombre}: ${contenedores.barraDurabilidad(c.durabilidad)}` +
+            (roto ? "\n-# *Roto: solo te quedan Golpe, Guardia e ítems.*" : `\n-# Elemento activo: **${actor.elementoActivo}**`)
+    }
+
+    /** Selector privado para cambiar el elemento activo (consume el turno). */
+    buildElementSelect(sesion, actor) {
+        const emojis = { "Pyrós": "🔥", Aqua: "💧", Lux: "✨", Rakau: "🌳", Lapis: "🪨", Electro: "⚡", Wind: "🍃", Kryo: "❄️" }
+        const opciones = contenedores.ELEMENTOS_JUGABLES
+            .filter(e => e !== actor.elementoActivo)
+            .map(e => ({ label: e, value: e, emoji: { name: emojis[e] || "🌟" }, default: false }))
+        return [{
+            type: 17, accent_color: null, spoiler: false,
+            components: [
+                {
+                    type: 10,
+                    content: `### Cambiar de elemento\n-# Tu contenedor traduce ahora **${actor.elementoActivo}**.\n-# Cambiar **consume tu turno**; no cuesta maná ni toca la carga. Tus rivales solo verán que los miras fijamente.`
+                },
+                { type: 14, divider: true, spacing: 1 },
+                {
+                    type: 1,
+                    components: [{
+                        type: 3,
+                        custom_id: crearCustomId({ action: "DuelElemento", userId: actor.ownerId, characterId: actor.ID, extras: [`${sesion.sessionId}`] }),
+                        options: opciones,
+                        placeholder: "¿Qué elemento traducirá tu contenedor?",
+                        min_values: 1, max_values: 1, disabled: false
+                    }]
+                },
+                {
+                    type: 1,
+                    components: [{
+                        type: 2, style: 4, label: "Cancelar", emoji: null, disabled: false,
+                        custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-cancelar-${sesion.sessionId}`
+                    }]
+                }
+            ]
+        }]
     }
 
     _listaPersonajes(arrayPersonajes) {
@@ -880,6 +987,23 @@ class CombatUI {
         const { evaluarCasteo, ACCIONES } = require("./hechizos/casteo")
         const sinMovimiento = !evaluarCasteo(actor, ACCIONES.GOLPE).ok
 
+        // Alma Desafinada: cambiar de elemento activo es una acción de combate más (consume el turno)
+        const filaElemento = contenedores.esDesafinado(actor) ? [{
+            type: 1,
+            components: [{
+                type: 2, style: 2,
+                label: "Cambiar elemento",
+                emoji: { name: "🔮" },
+                disabled: !contenedores.contenedorFunciona(actor) || require("./hechizos/estados").enEstasis(actor),
+                custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-elemento-${sesion.sessionId}`
+            }]
+        }] : []
+
+        // El Anfitrión puede robar botones enteros: mientras dure el robo, desaparecen
+        const R = require("./habilidadesNPC/robos")
+        const visible = (b) => !(b.custom_id.includes("-attack-") && R.estaRobado(actor, "attack"))
+            && !(b.custom_id.includes("-defend-") && R.estaRobado(actor, "defend"))
+
         return [
             { type: 14, divider: true, spacing: 1 },
             {
@@ -917,11 +1041,13 @@ class CombatUI {
                         type: 2, style: 4,
                         label: "Rendirse",
                         emoji: { name: "whiteflagpepo", id: "1370631336536047737" },
-                        disabled: restrictions.Surrender === true,
+                        // Tras la Ruptura del Anfitrión no se puede huir
+                        disabled: restrictions.Surrender === true || sesion?.sinRendicion === true,
                         custom_id: `DuelAct-${actor.ownerId}-${actor.ID}-surrender-${sesion.sessionId}`
                     }
-                ]
-            }
+                ].filter(visible)
+            },
+            ...filaElemento
         ]
     }
 
@@ -972,7 +1098,9 @@ class CombatUI {
                         components: [
                             {
                                 type: 3,
-                                custom_id: `UseSpell-${actor.ownerId}-${sesion.sessionId}`,
+                                // El router parte el customId en [acción, userId, characterId, ...extras]:
+                                // sin el personaje, la sesión caía en characterId y el handler no la encontraba
+                                custom_id: crearCustomId({ action: "UseSpell", userId: actor.ownerId, characterId: actor.ID, extras: [`${sesion.sessionId}`] }),
                                 options: opciones,
                                 placeholder: "¿A quién atacas?",
                                 min_values: 1,
@@ -1511,10 +1639,15 @@ class CombatUI {
             const itemId = Number(item.ID || item.id);
             const itemRegion = item.Region || item.region;
             const globalObj = catalogoObjetos.getObjetoPorId(itemRegion, itemId);
-            const inCombat = globalObj?.uso?.contexto === "combate" ||
+            // Solo lo que se puede usar en combate y hace algo: un objeto sin efectos (mascotas,
+            // bolsas, objetos de lore...) solo se gastaba con un "no ha sucedido nada"
+            const inCombat = (globalObj?.uso?.contexto === "combate" ||
                 globalObj?.uso?.contexto === "ambos" ||
-                globalObj?.restricciones?.InCombat === true;
-            if (!sesion || inCombat) {
+                globalObj?.restricciones?.InCombat === true) &&
+                (globalObj?.efectos || []).length > 0;
+            // Un objeto que El Anfitrión te robó desaparece de la lista hasta que lo use
+            const robado = sesion && require("./habilidadesNPC/robos").estaRobado(actor, require("./habilidadesNPC/robos").claveObjeto(itemRegion || globalObj?.Region, itemId))
+            if ((!sesion || inCombat) && !robado) {
                 filteredItems.push({
                     ...item,
                     ID: itemId,
@@ -1591,7 +1724,7 @@ class CombatUI {
                         "components": [
                             {
                                 "type": 3,
-                                "custom_id": `UseItem-${actor.ownerId}-${sesId}`,
+                                "custom_id": `UseItem-${actor.ownerId}-${actor.ID}-${sesId}`,
                                 "options": dropdownOptions,
                                 "placeholder": "Selecciona un objeto",
                                 "min_values": 1,
@@ -1652,8 +1785,10 @@ class CombatUI {
         const ICONO_VIA = { hablado: "🗣️", movimiento: "✋", escritura: "✍️", mental: "🧠", instinto: "🐾" }
 
         // Golpe y Guardia ya son los botones "Atacar" y "Defenderse": no se listan
+        // Los hechizos que El Anfitrión te robó desaparecen hasta que los use
+        const R = require("./habilidadesNPC/robos")
         const ids = [...new Set([...(actor.hechizos || []).map(h => h?.ID ?? h), ...UNIVERSALES_INICIALES])]
-            .filter(id => id && id !== "default_001" && id !== "univ-001")
+            .filter(id => id && id !== "default_001" && id !== "univ-001" && !R.estaRobado(actor, R.claveHechizo(id)))
 
         if (ids.length === 0) {
             return "No tienes hechizos disponibles en tu grimorio";
@@ -1708,7 +1843,10 @@ class CombatUI {
         const hpMax = actor.stats?.hpMax ?? actor.perfil?.HP ?? actor.HP ?? 100;
         const manaMax = actor.stats?.manaMax ?? actor.perfil?.Mana ?? actor.Mana ?? 100;
 
-        const mainContent = `### Hechizos Disponibles\n\n- -# Mana Disponible: ${actor.Mana}/${manaMax}\n- -# HP disponible: ${actor.HP}/${hpMax}\n- -# Elemento activo: ${elementoActivo(actor)}`;
+        const lineaContenedor = contenedores.esDesafinado(actor) && actor.contenedor
+            ? `\n- -# ${actor.contenedor.nombre}: ${contenedores.barraDurabilidad(actor.contenedor.durabilidad)}`
+            : "";
+        const mainContent = `### Hechizos Disponibles\n\n- -# Mana Disponible: ${actor.Mana}/${manaMax}\n- -# HP disponible: ${actor.HP}/${hpMax}\n- -# Elemento activo: ${elementoActivo(actor)}${lineaContenedor}`;
 
         // Discord: máximo 25 opciones por select. Un bloqueado aparece con el motivo en la descripción.
         const dropdownOptions = pagina.slice(0, MENU.MAX_OPCIONES).map(({ spell, ok, motivo, ev }) => {

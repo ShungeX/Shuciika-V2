@@ -18,12 +18,39 @@ const {
     aplicarEfecto, agregarEstado, interrumpirCast, modificadores, filtrarProvocados,
     procesarFinDeTurno, esPvE, logSistema,
 } = require("./hechizos/efectos")
+const { gastarMana, ganarMana, regenerarManaTurno } = require("./hechizos/mana")
+const { cambiarElementoActivo, traduccionSensible } = require("../Contenedores/nucleo")
+const { TRADUCCION } = require("../Contenedores/config")
 const { registrarUso } = require("./hechizos/maestria")
 const cacheHechizos = require("./hechizos/cache")
+// Habilidades robadas por El Anfitrión y categorías de su perfil de hábitos
+const R = require("./habilidadesNPC/robos")
+const { categoriaHechizo } = require("./habilidadesNPC/anfitrion/perfil")
 
 const PRECISION_MINIMA_BASE = 10;
 const TECHO_ESQUIVE = 0.85;
 const PISO_ESQUIVE = 0.05;
+const HISTORIAL_ATAQUES_MAX = 10; // ataques recientes que se recuerdan por jugador (Sosias copia los últimos 3)
+
+/**
+ * Por qué un objeto no hizo nada, para que el jugador no piense que está roto.
+ * Solo cubre los casos claros (sobre uno mismo); si no hay uno claro devuelve null.
+ */
+function motivoSinEfecto(objeto, objetivos, caster) {
+    if (objetivos.length !== 1 || objetivos[0] !== caster) return null
+    if (tieneInmunidad(caster, "todo")) return "La Estasis no deja que nada te afecte."
+    const efectos = objeto.efectos || []
+    const tipo = (e) => String(e?.tipo ?? "").toLowerCase()
+    if (!efectos.length) return "Este objeto no tiene ningún efecto."
+    if (efectos.every(e => tipo(e) === "limpia")) return "No tienes ningún estado que este objeto pueda quitar."
+    const curaHP = efectos.some(e => tipo(e) === "suma" && e.stat === "nucleo.HP")
+    const daMana = efectos.some(e => tipo(e) === "suma" && e.stat === "nucleo.mana")
+    const soloVitales = efectos.every(e => tipo(e) === "suma" && (e.stat === "nucleo.HP" || e.stat === "nucleo.mana"))
+    if (!soloVitales) return null
+    if (curaHP && daMana) return "Tu vida y tu maná ya están al máximo."
+    if (curaHP) return "Tu vida ya está al máximo."
+    return "Tu maná ya está al máximo."
+}
 
 // ─── Balance de daño (ajustable) ─────────────────────────────────────────────
 // La defensa es una REDUCCIÓN PORCENTUAL: puntos / (puntos + K). Así nadie queda inmune
@@ -190,7 +217,7 @@ class TurnProcessor {
     _cobrarCosto(hechizo, caster, evaluacion = null) {
         const mana = evaluacion?.costoMana ?? Number(hechizo.Costos?.mana ?? 0)
         const vida = evaluacion?.costoVida ?? Number(hechizo.Costos?.Vida ?? 0)
-        caster.Mana -= mana
+        gastarMana(caster, mana)
         caster.HP -= vida
 
         if (hechizo.Costos?.Cooldown > 0) {
@@ -268,6 +295,14 @@ class TurnProcessor {
             return { cantidad: 0, esCritico: false, tipoElemental: "Neutro", inmune: true };
         }
 
+        // El golpe que el enemigo ya esperaba: lo para en seco (El Anfitrión)
+        if (target?._bloqueaProximo && caster && String(target._bloqueaProximo) === String(caster.ID)) {
+            delete target._bloqueaProximo
+            if (session) logSistema(session, `${target.Nombre} ha bloqueado el ataque de ${caster.Nombre}.`, { autor: target.Nombre })
+            require("./habilidadesNPC").trasBloquear(session, target, caster)
+            return { cantidad: 0, esCritico: false, tipoElemental: "Neutro", bloqueado: true };
+        }
+
         // Fallback para esquive si no fue precalculado
         const esEvadible = (hechizo._id === "basic_attack" || hechizo.evadible === true);
         if (esEvadible && session && !mecanica.yaEsquivado && caster) {
@@ -317,11 +352,19 @@ class TurnProcessor {
         if (modsTarget.guardia) cantidad = Math.max(1, Math.round(cantidad * (1 - modsTarget.guardia)));
         // La guardia antigua se consume con el primer golpe recibido
         if (target.defenseActual) target.defenseActual = 0;
+        // Combo: mientras el enemigo no acierte lo que vas a hacer, tus golpes y hechizos pegan el doble
+        const combo = require("./habilidadesNPC").bonusCombo(target, caster)
+        if (combo > 1) {
+            cantidad = Math.max(1, Math.round(cantidad * combo))
+            if (session) logSistema(session, `${target.Nombre} no lo vio venir: el ataque de ${caster.Nombre} entra al doble.`, { autor: caster?.Nombre })
+        }
         if (isNaN(cantidad)) {
             console.error("Cantidad de daño es NaN", { cantidad, mecanica, hechizo: hechizo?._id })
             return { cantidad: 0, esCritico, tipoElemental }
         }
-        const aplicado = target.aplicarDaño(cantidad, origen)
+        // El tipo de daño y la sesión los usa el desgaste del contenedor (daño recibido, desafinados)
+        const tipoDanio = mecanica.tipoDanio ?? hechizo?.tipoDanio ?? (mecanica.esFisico ? "fisico" : "magico")
+        const aplicado = target.aplicarDaño(cantidad, { ...origen, tipo: tipoDanio, sesion: session })
         if (caster) caster.damageDealt = (caster.damageDealt || 0) + aplicado
         // El log de "derrota" se registra después del log del ataque en _verificarYRegistrarDerrotas
 
@@ -418,6 +461,7 @@ class TurnProcessor {
 
                 // ── Ataque básico (Golpe: vía movimiento) ────────────────
                 case 'attack': {
+                    if (R.estaRobado(caster, "attack")) return { success: false, message: R.MENSAJE }
                     const ev = evaluarCasteo(caster, ACCIONES.GOLPE)
                     if (!ev.ok) return { success: false, message: `No puedes golpear: ${ev.motivo}.` }
 
@@ -426,10 +470,13 @@ class TurnProcessor {
                     if (targets.length === 0) return { success: false, message: "No hay objetivos válidos" }
 
                     session.resolverTurnoExitoso?.(caster.ID);
+                    this._registrarAccion(caster, { tipo: "attack", categoria: "golpe", clave: "attack" }, session);
 
                     const esquivaron = new Set();
                     for (const target of targets) {
                         if (tieneInmunidad(target, "todo")) continue
+                        // Si ya esperaba este golpe no lo esquiva: lo bloquea (El Anfitrión)
+                        if (String(target._bloqueaProximo || "") === String(caster.ID)) continue
                         if (Math.random() < this._chanceEsquive(caster, target)) {
                             esquivaron.add(target.ID);
                             session.addLog("esquive", { defensor: target.Nombre, atacante: caster.Nombre });
@@ -475,9 +522,11 @@ class TurnProcessor {
 
                 // ── Defender (Guardia universal: vía movimiento) ──────────
                 case 'defend': {
+                    if (R.estaRobado(caster, "defend")) return { success: false, message: R.MENSAJE }
                     const ev = evaluarCasteo(caster, ACCIONES.GUARDIA)
                     if (!ev.ok) return { success: false, message: `No puedes cubrirte: ${ev.motivo}.` }
                     session.resolverTurnoExitoso?.(caster.ID);
+                    this._registrarAccion(caster, { categoria: "guardia", clave: "defend" }, session);
                     aplicarEfecto({ sesion: session, caster, target: caster, efecto: { tipo: "guardia", nombre: "Guardia", valor: GUARDIA.REDUCCION, duracion: GUARDIA.DURACION } })
                     const porcentaje = `${Math.round(GUARDIA.REDUCCION * 100)}%`
                     session.addLog("defender", { defensor: caster.Nombre, defensaObtenida: porcentaje })
@@ -490,8 +539,28 @@ class TurnProcessor {
                     }
                 }
 
+                // ── Cambiar de elemento activo (desafinados): consume el turno ──
+                // Silencioso: a los demás solo les llega un mensaje de ambiente, nunca el elemento.
+                case 'element': {
+                    const r = cambiarElementoActivo(caster, accion.elemento, { enCombate: true })
+                    if (!r.ok) return { success: false, message: `No puedes cambiar de elemento: ${r.motivo}.` }
+                    session.resolverTurnoExitoso?.(caster.ID);
+                    this._registrarAccion(caster, { categoria: "elemento" }, session);
+                    logSistema(session, r.mensajePublico, { autor: caster.Nombre })
+
+                    return {
+                        success: true,
+                        tipo: 'element',
+                        caster,
+                        elemento: r.elemento,
+                        consumeTurno: r.consumeTurno
+                    }
+                }
+
                 // ── Rendirse ──────────────────────────────────────────────
                 case 'surrender': {
+                    // Tras la Ruptura del Anfitrión ya no se puede huir
+                    if (session.sinRendicion && !caster.isNPC) return { success: false, message: "Aquí ya no se puede huir." }
                     session.resolverTurnoExitoso?.(caster.ID);
                     caster.defeated = true
                     caster.surrender = true
@@ -526,7 +595,7 @@ class TurnProcessor {
         if (caster && !caster.defeated) {
             procesarFinDeTurno(caster, {
                 danio: (pj, valor, eff) => {
-                    const aplicado = pj.aplicarDaño(valor, { periodico: true });
+                    const aplicado = pj.aplicarDaño(valor, { periodico: true, tipo: eff.tipoDanio, sesion: session });
                     if (!aplicado) return;
                     session.addLog("efecto_periodico", {
                         personaje: pj.Nombre,
@@ -627,7 +696,7 @@ class TurnProcessor {
      * Turno de un actor que no requiere al jugador: incapacitado / Estasis, canalizando o NPC.
      * @returns {Promise<boolean>} true si se resolvió (el bucle sigue); false si espera a un humano
      */
-    async _turnoAutomatico(session, actor, { emitirAntesDeNPC = false } = {}) {
+    async _turnoAutomatico(session, actor) {
         const salto = this.motivoSaltoTurno(actor)
         if (salto) {
             this._registrarTurnoSaltado(session, actor, salto)
@@ -643,9 +712,16 @@ class TurnProcessor {
         }
 
         if (actor.isNPC) {
-            // Emitir la UI antes del retraso para que el humano vea el resultado de su acción
-            if (emitirAntesDeNPC) session.emit('actualizarUI')
+            // Siempre se redibuja ANTES de que el NPC piense: el jugador ve su acción resuelta y
+            // "X está pensando..." en lugar de un mensaje congelado que luego salta con las dos
+            // acciones juntas. (CombatUI.update serializa las ediciones, así que es seguro.)
+            session.npcPensando = actor.Nombre
+            session.emit('actualizarUI')
+            // Mientras un NPC habla (cambio de fase, diálogos), el combate se detiene: nadie golpea
+            // a mitad de una frase. La cola de diálogos se resuelve cuando todos se entregaron.
+            if (session._colaDialogos) await session._colaDialogos.catch(() => { })
             await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 1000) + 2000))
+            session.npcPensando = null
             const NpcAi = require("./npcAi")
             await NpcAi.executeTurn(session, actor)
             this._verificarYRegistrarDerrotas(session, actor)
@@ -709,7 +785,7 @@ class TurnProcessor {
                 return { rondaCerrada, proximosEnActuar: session.turnoQueue };
             }
 
-            if (await this._turnoAutomatico(session, nextActor, { emitirAntesDeNPC: !todosActuaron })) continue;
+            if (await this._turnoAutomatico(session, nextActor)) continue;
 
             // Jugador humano → detener y esperar su interacción
             session.emit('actualizarUI');
@@ -738,15 +814,8 @@ class TurnProcessor {
      * Regeneración pasiva de maná al cerrar una ronda
      */
     tickRegeneracion(session) {
-        session.getAllCombatientes().forEach(c => {
-            if (c.defeated) return
-            if (!c.artefactoMagico) {
-                c.Mana = Math.min(
-                    c.stats?.manaMax ?? c.Mana,
-                    c.Mana + 2
-                )
-            }
-        })
+        // Afinados: +2 y bonus temporales. Un desafinado no regenera: su maná es el del contenedor.
+        session.getAllCombatientes().forEach(c => regenerarManaTurno(c))
     }
 
     async resolverObjetos(session, caster, itemData, targetIds = null) {
@@ -769,6 +838,10 @@ class TurnProcessor {
         const objetoExist = itemDoc?.Objetos?.find(o => Number(o.ID) === Number(itemData.ID));
         if (!objetoExist) {
             return { success: false, message: "No se pudo encontrar el objeto seleccionado" };
+        }
+
+        if (session && R.estaRobado(caster, R.claveObjeto(objetoExist.Region || itemData.Region, objetoExist.ID))) {
+            return { success: false, message: R.MENSAJE };
         }
 
         if (session && !caster.isNPC) {
@@ -961,10 +1034,7 @@ class TurnProcessor {
                         statLower === 'mana' ||
                         (tipoLower === 'regeneracion' && (statLower === 'mana' || statLower === ''))
                     ) {
-                        const manaPrev = target.Mana;
-                        const maxMana = target.stats?.manaMax || target.stats?.maxMana || target.manaMax || 99999;
-                        target.Mana = Math.min(maxMana, target.Mana + Number(efecto.valor || 0));
-                        valorAplicado = target.Mana - manaPrev;
+                        valorAplicado = ganarMana(target, Number(efecto.valor || 0));
                     } else {
                         // Un stat sin duración fuera del formato nuevo no se puede deshacer: se ignora
                         continue;
@@ -974,6 +1044,17 @@ class TurnProcessor {
 
                 efectosAplicados.push({ ...efecto, valor: valorAplicado, objetivos: [target.Nombre], targetId: target.ID });
             }
+        }
+
+        // Si no pasó nada (vida al máximo, un estado que no tienes...) no se gasta el objeto, ni el
+        // turno en combate: igual que fuera de combate. Antes se consumía sin efecto.
+        if (efectosAplicados.length === 0) {
+            const motivo = motivoSinEfecto(objetoExist, objetivos, caster);
+            return {
+                success: false,
+                message: buildActionMessage({ actor: caster.Nombre, item: objetoExist, efectos: [], objetivos: [], perspectiva: 'tu' })
+                    + (motivo ? `\n-# ${motivo}` : "")
+            };
         }
 
         // Paso 6 — Registrar en el log:
@@ -990,17 +1071,10 @@ class TurnProcessor {
         }
 
         if (!session) {
-            // Fuera de combate: si no pasó nada (p. ej. limpia un estado que no tienes) no se gasta el objeto
-            if (efectosAplicados.length === 0) {
-                return {
-                    success: false,
-                    message: buildActionMessage({ actor: caster.Nombre, item: objetoExist, efectos: [], objetivos: [], perspectiva: 'tu' })
-                };
-            }
             // Guardar en el alma lo que cambió (HP y maná son lo único que persiste fuera de combate)
-            await Promise.all(objetivos.filter(o => !o.isNPC).map(o =>
-                db2.collection("Soul").updateOne({ _id: Number(o.ID) }, { $set: { "nucleo.HP": o.HP, "nucleo.Mana": o.Mana } })
-            ));
+            // (en un desafinado el maná se guarda en la carga de su contenedor)
+            const { guardarVitales } = require("../Contenedores/servicio");
+            await Promise.all(objetivos.filter(o => !o.isNPC).map(o => guardarVitales(o)));
         }
 
         // Paso 7 — Consumir (por defecto los objetos son consumibles, igual que en el dashboard):
@@ -1021,6 +1095,7 @@ class TurnProcessor {
         }
 
         session?.resolverTurnoExitoso?.(caster.ID);
+        if (session) this._registrarAccion(caster, { categoria: "objeto", clave: R.claveObjeto(objetoExist.Region || itemData.Region, objetoExist.ID) }, session);
 
         const personalMsg = buildActionMessage({
             actor: caster.Nombre,
@@ -1143,6 +1218,11 @@ class TurnProcessor {
             if ((e.objetivo === "enemigos" || e.objetivo === "global") && !plan.damage) plan.damage = { objetivo: e.objetivo, alcance: "single" }
             if (e.objetivo === "aliados" && !plan.healing) plan.healing = { objetivo: "aliados", alcance: "single" }
         }
+        // Efectos "solo a otro aliado" (Savia Vital): si todo el slot de aliados sale de ellos, el lanzador no es candidato
+        const deAliado = efectos.filter(e => e.objetivo === "aliados" && e.alcance !== "todos")
+        if (plan.healing && !plan.healing.caidos && !m.healing && deAliado.length && deAliado.every(e => e.excluirLanzador)) {
+            plan.healing.sinMismo = true
+        }
         return plan
     }
 
@@ -1150,7 +1230,7 @@ class TurnProcessor {
      * Candidatos para un slot de un solo objetivo. 'aliados' te incluye a ti; con Provocar,
      * los enemigos que provocan son los únicos elegibles.
      */
-    _obtenerCandidatos(session, caster, tipoObjetivo, { caidos = false } = {}) {
+    _obtenerCandidatos(session, caster, tipoObjetivo, { caidos = false, sinMismo = false } = {}) {
         if (!session) return [];
         if (tipoObjetivo === "mismo") return [caster];
         if (tipoObjetivo === "todos") return session.getAllCombatientes().filter(c => !c.defeated);
@@ -1159,6 +1239,7 @@ class TurnProcessor {
 
         if (tipoObjetivo === "aliados") {
             if (caidos) return aliados.filter(a => a.ID !== caster.ID && a.defeated && !a.surrender);
+            if (sinMismo) return aliados.filter(a => !a.defeated && a.ID !== caster.ID);
             return aliados.filter(a => !a.defeated);
         } else if (tipoObjetivo === "enemigos") {
             return filtrarProvocados(enemigos.filter(e => !e.defeated));
@@ -1203,6 +1284,7 @@ class TurnProcessor {
         if (!hechizo) {
             return { success: false, message: "No se pudo encontrar el hechizo seleccionado." };
         }
+        if (R.estaRobado(caster, R.claveHechizo(hechizo._id))) return { success: false, message: R.MENSAJE };
 
         if (session && !caster.isNPC) {
             session.lastSpellOrItemUser = caster.ID;
@@ -1222,7 +1304,7 @@ class TurnProcessor {
             if (!p) return { candidatos: [], auto: [], elegir: false }
             if (p.objetivo === "mismo") return { candidatos: [], auto: [caster], elegir: false }
             if (p.alcance === "todos") return { candidatos: [], auto: this._objetivosArea(session, caster, p.objetivo), elegir: false }
-            const candidatos = this._obtenerCandidatos(session, caster, p.objetivo, { caidos: p.caidos })
+            const candidatos = this._obtenerCandidatos(session, caster, p.objetivo, { caidos: p.caidos, sinMismo: p.sinMismo })
             return { candidatos, auto: candidatos.length === 1 ? candidatos : [], elegir: candidatos.length > 1 }
         }
         const sDamage = slot(plan.damage)
@@ -1230,6 +1312,9 @@ class TurnProcessor {
 
         if (plan.healing?.caidos && sHealing.candidatos.length === 0) {
             return { success: false, message: "No hay aliados caídos a los que devolver la vida." }
+        }
+        if (plan.healing?.sinMismo && sHealing.candidatos.length === 0) {
+            return { success: false, message: `${hechizo.Nombre} solo puede dirigirse a otro aliado, y no tienes ninguno en pie.` }
         }
 
         if ((sDamage.elegir || sHealing.elegir) && !targetIds) {
@@ -1262,6 +1347,9 @@ class TurnProcessor {
         if (!ofrenda.ok) return { success: false, message: ofrenda.message }
         this._cobrarCosto(hechizo, caster, evaluacion);
         session?.resolverTurnoExitoso?.(caster.ID);
+        this._registrarAccion(caster, /^(basic_|inline_|default_)/.test(String(hechizo._id))
+            ? { tipo: "attack", categoria: "golpe", clave: "attack" }
+            : { tipo: "spell", id: hechizo._id, categoria: categoriaHechizo(hechizo), clave: R.claveHechizo(hechizo._id) }, session);
 
         const castId = nuevoCastId(caster)
         const modoTxt = evaluacion.modo === "mental" ? " (solo con la mente)" : ""
@@ -1390,18 +1478,26 @@ class TurnProcessor {
         if (objetivo === "mismo") return [caster]
         if (alcance === "todos") return this._objetivosArea(session, caster, objetivo, invertido)
         if (objetivo === "enemigos") return objetivosDamage
-        if (objetivo === "aliados") return objetivosHealing.length ? objetivosHealing : [caster]
+        if (objetivo === "aliados") {
+            // "Solo a otro aliado": nunca cae en el lanzador (ni por el respaldo ni por un desvío)
+            if (efecto.excluirLanzador) return objetivosHealing.filter(t => t.ID !== caster.ID)
+            return objetivosHealing.length ? objetivosHealing : [caster]
+        }
         return [...new Set([...objetivosDamage, ...objetivosHealing])]
     }
 
-    /** Objetivos de una cadena: el elegido y hasta dos enemigos más (100% / 70% / 50%). */
-    _cadena(session, caster, primarios) {
+    /**
+     * Objetivos de una cadena: el elegido y hasta dos enemigos más (100% / 70% / 50%).
+     * `max` (damage.objetivosMax) recorta la cadena: Doble Descarga salta a 2 (100% / 70%).
+     */
+    _cadena(session, caster, primarios, max = null) {
         const primero = primarios[0]
         if (!primero || !session) return primarios
+        const tope = Math.min(CADENA.FACTORES.length, Number(max) > 0 ? Math.floor(max) : CADENA.FACTORES.length)
         const bando = this._bandos(session, caster)
         const lado = bando.enemigos.some(e => e.ID === primero.ID) ? bando.enemigos : bando.aliados
         const resto = lado.filter(c => !c.defeated && c.ID !== primero.ID).sort(() => Math.random() - 0.5)
-        return [primero, ...resto].slice(0, CADENA.FACTORES.length)
+        return [primero, ...resto].slice(0, tope)
     }
 
     _aplicarEfectosHechizoInstante(session, caster, hechizoRaw, objetivosDamage, objetivosHealing, ctx = {}) {
@@ -1424,7 +1520,7 @@ class TurnProcessor {
 
         if (mecanicas.damage) {
             const cadena = mecanicas.damage.alcance === "cadena"
-            const lista = cadena ? this._cadena(session, caster, objetivosDamage) : objetivosDamage
+            const lista = cadena ? this._cadena(session, caster, objetivosDamage, mecanicas.damage.objetivosMax) : objetivosDamage
             lista.forEach((target, i) => {
                 if (esquivaron.has(target.ID)) return;
                 const factor = cadena ? (CADENA.FACTORES[i] ?? CADENA.FACTORES[CADENA.FACTORES.length - 1]) : undefined
@@ -1506,9 +1602,7 @@ class TurnProcessor {
                 target.aplicarCuracion ? target.aplicarCuracion(valorAplicado, true) : (target.HP = Math.min(target.stats?.hpMax || 99999, target.HP + valorAplicado));
                 valorAplicado = target.HP - hpPrev;
             } else if (statName === 'Mana') {
-                const manaPrev = target.Mana;
-                target.Mana = Math.min(target.stats?.manaMax || 99999, target.Mana + valorAplicado);
-                valorAplicado = target.Mana - manaPrev;
+                valorAplicado = ganarMana(target, valorAplicado);
             } else {
                 return null;   // un stat sin duración no se puede deshacer: se ignora
             }
@@ -1563,6 +1657,12 @@ class TurnProcessor {
             return;
         }
 
+        // Desafinados: con Miedo, Confusión o Lentitud la traducción puede vacilar y cortar el cast
+        if (ac.interruptible !== false && traduccionSensible(caster) && Math.random() < TRADUCCION.SENSIBILIDAD_CORTE) {
+            interrumpirCast(session, caster, "la traducción vacila")
+            return;
+        }
+
         ac.remainingTurns--;
         if (ac.remainingTurns > 0) {
             logSistema(session, `${caster.Nombre} está canalizando ${spell.Nombre} (${ac.remainingTurns} turno(s) restante(s)).`, { autor: caster.Nombre, hechizo: spell.Nombre });
@@ -1588,6 +1688,44 @@ class TurnProcessor {
         this._resolverLanzamiento(session, caster, spell, evaluacion, objetivosDamage, objetivosHealing, ac.castId)
     }
 
+    /**
+     * Historial de ataques de un jugador en el combate (Golpe y hechizos lanzados). Lo usan
+     * habilidades de NPC como Sosias, que copia los últimos ataques del jugador.
+     */
+    _registrarAccion(caster, { tipo, id, categoria, clave } = {}, session = null) {
+        if (!caster || caster.isNPC) return
+        // Entropía (variedad en combate): rewardCalculator la mide con sesion.historialAcciones
+        if (session && (clave || categoria)) {
+            session.historialAcciones ??= []
+            session.historialAcciones.push({ ID: caster.ID, accion: clave || categoria })
+        }
+        if (tipo === "attack" || tipo === "spell") {
+            caster.historialAtaques ??= []
+            caster.historialAtaques.push(tipo === "spell" ? { tipo, id } : { tipo })
+            if (caster.historialAtaques.length > HISTORIAL_ATAQUES_MAX) caster.historialAtaques.shift()
+        }
+        // Perfil de hábitos por turno y categoría (El Anfitrión) y usos de cada acción en el combate
+        if (categoria) {
+            caster.perfilTurnos ??= []
+            caster.perfilTurnos.push({ [categoria]: 1 })
+            if (caster.perfilTurnos.length > HISTORIAL_ATAQUES_MAX) caster.perfilTurnos.shift()
+            caster.usosCategoria ??= {}
+            caster.usosCategoria[categoria] = (caster.usosCategoria[categoria] || 0) + 1
+        }
+        if (clave) {
+            caster.clavesTurnos ??= []
+            caster.clavesTurnos.push([clave])
+            if (caster.clavesTurnos.length > HISTORIAL_ATAQUES_MAX) caster.clavesTurnos.shift()
+            caster.usosClave ??= {}
+            caster.usosClave[clave] = (caster.usosClave[clave] || 0) + 1
+        }
+        // Habilidades que leen hábitos (El Anfitrión): ¿era la acción que esperaba?
+        if (session && categoria) {
+            try { require("./habilidadesNPC").alActuarJugador(session, caster, categoria) }
+            catch (e) { console.error("[Habilidades] alActuarJugador:", e.message) }
+        }
+    }
+
     /** ¿El NPC puede usar ahora este ataque? (vías, kit, cooldown y costos vía evaluarCasteo) */
     npcPuedeUsar(npc, ataque) {
         if (!ataque) return false
@@ -1608,3 +1746,4 @@ class TurnProcessor {
 module.exports = new TurnProcessor()
 module.exports.usaInstinto = usaInstinto
 module.exports.BALANCE = BALANCE
+module.exports.TABLA_ELEMENTAL = TABLA_ELEMENTAL

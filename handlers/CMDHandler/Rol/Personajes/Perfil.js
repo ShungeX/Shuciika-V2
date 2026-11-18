@@ -7,6 +7,8 @@ const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
 const { crearCustomId } = require("../../../../utils/constructores/customId")
+const premium = require("../../../../functions/Premium/premium")
+const { obtenerApoyo, piezasApoyoPerfil } = require("../../../../functions/Premium/apoyo")
 
 
 module.exports = {
@@ -107,7 +109,8 @@ module.exports = {
 
         async function perfil(pjuser) {
             const bannerURL = await obtenerBannerPerfil(pjuser, interaction.client);
-            const perfilV2 = construirPerfilV2(pjuser, interaction.user.id, bannerURL);
+            const apoyo = await obtenerApoyoPerfil(pjuser, interaction.client);
+            const perfilV2 = construirPerfilV2(pjuser, interaction.user.id, bannerURL, apoyo);
             await interaction.reply({ components: perfilV2, flags: ["IsComponentsV2", "SuppressNotifications"], withResponse: true });
             return;
         }
@@ -115,6 +118,7 @@ module.exports = {
     },
     construirPerfilV2,
     obtenerBannerPerfil,
+    obtenerApoyoPerfil,
     recortarBannerDiscord,
     ajustesBannerDiscord,
     puedeMostrarBanner
@@ -122,7 +126,6 @@ module.exports = {
 
 // Quienes pueden mostrar el banner del dashboard en el perfil de Discord, además de los boosters
 const IDS_BANNER_DISCORD = ["1566978771922329665", "665421882694041630", "811049909099692073"];
-const GUILD_ID_BANNER = "716342375303217285";
 
 // Grosor de la franja (ancho:alto). 6 = delgado (por defecto), 4 = medio, 3 = alto
 const ASPECTOS_BANNER_DISCORD = [6, 4, 3];
@@ -174,20 +177,14 @@ function recortarBannerDiscord(bannerURL, ajustes) {
     return bannerURL.replace("/upload/", `/upload/${pasos.join("/")}/`);
 }
 
-/** Booster del servidor (Discord o marca en usuarios_server) o ID autorizada */
+/** Premium del servidor (rol Boost o Support, boost real, marca en usuarios_server) o ID autorizada */
 async function puedeMostrarBanner(ownerID, client) {
     if (!ownerID) return false;
     const id = String(ownerID);
     if (IDS_BANNER_DISCORD.includes(id)) return true;
 
-    const guild = client?.guilds?.cache?.get(GUILD_ID_BANNER);
-    if (guild) {
-        const member = guild.members.cache.get(id) || await guild.members.fetch(id).catch(() => null);
-        if (member?.premiumSince) return true;
-    }
-
     const userdb = await userdbs.findOne({ _id: id }, { projection: { roles: 1, isBooster: 1 } }).catch(() => null);
-    return Boolean(userdb?.isBooster || (Array.isArray(userdb?.roles) && userdb.roles.includes("booster")));
+    return premium.esPremium(client, id, { usuarioServer: userdb });
 }
 
 /**
@@ -206,7 +203,17 @@ async function obtenerBannerPerfil(pjuser, client) {
     }
 }
 
-function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
+/**
+ * Estado de apoyo del dueño del personaje para la etiqueta "Support" de la tarjeta (cosmético). Nunca lanza.
+ * Se pasa a construirPerfilV2 como 4.º argumento; sin él la tarjeta sale sin etiqueta.
+ */
+async function obtenerApoyoPerfil(pjuser, client) {
+    if (!pjuser?.ownerID) return null;
+    const usuarioServer = await userdbs.findOne({ _id: String(pjuser.ownerID) }, { projection: { apoyo: 1, apoyoEstilo: 1 } }).catch(() => null);
+    return obtenerApoyo({ client, ownerID: pjuser.ownerID, usuarioServer, coleccion: userdbs });
+}
+
+function construirPerfilV2(pjuser, viewerUserId, bannerURL = null, apoyo = null) {
     if (!pjuser) return [];
     const perfil = pjuser.perfil || {};
     const userId = viewerUserId || pjuser.ownerID;
@@ -218,6 +225,21 @@ function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
     const urlavatar = rawAvatar.includes('/upload/')
         ? rawAvatar.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
         : rawAvatar;
+
+    const textoInfo = "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${perfil.Sexo || 'No especificado'} ${perfil.Pronombres ? `(${perfil.Pronombres})` : ''}` || "** **"}` +
+        "\n-# `🍭` *Edad:* " + (perfil.Edad || 'No especificada') + "\n-# `🎂` *Cumpleaños:* " + (perfil.Cumpleaños || (perfil.cumpleDia && perfil.cumpleMes ? `${String(perfil.cumpleDia).padStart(2, '0')}/${String(perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
+        "\n-# `🎭` *Personalidad:* " + (perfil.Personalidad || 'Sin personalidad definida') + "\n-# `🛫` *Ciudad de origen:* " + (perfil.CiudadOrg || 'Desconocida');
+    const textoMedallas = "**Medallas:**\n-# " + `${pjuser.social?.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`;
+    const textoDatos = descripcion + "\n\n-# *`Lumens:`* " + (pjuser?.economia?.Lumens ?? 0) + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado;
+
+    // Etiqueta de apoyo (debajo de Grado) y degradado opcional; si no cabe en el tope de Components V2 sale en texto plano
+    const { titulo, lineaApoyo, pie } = piezasApoyoPerfil({
+        apoyo,
+        esDueño: String(userId) === String(pjuser.ownerID),
+        nombre: `${perfil.Nombre || 'Personaje'}${perfil?.Apodo ? ` | ${perfil.Apodo}` : ""}`,
+        ownerID: pjuser.ownerID,
+        otrosCaracteres: textoInfo.length + textoMedallas.length + textoDatos.length
+    });
 
     return [
         {
@@ -242,11 +264,11 @@ function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
                     "components": [
                         {
                             "type": 10,
-                            "content": `# ${perfil.Nombre || 'Personaje'}${perfil?.Apodo ? ` | ${perfil.Apodo}` : ""}`
+                            "content": titulo
                         },
                         {
                             "type": 10,
-                            "content": descripcion + "\n\n-# *`Lumens:`* " + (pjuser?.economia?.Lumens ?? 0) + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
+                            "content": textoDatos + lineaApoyo
                         }
                     ]
                 },
@@ -273,9 +295,7 @@ function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
                     "components": [
                         {
                             "type": 10,
-                            "content": "**Información personal:**" + "\n\n-# `🎎` *Sexo:* " + `${`${perfil.Sexo || 'No especificado'} ${perfil.Pronombres ? `(${perfil.Pronombres})` : ''}` || "** **"}` +
-                                "\n-# `🍭` *Edad:* " + (perfil.Edad || 'No especificada') + "\n-# `🎂` *Cumpleaños:* " + (perfil.Cumpleaños || (perfil.cumpleDia && perfil.cumpleMes ? `${String(perfil.cumpleDia).padStart(2, '0')}/${String(perfil.cumpleMes).padStart(2, '0')}` : "** **")) +
-                                "\n-# `🎭` *Personalidad:* " + (perfil.Personalidad || 'Sin personalidad definida') + "\n-# `🛫` *Ciudad de origen:* " + (perfil.CiudadOrg || 'Desconocida')
+                            "content": textoInfo
                         }
                     ]
                 },
@@ -286,7 +306,7 @@ function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
                 },
                 {
                     "type": 10,
-                    "content": "**Medallas:**\n-# " + `${pjuser.social?.Medallas?.length > 0 ? pjuser.social.Medallas.join("\n") : "Sin medallas"}`
+                    "content": textoMedallas
                 },
                 {
                     "type": 14,
@@ -369,7 +389,7 @@ function construirPerfilV2(pjuser, viewerUserId, bannerURL = null) {
                 },
                 {
                     "type": 10,
-                    "content": "-# Personaje de: " + `<@!${pjuser.ownerID}>\n` + `-# Sistema de personaje | v1.5`
+                    "content": pie
                 }
             ]
         }

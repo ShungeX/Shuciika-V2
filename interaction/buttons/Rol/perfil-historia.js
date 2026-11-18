@@ -6,7 +6,8 @@ const souls = db2.collection("Soul")
 const version = require("../../../config")
 const dbobjetos = db2.collection("Objetos_globales")
 const { crearBoton } = require("../../../utils/constructores/crearComponente")
-const { construirPerfilV2, obtenerBannerPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { construirPerfilV2, obtenerBannerPerfil, obtenerApoyoPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { piezasApoyoPerfil, contarTextoV2 } = require("../../../functions/Premium/apoyo")
 
 
 module.exports = crearBoton({
@@ -159,8 +160,11 @@ module.exports = crearBoton({
             const grado = character.estado?.DesmpAcademico?.Grado ? character.estado.DesmpAcademico.Grado : "Aún no calculado"
             const urlavatar = character.perfil.avatarURL.replace('/upload/', '/upload/q_auto,f_auto,w_480,h_480,c_fill/')
             const bannerURL = await obtenerBannerPerfil(character, interaction.client)
+            const apoyo = await obtenerApoyoPerfil(character, interaction.client)
+            const nombreTitulo = `${character.perfil.Nombre}${character.perfil?.Apodo ? ` | ${character.perfil.Apodo}` : ""}`
 
-            const perfilV2 = [
+            // La tarjeta se arma con las piezas de apoyo (título, etiqueta bajo Grado y pie), igual que construirPerfilV2
+            const armar = (piezas) => [
                 {
                     "type": 17,
                     "accent_color": null,
@@ -183,11 +187,11 @@ module.exports = crearBoton({
                             "components": [
                                 {
                                     "type": 10,
-                                    "content": `# ${character.perfil.Nombre}${character.perfil?.Apodo ? ` | ${character.perfil.Apodo}` : ""}`
+                                    "content": piezas.titulo
                                 },
                                 {
                                     "type": 10,
-                                    "content": descripcion + "\n\n-# *`Lumens:`* " + character.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado
+                                    "content": descripcion + "\n\n-# *`Lumens:`* " + character.economia.Lumens + "\n-# *`Reputacion:`* " + reputacion + "\n-# *`Grado:`* " + grado + piezas.lineaApoyo
                                 }
                             ]
                         },
@@ -307,19 +311,24 @@ module.exports = crearBoton({
                         },
                         {
                             "type": 10,
-                            "content": "-# Personaje de: " + `<@!${character.ownerID}>\n` + `-# Sistema de personaje | v1.5`
+                            "content": piezas.pie
                         }
                     ]
                 }
             ]
 
+            const datosPiezas = { esDueño: String(interaction.user.id) === String(character.ownerID), nombre: nombreTitulo, ownerID: character.ownerID }
+            const base = piezasApoyoPerfil({ ...datosPiezas, apoyo: null })
+            const otrosCaracteres = contarTextoV2(armar(base)) - base.titulo.length - base.lineaApoyo.length - base.pie.length
+            const perfilV2 = armar(piezasApoyoPerfil({ ...datosPiezas, apoyo, otrosCaracteres }))
 
             await interaction.update({ components: perfilV2 })
         }
 
         if (action === "reduct") {
             const bannerURL = await obtenerBannerPerfil(character, interaction.client)
-            const perfilV2 = construirPerfilV2(character, interaction.user.id, bannerURL)
+            const apoyo = await obtenerApoyoPerfil(character, interaction.client);
+            const perfilV2 = construirPerfilV2(character, interaction.user.id, bannerURL, apoyo)
             return interaction.update({ components: perfilV2 })
         }
     }

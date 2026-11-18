@@ -257,6 +257,17 @@ class sesionesCombate extends EventEmitter{
             .sort((a, b) => a.bolitaPos - b.bolitaPos)[0] ?? null
     }
 
+    /**
+     * A quién espera el combate ahora mismo. Mientras el turno de alguien siga abierto (no ha
+     * actuado ni cayó), ese es el actor aunque getCurrentActor() apunte a otro: así los botones
+     * del jugador en turno no desaparecen porque algo redibuje la interfaz por detrás.
+     */
+    actorEnTurno() {
+        const abierto = this.activeTurnActorId != null ? this.getCombatiente(this.activeTurnActorId) : null
+        if (abierto && !abierto.defeated && !this.actuaronEsteSubturno.has(abierto.ID)) return abierto
+        return this.getCurrentActor()
+    }
+
     _initMensajes() {
         this.getAllCombatientes().forEach(c => {
             if (c.ownerId) {

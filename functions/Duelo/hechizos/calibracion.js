@@ -2,13 +2,17 @@
 // Herramienta de BALANCE, no lógica de combate: nunca se llama durante un casteo.
 // Índice de eficiencia:  I = p·(D + C + E) / (M + 2·max(0, CD−1) + 0.5·V)
 
-const { CALIBRACION, MANA, ESCALONES } = require("./config")
+const { CALIBRACION, MANA, ESCALONES, CADENA } = require("./config")
 const { normalizarHechizo } = require("./adaptador")
 
 const { CFG, COBERTURA, BANDAS, PESOS } = CALIBRACION
 
-function factorObjetivos(alcance, objetivo, c = CFG) {
+function factorObjetivos(alcance, objetivo, c = CFG, objetivosMax = null) {
     if (alcance === "todos") return PESOS.TODOS_POR_OBJETIVO * (objetivo === "aliados" ? c.aliados : c.enemigos)
+    // Cadena con tope (Doble Descarga: 2 → 1 + 0.7): suma de los factores que alcanza
+    if (alcance === "cadena" && Number(objetivosMax) > 0 && Number(objetivosMax) < CADENA.FACTORES.length) {
+        return CADENA.FACTORES.slice(0, Math.floor(objetivosMax)).reduce((a, b) => a + b, 0)
+    }
     if (alcance === "cadena") return PESOS.CADENA
     return 1
 }
@@ -28,6 +32,7 @@ function valorEfecto(e, c = CFG) {
             return escudo + (e.defensa ? c.T * PESOS.BUFF * dur * f : 0)
         }
         case "cleanse": return PESOS.CLEANSE * c.T
+        case "regen_mana": return (Number(e.valor ?? e.base) || 0) * dur * PESOS.REGEN_MANA * f
         case "revive": return PESOS.REVIVE
         case "estasis": return c.T * (COBERTURA.Estasis ?? 1) * f
         default: return 0
@@ -37,7 +42,7 @@ function valorEfecto(e, c = CFG) {
 function indiceEficiencia(hechizo, c = CFG) {
     const h = normalizarHechizo(hechizo)
     const m = h.Mecanicas, k = h.Costos
-    const monto = (x) => x ? ((Number(x.base) || 0) + (Number(x.scaling?.multi) || 0) * c.INT) * factorObjetivos(x.alcance, x.objetivo, c) : 0
+    const monto = (x) => x ? ((Number(x.base) || 0) + (Number(x.scaling?.multi) || 0) * c.INT) * factorObjetivos(x.alcance, x.objetivo, c, x.objetivosMax) : 0
     const dmg = monto(m.damage)
     const heal = monto(m.healing)
     const efec = (m.Efectos ?? []).reduce((s, e) => s + valorEfecto(e, c), 0)

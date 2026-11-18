@@ -177,8 +177,8 @@ test("13 · Tregua en PvP → rechazada; en PvE → nadie baja de 1 HP", () => {
     pvp.limpiarWatchdog(); pve.limpiarWatchdog(); ap.limpiarWatchdog()
 })
 
-test("14 · Desafinado con contenedor de Aqua → solo hechizos de Aqua + universales", () => {
-    const pj = jugador({ elemento: "Pyrós", resonancia: 0, disonancia: 5, equipo: [{ Nombre: "Vasija", tipo: "contenedor", Elemento: "Aqua" }] })
+test("14 · Desafinado con Aqua como elemento activo → solo hechizos de Aqua + universales", () => {
+    const pj = jugador({ elemento: "Pyrós", desafinado: true, elementoActivo: "Aqua" })
     assert.equal(pj.elementoActivo, "Aqua")
     const lanzables = CATALOGO.filter(h => enKit(pj, h)).map(h => h._id)
     assert.ok(lanzables.every(id => id.startsWith("Aqua-") || id.startsWith("univ-")), lanzables.join(","))
@@ -191,7 +191,7 @@ test("14 · Desafinado con contenedor de Aqua → solo hechizos de Aqua + univer
 
 test("15 · Menú con un desafinado que conoce 30 hechizos → máximo 25 opciones y solo su kit", async () => {
     const todos = CATALOGO.map(h => h._id)
-    const pj = jugador({ elemento: "Pyrós", resonancia: 0, disonancia: 5, hechizos: [...todos, "inexistente"], equipo: [{ tipo: "contenedor", Elemento: "Aqua" }] })
+    const pj = jugador({ elemento: "Pyrós", desafinado: true, elementoActivo: "Aqua", hechizos: [...todos, "inexistente"] })
     assert.ok(pj.hechizos.length >= 30)
     const s = sesion([pj], [jugador()])
     for (let pagina = 1; pagina <= 3; pagina++) {

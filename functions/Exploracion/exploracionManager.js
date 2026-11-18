@@ -334,6 +334,12 @@ class ExploracionManager {
             const idCalor = character?._id ?? soul?._id;
             if (idCalor !== undefined) aplicarCalor(idCalor).catch(err => console.error("[Exploración] Error aplicando calor:", err));
 
+            // Última exploración (se muestra en el perfil del dashboard)
+            if (idCalor !== undefined) {
+                this.registrarUltimaExploracion(idCalor, exploracionCache, subzonaSelect, areaSelect)
+                    .catch(err => console.error("[Exploración] Error guardando última exploración:", err));
+            }
+
             let eventMessageIntermedio = await this.generateMessage(exploracionCache, soul, subzonaSelect, messIntermedio, true);
 
             try {
@@ -372,6 +378,38 @@ class ExploracionManager {
         } catch (error) {
             console.log(error);
         }
+    }
+
+    /**
+     * Guarda dónde exploró el personaje por última vez.
+     *   perfil.UltimoLugar        "Subzona · Región" (texto listo para mostrar)
+     *   perfil.UltimaExploracion  { region, regionNombre, zona, zonaNombre, subzona, subzonaNombre, fecha }
+     */
+    async registrarUltimaExploracion(charId, exploracionCache, subzonaSelect, areaSelect) {
+        const region = await regiones.findOne({ _id: exploracionCache.regionSelect }, { projection: { Nombre: 1, [`areas.${exploracionCache.zona}.Nombre`]: 1 } });
+        const regionNombre = exploracionCache.regionNombre || region?.Nombre || exploracionCache.regionSelect;
+        const zonaNombre = region?.areas?.[exploracionCache.zona]?.Nombre || null;
+        const subzonaNombre = subzonaSelect?.nombre || subzonaSelect?.Nombre || areaSelect || null;
+        const lugar = [subzonaNombre, regionNombre].filter(Boolean).join(" · ");
+
+        const charIdNum = Number(charId);
+        await characterCol.updateOne(
+            { _id: isNaN(charIdNum) ? charId : charIdNum },
+            {
+                $set: {
+                    "perfil.UltimoLugar": lugar,
+                    "perfil.UltimaExploracion": {
+                        region: exploracionCache.regionSelect,
+                        regionNombre,
+                        zona: exploracionCache.zona ?? null,
+                        zonaNombre,
+                        subzona: areaSelect ?? null,
+                        subzonaNombre,
+                        fecha: new Date()
+                    }
+                }
+            }
+        );
     }
 
     async procesarEventoSwitch({ eventSelect, subzonaSelect, soul, areaSelect, client, interaction, exploracionCache }) {
@@ -945,7 +983,7 @@ class ExploracionManager {
                     {
                         "type": 10,
                         "content": `-# **Ubicación Actual:** ${nombreZona}\n-# **Profundidad:** ${cache.profundidad ?? "Desconocida"}\n\n-# **Aventurero:** *${ch?.perfil?.Nombre || "Nombre no encontrado"}*\n-# **HP:** ${this.statusBarra(soul.nucleo?.HP ?? 0, soul.stats?.hpMax ?? 0, 5, "❤︎ ", "♡")}` +
-                            `\n-# **Mana:** ${this.statusBarra(soul.nucleo?.Mana ?? 0, soul.stats?.manaMax ?? 0, 5, "🔷")}\n-# **Energía:** ${barrasDeEnergia(soul.nucleo?.energy ?? 0, configServer.maxEnergy)}`
+                            `\n-# **Mana:** ${(m => this.statusBarra(m.actual, m.max, 5, "🔷"))(require("../Contenedores/nucleo").manaDeAlma(soul))}\n-# **Energía:** ${barrasDeEnergia(soul.nucleo?.energy ?? 0, configServer.maxEnergy)}`
                     }
                 ]
             },

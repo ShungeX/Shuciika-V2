@@ -445,7 +445,6 @@ module.exports = async (client) => {
     };
 
     const iniciarIntervalo = async () => {
-        console.log("⏱️ [verificadorClases] Ticker de clases iniciado (cada 60s).");
         // Reconstruir en memoria las clases en curso tras reinicio del bot
         try {
             const dbRol = clientdb.db("Rol_db");

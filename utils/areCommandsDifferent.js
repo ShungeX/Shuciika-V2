@@ -7,16 +7,21 @@
 
 const pick = (o, camel, snake) => o?.[camel] ?? o?.[snake] ?? null
 
+// Discord guarda los textos sin el selector de variación U+FE0F (el que acompaña a emojis como
+// "🏙️" o "⁉️") y sin espacios en los extremos. Si se compara el texto tal cual, el comando
+// parece distinto en cada arranque aunque no haya cambiado nada, y se vuelve a subir siempre.
+const texto = (t) => String(t ?? "").replace(/️/g, "").trim()
+
 function normalizarChoices(choices) {
   if (!choices?.length) return []
-  return choices.map(c => ({ name: c.name, value: c.value }))
+  return choices.map(c => ({ name: texto(c.name), value: c.value }))
 }
 
 function normalizarOpcion(o) {
   return {
     type: o.type,
     name: o.name,
-    description: o.description ?? "",
+    description: texto(o.description),
     required: !!o.required,
     autocomplete: !!o.autocomplete,
     min_value: pick(o, "minValue", "min_value"),
@@ -30,7 +35,7 @@ function normalizarOpcion(o) {
 }
 
 module.exports = (existingCommand, localCommand) => {
-  if ((existingCommand.description ?? "") !== (localCommand.description ?? "")) return true
+  if (texto(existingCommand.description) !== texto(localCommand.description)) return true
 
   const existentes = JSON.stringify((existingCommand.options || []).map(normalizarOpcion))
   const locales = JSON.stringify((localCommand.options || []).map(normalizarOpcion))

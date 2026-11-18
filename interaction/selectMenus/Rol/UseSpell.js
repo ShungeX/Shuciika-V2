@@ -31,14 +31,14 @@ module.exports = crearStringSelectMenu({
         }
 
         // Un selector viejo no debe permitir lanzar hechizos en el turno de otro combatiente
-        const actorTurno = sesion.getCurrentActor()
+        const actorTurno = sesion.actorEnTurno()
         if (!actorTurno || String(actorTurno.ownerId) !== String(interaction.user.id)) {
             return interaction.reply({ content: "No es tu turno ＞﹏＜", flags: ["Ephemeral"] })
         }
 
         if (Type === "duelo") {
             try {
-                const actor = sesion.getCurrentActor()
+                const actor = sesion.actorEnTurno()
                 const resultado = await TurnProcessor.resolverHechizo(sesion, actor, idSpell, null)
 
                 if (!resultado.success) {
@@ -64,7 +64,7 @@ module.exports = crearStringSelectMenu({
             }
         } else if (Type === "duel_target") {
             try {
-                const actor = sesion.getCurrentActor()
+                const actor = sesion.actorEnTurno()
                 const targetIdRaw = targetId || idSpell
                 // Preservar IDs de NPC como string; solo convertir si es un número válido
                 const asNum = Number(targetIdRaw)

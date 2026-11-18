@@ -18,7 +18,7 @@ module.exports = {
         }
 
         // Ejecutar directo, ya tenemos todo
-        const actor = sesion.getCurrentActor()
+        const actor = sesion.actorEnTurno()
         const resultado = await TurnProcessor.resolveAction(sesion, actor.ID, {
             tipo: sesion._accionPendiente.tipo,
             spellId: sesion._accionPendiente.spellId ?? null,

@@ -119,7 +119,7 @@ function listaTrabajos({ userId, pagina = 1, slot = "principal", excluir = [], v
     }))
 
     const subtitulo = slot === "boost"
-        ? "-# **Puesto extra por boost** ♡( ◡‿◡ )\n-# Este puesto solo se puede usar mientras tu boost esté activo. Si lo pierdes, tus datos se conservan para cuando vuelvas a boostear."
+        ? "-# **Puesto extra por boost** ♡( ◡‿◡ )\n-# Este puesto solo se puede usar mientras tu boost o apoyo (Support) esté activo. Si lo pierdes, tus datos se conservan para cuando vuelvas."
         : "-# ¡Oh, noble usuario! Ante ti se despliega el sagrado abanico de...\n\n-# **¡El trabajo forzado voluntario!**\n-# ¡Elige sabiamente! Renunciar toma 24 horas de trámite."
 
     return contenedor(

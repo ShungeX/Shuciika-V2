@@ -22,7 +22,7 @@ module.exports = {
             return responder(interaction, { content: "No se ha podido realizar la acción porque el duelo ya no es válido", flags: ["Ephemeral"] })
         }
 
-        const actor = sesion.getCurrentActor()
+        const actor = sesion.actorEnTurno()
         if (!actor || String(actor.ownerId) !== String(interaction.user.id)) {
             return responder(interaction, { content: "No es tu turno ＞﹏＜", flags: ["Ephemeral"] })
         }

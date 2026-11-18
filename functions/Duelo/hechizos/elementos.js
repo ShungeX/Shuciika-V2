@@ -34,6 +34,9 @@ function prefijoId(elemento) {
     return PREFIJO_ID[canonico] ?? quitarTildes(canonico).replace(/^./, c => c.toUpperCase())
 }
 
+/** IDs desde este número son series fijas (Pyro-101, Pyro-102...): el contador automático no las cuenta. */
+const SERIE_RESERVADA = 100
+
 /** Siguiente _id libre para un elemento a partir de los IDs existentes ("Pyro-001", "Pyro-002"...). */
 function siguienteIdHechizo(elemento, idsExistentes = []) {
     const prefijo = prefijoId(elemento)
@@ -41,7 +44,8 @@ function siguienteIdHechizo(elemento, idsExistentes = []) {
     let max = 0
     for (const id of idsExistentes) {
         const m = String(id).match(re)
-        if (m) max = Math.max(max, parseInt(m[1], 10))
+        // La serie -101 / -102 (Notas por Fragmentos) va aparte: no empuja la numeración base
+        if (m && parseInt(m[1], 10) < SERIE_RESERVADA) max = Math.max(max, parseInt(m[1], 10))
     }
     return `${prefijo}-${String(max + 1).padStart(3, "0")}`
 }

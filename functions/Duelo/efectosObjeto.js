@@ -17,6 +17,24 @@ const NOMBRE_EFECTO = {
     aturdimiento: "Aturdimiento", confusion: "Confusión", miedo: "Miedo", ceguera: "Ceguera",
     lentitud: "Lentitud", vulnerabilidad: "Vulnerabilidad", stasis: "Stasis", furia: "Furia",
     speed: "Velocidad", clonacion: "Clonación", curacion: "Curación",
+    // Efectos tipados del sistema de hechizos (Notas de Resplandor I): se aplican con hechizos/efectos.js
+    esquive: "Esquive", animo: "Ánimo", fortaleza: "Fortaleza", debilidad: "Debilidad",
+    imprecision: "Imprecisión", regen_mana: "Flujo de maná", escudo: "Escudo",
+}
+
+/**
+ * Claves de "aplica" que no son un estado suelto sino un efecto tipado (buff, debuff, escudo,
+ * regeneración de maná). La intensidad (`valor`) es un % entero en buffs/debuffs, los puntos del
+ * escudo o el maná por turno; sin intensidad se usa el valor por defecto del combate.
+ */
+function efectoTipadoObjeto(clave, efecto, nombre) {
+    if (clave === "escudo") {
+        const puntos = Math.abs(Number(efecto.valor) || 0)
+        return puntos ? { tipo: "escudo", nombre, base: puntos, duracion: Number(efecto.duracion) || 1 } : null
+    }
+    const { efectoDesdeClaveTipada } = require("./hechizos/adaptador")
+    const e = efectoDesdeClaveTipada(clave, { base: efecto.valor, duracion: efecto.duracion, Nombre: nombre })
+    return e && e.tipo !== "cleanse" ? e : null
 }
 
 // Otras formas con las que el combate y los hechizos nombran el mismo estado
@@ -49,6 +67,7 @@ function claveDeEstado(estado) {
 /** ¿El estado activo corresponde a la clave de efecto (veneno, stasis...)? */
 function coincideEstado(estado, clave) {
     if (estado?.inmuneA || estado?.modStat) return false   // inmunidades y buffs no son "estados" que se limpien
+    if (estado?.clave && normalizar(estado.clave) === clave) return true   // efecto tipado aplicado por un objeto
     const id = claveDeEstado(estado)
     const nombre = normalizar(estado?.Nombre || estado?.nombre)
     const formas = ALIAS_EFECTO[clave] || [clave]
@@ -158,17 +177,16 @@ function aplicarEfectoObjeto({ session, caster, target, efecto, objeto }) {
         if (stat === "nucleo.HP") {
             const antes = target.HP
             if (signo > 0) target.aplicarCuracion ? target.aplicarCuracion(valor, true) : (target.HP = Math.min(target.stats?.hpMax ?? 99999, target.HP + valor))
-            else target.aplicarDaño ? target.aplicarDaño(valor) : (target.HP = Math.max(0, target.HP - valor))
+            else target.aplicarDaño ? target.aplicarDaño(valor, { tipo: efecto.tipoDanio, sesion: session }) : (target.HP = Math.max(0, target.HP - valor))
             const delta = target.HP - antes
             if (!delta) return []
             return [{ ...base, tipo: delta > 0 ? "curacion" : "danio", valor: Math.abs(delta), stat: "HP" }]
         }
 
         if (stat === "nucleo.mana") {
-            const antes = target.Mana
-            const max = target.stats?.manaMax ?? 99999
-            target.Mana = Math.max(0, Math.min(max, target.Mana + signo * valor))
-            const delta = target.Mana - antes
+            // Accesores únicos de maná (en un desafinado recarga o drena la carga del contenedor)
+            const { ganarMana, perderMana } = require("./hechizos/mana")
+            const delta = signo > 0 ? ganarMana(target, valor) : -perderMana(target, valor)
             if (!delta) return []
             return delta > 0
                 ? [{ ...base, tipo: "mana", valor: delta, stat: "Mana" }]
@@ -260,6 +278,16 @@ function aplicarEfectoObjeto({ session, caster, target, efecto, objeto }) {
         if (!clave || duracion <= 0) return []
         const nombre = efecto.Nombre || nombreEfecto(clave)
         if (esInmune(target, clave)) return frase(`resistido ${nombre} gracias a la inmunidad`)
+
+        const tipado = efectoTipadoObjeto(clave, efecto, nombre)
+        if (tipado) {
+            const { aplicarEfecto } = require("./hechizos/efectos")
+            // id con la clave para que "limpia" e "inmuniza" (por clave) lo reconozcan
+            const r = aplicarEfecto({ sesion: session, caster, target, efecto: tipado, ctx: { esInmune: (t, k) => esInmune(t, k) || esInmune(t, clave), revertir: revertirModStat } })
+            const creado = target.statusEffect.find(e => e.tipo === tipado.tipo && (e.nombre === nombre || e.Nombre === nombre))
+            if (creado) creado.clave = clave
+            return r.log ? [r.log] : []
+        }
 
         const valor = efecto.valor !== null && efecto.valor !== undefined ? Number(efecto.valor) || 0 : 0
         const existente = target.statusEffect.find(e => coincideEstado(e, clave))

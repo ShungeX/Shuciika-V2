@@ -1,30 +1,27 @@
 const path = require('path')
 const getAllFiles = require('./getAllFiles')
 
+// Los comandos se leen del disco una sola vez; antes se recorría slashcmd/ en cada comando ejecutado.
+let comandosCargados = null
+
 module.exports = (exceptions = []) => {
-    let localCommands = []
+    if (comandosCargados === null) {
+        const localCommands = []
 
-    const commandsCategories = getAllFiles(
-        path.join(__dirname, '..', 'slashcmd'),
-        true
-    )
+        const commandsCategories = getAllFiles(
+            path.join(__dirname, '..', 'slashcmd'),
+            true
+        )
 
-    for (const commandsCategory of commandsCategories) {
-        const commandFiles = getAllFiles(commandsCategory)
-
-        for(const commandFile of commandFiles) {
-            const commandObject = require(commandFile);
-
-            if(exceptions.includes(commandObject.name)) {
-                continue;
+        for (const commandsCategory of commandsCategories) {
+            for (const commandFile of getAllFiles(commandsCategory)) {
+                localCommands.push(require(commandFile))
             }
-            
-
-
-
-            localCommands.push(commandObject)
         }
+
+        comandosCargados = localCommands
     }
 
-    return localCommands
+    if (!exceptions.length) return comandosCargados
+    return comandosCargados.filter((cmd) => !exceptions.includes(cmd.name))
 }

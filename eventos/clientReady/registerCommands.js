@@ -4,6 +4,7 @@ const { clientId, guild, devs } = require("../../config/configslash.json");
 const getApplicationCommands = require("../../utils/getApplicationCommands");
 const getLocalCommands = require("../../utils/getLocalCommands")
 const areCommandsDifferent = require("../../utils/areCommandsDifferent");
+const progreso = require("../../utils/progresoCarga");
 
 /**
 * 
@@ -13,6 +14,7 @@ const areCommandsDifferent = require("../../utils/areCommandsDifferent");
 module.exports = async (client) => {
 
 
+    progreso.comenzar("Comandos")
     const localcmd = []
     var nameApp = ""
 
@@ -29,7 +31,6 @@ module.exports = async (client) => {
         for (const localCommand of localCommands) {
 
             if (localCommand.data.name === 'rol' && localCommand.cargarSubCommands) {
-                console.log("🛠️ Construyendo el comando /rol con sus subcomandos dinámicos...");
                 await localCommand.cargarSubCommands.call(localCommand);
             }
 
@@ -117,5 +118,7 @@ module.exports = async (client) => {
     } catch (error) {
         console.log(error)
         console.log(`Ocurrio un error al registrar los comandos locales: ${error}`)
+        progreso.fallo("Comandos", error)
     }
+    progreso.paso("Comandos")
 }

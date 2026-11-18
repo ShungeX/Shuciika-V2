@@ -395,6 +395,18 @@ module.exports = crearBoton({
 
                 const { Personaje, NPC } = require("../../../functions/Duelo/combatientes")
 
+                // El Anfitrión: un Sosias puede ser el jefe oculto si algún integrante cumple la condición
+                const npcPreparados = new Map()
+                if (!getCache.modeTest) {
+                    const { prepararEnemigo } = require("../../../functions/Duelo/habilidadesNPC/anfitrion/encuentros")
+                    const participantes = playerIds.map(id => ({ ownerId: getCache.team1[id]?.ownerId ?? getCache.team2[id]?.ownerId, characterId: Number(id) }))
+                    for (const [id, data] of [...Object.entries(getCache.team1 || {}), ...Object.entries(getCache.team2 || {})]) {
+                        if (!(data.isNPC || id.startsWith("NPC-"))) continue
+                        const preparado = await prepararEnemigo(data, participantes)
+                        if (preparado !== data) npcPreparados.set(id, preparado)
+                    }
+                }
+
                 // Contar NPCs duplicados entre ambos equipos para etiquetar con [NPC - 1], [NPC - 2], etc.
                 const nameCounts = {};
                 const nameIndices = {};
@@ -415,7 +427,7 @@ module.exports = crearBoton({
                                 nameIndices[baseName] = (nameIndices[baseName] || 0) + 1;
                                 finalName = `${baseName} [NPC - ${nameIndices[baseName]}]`;
                             }
-                            return new NPC(characterId, { ...data, Nombre: finalName });
+                            return new NPC(characterId, { ...(npcPreparados.get(characterId) ?? data), Nombre: finalName });
                         }
                         const freshSoul = soulsFrescos.find(s => s && String(s._id) === String(characterId));
                         return new Personaje(Number(characterId), {

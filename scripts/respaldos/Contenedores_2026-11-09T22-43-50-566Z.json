@@ -1,0 +1,165 @@
+{
+  "objetos": [
+    {
+      "ID": 8,
+      "ID_Autocomplete": "TOB-018",
+      "Region": "TOB-01",
+      "Nombre": "Contenedor elemental",
+      "Descripcion": "Es un artefacto creado para poder contener la **Esencia Natural **.  Principalmente se usa en personas que no poseen naturalmente esa esencia, esto les ayuda a poder usar y controlar la Magia.",
+      "Rareza": "Arcano",
+      "Tipo": [
+        "Artefacto",
+        "Herramienta"
+      ],
+      "Cantidad": null,
+      "atributos": {
+        "peso": 1
+      },
+      "inStore": false,
+      "precio": 0,
+      "vendido": 0,
+      "fecha": "3/1/2025",
+      "evento_origen": null,
+      "imagenURL": null,
+      "intercambiable": false,
+      "tiempo_limite": null,
+      "creador": "sistema",
+      "restricciones": {
+        "fe_min": 0,
+        "fe_max": 0,
+        "resplandor_min": 0,
+        "resplandor_max": 0,
+        "clase": null,
+        "region": null,
+        "reputacion": null
+      },
+      "uso": {
+        "contexto": "ambos",
+        "consumible": true,
+        "requiereSeleccion": false,
+        "objetivo": {
+          "tipo": "mismo",
+          "cantidad": 1
+        },
+        "cooldown": null
+      },
+      "efectos": []
+    },
+    {
+      "ID": 990,
+      "ID_Autocomplete": "TOB-01990",
+      "Region": "TOB-01",
+      "Nombre": "Kit de reparación",
+      "Descripcion": "Para lo que se quebró por intentar. El Instituto lo vende barato y no pregunta cuántas veces.",
+      "Rareza": "Común",
+      "Tipo": [
+        "Herramienta"
+      ],
+      "Cantidad": null,
+      "atributos": {
+        "peso": 20
+      },
+      "inStore": true,
+      "precio": 50,
+      "en_tienda": [
+        "Cooperativa",
+        "Magica"
+      ],
+      "vendido": 5,
+      "fecha": "3/11/2026",
+      "evento_origen": null,
+      "imagenURL": null,
+      "intercambiable": true,
+      "maximoUnoPorPersona": false,
+      "contaminable": false,
+      "purificable": false,
+      "tiempo_limite": null,
+      "creador": "665421882694041630",
+      "restricciones": {
+        "fe_min": 0,
+        "fe_max": 0,
+        "resplandor_min": 0,
+        "resplandor_max": 0,
+        "clase": null,
+        "region": null,
+        "reputacion": null
+      },
+      "uso": {
+        "contexto": "combate",
+        "consumible": true,
+        "requiereSeleccion": false,
+        "objetivo": {
+          "tipo": "mismo",
+          "cantidad": 1
+        },
+        "cooldown": null
+      },
+      "efectos": []
+    }
+  ],
+  "souls": [
+    {
+      "_id": 100005,
+      "ownerID": "811049909099692073",
+      "nucleo": {
+        "HP": 100,
+        "Mana": 50,
+        "Elemento": "Aqua",
+        "energy": 240,
+        "lastEnergyUpdate": 1793838182550,
+        "energiaAlmica": 0,
+        "artefactoMagico": true
+      },
+      "stats": {
+        "hpMax": 100,
+        "manaMax": 50,
+        "fuerza": 1,
+        "resFisica": 1,
+        "resMagica": 1,
+        "agilidad": 1,
+        "sabiduria": 1,
+        "inteligencia": 1,
+        "sintoniaElemental": 1,
+        "percepcion": 1,
+        "determinacion": 1,
+        "regeneracion": 1,
+        "paradoja": 0,
+        "destino": 0
+      },
+      "dominio": {
+        "hechizos": [
+          {
+            "ID": "Aqua-001",
+            "InCombat": true
+          }
+        ],
+        "transforaciones": [],
+        "equipo": [
+          {
+            "ID": 748,
+            "Region": "TOB-01",
+            "Type": 1
+          }
+        ],
+        "debilidades": {}
+      },
+      "sendero": {
+        "hilosLunares": 0,
+        "StelarFragments": 0,
+        "firmamento": [],
+        "heraldo": null,
+        "resonancia": 10,
+        "disonancia": 2,
+        "StelarFragmentsTotal": 0,
+        "resplandor": "I"
+      },
+      "registros": {
+        "npcDefeat": []
+      },
+      "isFinish": true,
+      "metadata": {
+        "Despertado": 1793666954
+      }
+    }
+  ]
+}

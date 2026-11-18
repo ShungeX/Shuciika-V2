@@ -24,7 +24,9 @@ const motor = require("./motorPago")
 const ui = require("../../data/UI_ComponentsV2/trabajos")
 const menu = require("../../data/UI_ComponentsV2/menuTrabajo")
 
-const ROL_BOOST = "796205038665072661"
+const premium = require("../Premium/premium")
+
+const ROL_BOOST = premium.ROL_BOOST
 const SLOTS = ["principal", "boost"]
 const RUTA = "economia.trabajo"
 const SEGUNDOS_RENUNCIA = 24 * 60 * 60  // Preaviso: la carta tarda un día en procesarse
@@ -71,7 +73,16 @@ function barajar(lista) {
 const efimero = (components) => ({ components, flags: ["IsComponentsV2", "Ephemeral"] })
 const avisoEfimero = (interaction, titulo, cuerpo) => interaction.reply(efimero(ui.avisoTrabajo(titulo, cuerpo)))
 
-const esBooster = (member) => member?.roles?.cache?.has(ROL_BOOST) ?? false
+const esBooster = (member) => premium.esPremiumMiembro(member)
+
+// Beneficio de apoyo "en rol": premium del dueño y el personaje dentro de sus 2 elegidos (premium.js)
+const usuariosServer = clientdb.db("Server_db").collection("usuarios_server")
+async function boostEnPersonaje(interaction, character) {
+    const id = String(character?.ownerID || interaction.user.id)
+    const usuarioServer = await usuariosServer.findOne({ _id: id }, { projection: { nix: 1, apoyo: 1, roles: 1, isBooster: 1 } }).catch(() => null)
+    const member = id === String(interaction.user.id) ? interaction.member : null
+    return premium.esPremiumEnPersonaje(interaction.client, id, character?._id, { usuarioServer, member })
+}
 const estaTrabajando = (userId) => partidas.has(userId)
 const nombreDe = (character) => character.perfil?.Nombre ?? "Empleado"
 
@@ -150,7 +161,7 @@ const responder = (interaction, components, actualizar) => actualizar
  */
 async function abrirMenu(interaction, character, soul, { actualizar = false, aviso } = {}) {
     const empleo = await cargarEmpleo(character)
-    const booster = esBooster(interaction.member)
+    const booster = await boostEnPersonaje(interaction, character)
     const avisos = [aviso, ...empleo.procesadas.map(n => `Tu renuncia como **${n}** fue procesada. Recursos Humanos ya quitó tu foto del muro.`)].filter(Boolean)
 
     if (!empleo.puestos.principal && !empleo.puestos.boost) {
@@ -176,7 +187,7 @@ async function abrirMenu(interaction, character, soul, { actualizar = false, avi
 
 /** Lista de empleos para ocupar un puesto (principal o el de boost). */
 async function mostrarLista(interaction, character, slot, pagina = 1, { actualizar = true } = {}) {
-    if (slot === "boost" && !esBooster(interaction.member)) return avisoEfimero(interaction, "Sin boost activo", "El puesto extra es un beneficio para quienes boostean el servidor.")
+    if (slot === "boost" && !await boostEnPersonaje(interaction, character)) return avisoEfimero(interaction, "Sin beneficio de apoyo", "El puesto extra es un beneficio de apoyo (Boost o Support) para tus personajes elegidos. Puedes elegirlos en el dashboard: Configuración → Apoyo.")
     const empleo = await cargarEmpleo(character)
     const tienePuesto = !!(empleo.puestos.principal || empleo.puestos.boost)
     return responder(interaction, ui.listaTrabajos({
@@ -187,7 +198,7 @@ async function mostrarLista(interaction, character, slot, pagina = 1, { actualiz
 /** Select del gafete. */
 async function accionMenu(interaction, character, soul, accion) {
     const empleo = await cargarEmpleo(character)
-    const booster = esBooster(interaction.member)
+    const booster = await boostEnPersonaje(interaction, character)
     const activo = puestoActivo(empleo, booster)
 
     switch (accion) {
@@ -206,7 +217,7 @@ async function accionMenu(interaction, character, soul, accion) {
         }
 
         case "cambiar": {
-            if (!booster) return avisoEfimero(interaction, "Sin boost activo", "Cambiar de puesto es un beneficio para quienes boostean el servidor.")
+            if (!booster) return avisoEfimero(interaction, "Sin beneficio de apoyo", "Cambiar de puesto es un beneficio de apoyo (Boost o Support) para tus personajes elegidos. Puedes elegirlos en el dashboard: Configuración → Apoyo.")
             if (!empleo.puestos.boost) return mostrarLista(interaction, character, "boost")
             const destino = activo?.slot === "boost" ? "principal" : "boost"
             if (!empleo.puestos[destino]) return mostrarLista(interaction, character, destino)
@@ -229,7 +240,7 @@ async function accionMenu(interaction, character, soul, accion) {
 async function postular(interaction, character, soul, slot, codigo) {
     if (!SLOTS.includes(slot)) return interaction.deferUpdate()
     if (!trabajos[codigo]) return avisoEfimero(interaction, "Trabajo no disponible", "Este trabajo ya no está disponible. (┬┬﹏┬┬)")
-    if (slot === "boost" && !esBooster(interaction.member)) return avisoEfimero(interaction, "Sin boost activo", "El puesto extra es un beneficio para quienes boostean el servidor.")
+    if (slot === "boost" && !await boostEnPersonaje(interaction, character)) return avisoEfimero(interaction, "Sin beneficio de apoyo", "El puesto extra es un beneficio de apoyo (Boost o Support) para tus personajes elegidos. Puedes elegirlos en el dashboard: Configuración → Apoyo.")
 
     const empleo = await cargarEmpleo(character)
     if (empleo.puestos[slot]) return avisoEfimero(interaction, "Puesto ocupado", "Ya tienes trabajo en ese puesto. Si quieres otro, primero renuncia (con dignidad).")
@@ -370,7 +381,7 @@ async function empezarTrabajo(interaction, character, { actualizar = false } = {
     if (estaTrabajando(userId)) return avisoEfimero(interaction, "Ya estás trabajando", "Termina tu jornada actual antes de empezar otra. (┬┬﹏┬┬)")
 
     const empleo = await cargarEmpleo(character)
-    const puesto = puestoActivo(empleo, esBooster(interaction.member))
+    const puesto = puestoActivo(empleo, await boostEnPersonaje(interaction, character))
     const trabajo = trabajos[puesto?.code]
     if (!puesto || !trabajo) return avisoEfimero(interaction, "Sin puesto", "No tienes un trabajo disponible. Usa `/rol trabajar` para buscar uno.")
 

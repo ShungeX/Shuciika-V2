@@ -7,6 +7,7 @@
 // y además `inStore: true` (el mismo interruptor que comprueba /rol comprar).
 
 const crypto = require("crypto")
+const { PermissionFlagsBits } = require("discord.js")
 const { crearCustomId } = require("../utils/constructores/customId")
 const {
     ErrorEvento,
@@ -15,6 +16,8 @@ const {
     componentesDesdeJson,
     resolverDestino
 } = require("./eventosMensaje")
+const vestibulos = require("./vestibulos")
+const wh = require("./mensajesWebhooks")
 
 const COLECCION = "mensajes_servidor"
 const EMOJI_LUMENS = "<a:Lumens:1335709991130103910>"
@@ -24,6 +27,10 @@ const MAX_OPCIONES_SELECT = 25
 const MAX_FRASES = 30
 const MAX_IMAGENES = 15
 const ID_VALIDO = /^[a-z0-9_]{3,40}$/   // sin "-": es el separador de crearCustomId
+const IDS_RESERVADOS = new Set(["objetos", "servidor", "webhooks", "emojis", "adjuntos"])
+const MAX_ETIQUETAS = 8
+const MAX_ETIQUETA = 24
+const COLECCION_PERFILES = "webhook_perfiles"
 
 // Lo que se puede hacer en cada lugar desde el menú del panel; cada tienda elige las suyas en el dashboard
 const ACCIONES_TIENDA = {
@@ -84,9 +91,9 @@ function normalizarConfig(entrada, idForzado = null) {
     const datos = entrada && typeof entrada === "object" ? entrada : {}
     const id = String(idForzado ?? datos._id ?? datos.id ?? "").trim().toLowerCase()
     if (!ID_VALIDO.test(id)) throw new ErrorEvento(400, "El identificador debe tener de 3 a 40 caracteres: minúsculas, números o «_».")
-    if (id === "objetos") throw new ErrorEvento(400, "«objetos» es un identificador reservado.")
+    if (IDS_RESERVADOS.has(id)) throw new ErrorEvento(400, `«${id}» es un identificador reservado.`)
 
-    const tipo = datos.tipo === "personalizado" ? "personalizado" : "tienda"
+    const tipo = ["personalizado", "vestibulo"].includes(datos.tipo) ? datos.tipo : "tienda"
     const nombre = String(datos.nombre || "").trim().slice(0, 80)
     if (!nombre) throw new ErrorEvento(400, "Ponle un nombre al mensaje.")
 
@@ -111,13 +118,116 @@ function normalizarConfig(entrada, idForzado = null) {
             // «Todos»: compra cualquier objeto vendible, no solo los que tienen este lugar en `vender_en`
             compra_todo: Boolean(t.compra_todo)
         }
+    } else if (tipo === "vestibulo") {
+        config.vestibulo = vestibulos.normalizarVestibulo(datos.vestibulo, id)
+        // El vestíbulo se publica por defecto en el canal principal; solo se respeta `canalId` si se pidió otro canal
+        if (!config.vestibulo.canalPersonalizado && config.vestibulo.raizId) config.canalId = config.vestibulo.raizId
     } else {
         const components = componentesDesdeJson(datos.components ?? [])
         const problemas = validarComponentesV2(components)
         if (problemas.length) throw new ErrorEvento(400, problemas.join(" "))
         config.components = JSON.parse(JSON.stringify(components))
+        config.etiquetas = normalizarEtiquetas(datos.etiquetas)
+        config.webhook = normalizarWebhook(datos.webhook)
+        config.adjuntos = wh.normalizarAdjuntos(datos.adjuntos)
     }
     return config
+}
+
+/** Etiquetas libres de un mensaje personalizado, para filtrarlos en el dashboard. Sin repetir (sin distinguir mayúsculas). */
+function normalizarEtiquetas(valor) {
+    const vistas = new Set()
+    const salida = []
+    for (const e of Array.isArray(valor) ? valor : []) {
+        const limpia = String(e ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_ETIQUETA)
+        const clave = limpia.toLowerCase()
+        if (!limpia || vistas.has(clave)) continue
+        vistas.add(clave)
+        salida.push(limpia)
+        if (salida.length >= MAX_ETIQUETAS) break
+    }
+    return salida
+}
+
+/**
+ * Identidad con la que se publica un personalizado. Desactivado: lo publica el bot.
+ * modo 'propio': el webhook interno del bot en el canal, con el nombre y la foto que se elijan.
+ * modo 'existente': un webhook que ya hay en el servidor (o pegado por URL); nombre y foto son opcionales
+ * (si faltan se usan los del propio webhook). Discord no deja «discord» ni «clyde» en el nombre (máx. 80).
+ */
+function normalizarWebhook(valor) {
+    const w = valor && typeof valor === "object" ? valor : {}
+    const activo = Boolean(w.activo)
+    const modo = w.modo === "existente" ? "existente" : "propio"
+    const webhookId = String(w.webhookId || "").trim()
+    const nombre = String(w.nombre || "").trim().slice(0, 80)
+    const avatar = String(w.avatar || "").trim().slice(0, 500)
+    if (activo) {
+        if (modo === "existente" && !/^\d{17,20}$/.test(webhookId)) throw new ErrorEvento(400, "Elige qué webhook del servidor publica el mensaje.")
+        if (modo === "propio" && !nombre) throw new ErrorEvento(400, "El webhook necesita un nombre.")
+        if (/discord|clyde/i.test(nombre)) throw new ErrorEvento(400, "Discord no permite «discord» ni «clyde» en el nombre de un webhook.")
+        if (avatar && !/^https?:\/\/\S+$/i.test(avatar)) throw new ErrorEvento(400, "La foto del webhook debe ser una URL que empiece por http(s)://.")
+    }
+    return { activo, modo, webhookId: modo === "existente" ? webhookId : null, nombre, avatar: avatar || null }
+}
+
+/** Quién firma el mensaje: si cambia, el mensaje publicado no se puede editar y hay que reenviarlo. */
+function remitenteDe(doc) {
+    const w = doc?.tipo === "personalizado" ? doc.webhook : null
+    if (!w?.activo) return "bot"
+    const clave = `${w.modo || "propio"}\n${w.webhookId || ""}\n${w.nombre}\n${w.avatar || ""}`
+    return "webhook:" + crypto.createHash("sha1").update(clave).digest("hex").slice(0, 16)
+}
+
+/** Credenciales del webhook que publica el doc, comprobando que pueda escribir en ese canal. */
+async function webhookParaDoc(client, guildId, dbServer, doc, canal) {
+    const threadId = canal.isThread?.() ? canal.id : undefined
+    if (doc.webhook.modo !== "existente") return { ...(await wh.webhookDelBot(client, canal)), threadId }
+    const cred = await wh.credencialesWebhook(client, guildId, dbServer, doc.webhook.webhookId)
+    const canalBase = threadId ? canal.parentId : canal.id
+    if (cred.canalId !== canalBase) {
+        const destino = await client.channels.fetch(cred.canalId).catch(() => null)
+        throw new ErrorEvento(400, `Ese webhook solo publica en #${destino?.name || cred.canalId} (o en sus hilos). Cambia el canal del mensaje.`)
+    }
+    return { ...cred, threadId }
+}
+
+/** Borra un mensaje publicado; si lo mandó un webhook que conocemos se borra con él (no hace falta «Gestionar mensajes»). */
+async function borrarMensajeDiscord(client, dbServer, canal, mensaje) {
+    if (!mensaje) return false
+    if (mensaje.webhookId) {
+        try {
+            const threadId = canal.isThread?.() ? canal.id : undefined
+            const propio = await wh.webhookDelBot(client, canal).catch(() => null)
+            const cred = propio?.id === mensaje.webhookId ? propio : await wh.credencialesWebhook(client, canal.guildId, dbServer, mensaje.webhookId)
+            await wh.borrarMensajeWebhook(cred, mensaje.id, threadId)
+            return true
+        } catch { /* se intenta como mensaje normal */ }
+    }
+    return Boolean(await mensaje.delete().catch(() => null))
+}
+
+/* ── Perfiles de webhook guardados (nombre + foto reutilizables) ── */
+
+async function listarPerfilesWebhook(dbServer) {
+    return dbServer.collection(COLECCION_PERFILES).find({}).sort({ nombre: 1 }).toArray()
+}
+
+async function guardarPerfilWebhook(dbServer, id, entrada, autorId) {
+    const limpio = String(id || "").trim().toLowerCase()
+    if (!ID_VALIDO.test(limpio)) throw new ErrorEvento(400, "Identificador de perfil no válido.")
+    const { nombre, avatar } = normalizarWebhook({ ...entrada, activo: true })
+    await dbServer.collection(COLECCION_PERFILES).updateOne(
+        { _id: limpio },
+        { $set: { nombre, avatar, actualizadoEn: new Date(), actualizadoPor: autorId }, $setOnInsert: { creadoEn: new Date() } },
+        { upsert: true }
+    )
+    return dbServer.collection(COLECCION_PERFILES).findOne({ _id: limpio })
+}
+
+async function eliminarPerfilWebhook(dbServer, id) {
+    const r = await dbServer.collection(COLECCION_PERFILES).deleteOne({ _id: String(id) })
+    if (!r.deletedCount) throw new ErrorEvento(404, "Ese perfil ya no existe.")
 }
 
 /** Objetos de Objetos_globales aplanados, con lo que necesita el editor de tiendas. */
@@ -214,10 +324,21 @@ function construirTienda(tienda, objetos, eleccion = {}) {
     }
 }
 
-/** Componentes de cualquier mensaje gestionado, listos para enviar, con sus problemas. */
-async function construirMensaje(config, dbRol, eleccion = {}, objetosCache = null) {
+/**
+ * Componentes de cualquier mensaje gestionado, listos para enviar, con sus problemas.
+ * Un vestíbulo depende de los demás (sus destinos): se pasan en `extra.vestibulos`, o `extra.dbServer` para leerlos.
+ */
+async function construirMensaje(config, dbRol, eleccion = {}, objetosCache = null, extra = {}) {
     if (config.tipo === "personalizado") {
-        return { components: config.components, eleccion: {}, objetos: null, avisos: [], problemas: validarComponentesV2(config.components) }
+        const faltan = wh.adjuntosQueFaltan(config.adjuntos, config.components)
+        const problemas = [...validarComponentesV2(config.components), ...faltan.map(n => `Falta la imagen adjunta «${n}»: súbela o quita la referencia attachment://${n}.`)]
+        return { components: config.components, eleccion: {}, objetos: null, avisos: [], problemas }
+    }
+    if (config.tipo === "vestibulo") {
+        const guardados = extra.vestibulos || (extra.dbServer ? await vestibulos.listarVestibulos(extra.dbServer) : [])
+        const todos = [...guardados.filter(d => d._id !== config._id), config]
+        const { bloqueantes, ...r } = vestibulos.construirVestibulo(config, todos)
+        return { ...r, problemas: [...validarComponentesV2(r.components), ...bloqueantes] }
     }
     const objetos = objetosCache || await listarObjetosTienda(dbRol)
     const { bloqueantes, ...r } = construirTienda({ ...config.tienda, _idMensaje: config._id }, objetos, eleccion)
@@ -253,16 +374,35 @@ async function listarMensajes(client, guildId, dbServer, dbRol) {
         const discord = client ? await estadoEnDiscord(client, guildId, doc) : { estado: "desconocido" }
         let desactualizado = false
         let problemas = []
+        // Cambió el nombre o la foto con que se publica: al publicar se reenvía en vez de editarse
+        const remitenteCambiado = Boolean(doc.ultimaPublicacion?.firma) && (doc.ultimaPublicacion.remitente || "bot") !== remitenteDe(doc)
         try {
             const ultima = doc.ultimaPublicacion
-            const actual = await construirMensaje(doc, dbRol, ultima?.eleccion || {}, objetos)
+            const actual = await construirMensaje(doc, dbRol, ultima?.eleccion || {}, objetos, { vestibulos: docs })
             problemas = actual.problemas
-            desactualizado = Boolean(ultima?.firma) && ultima.firma !== firmaComponentes(actual.components)
+            desactualizado = Boolean(ultima?.firma) && (ultima.firma !== firmaComponentes(actual.components) || (ultima.remitente || "bot") !== remitenteDe(doc))
         } catch (err) {
             problemas = [err.message]
         }
-        return { ...doc, discord, desactualizado, problemas }
+        return { ...doc, discord, desactualizado, problemas, remitenteCambiado }
     }))
+}
+
+/**
+ * Ids de los vestíbulos publicados cuyo mensaje ya no coincide con lo que se publicó. El menú de cada vestíbulo
+ * depende de los demás (nombre, emoji, descripción, cerrado), así que se compara de verdad con la huella guardada
+ * en vez de dar por pendientes a todos cada vez que se guarda uno.
+ */
+async function vestibulosDesactualizados(dbServer, dbRol) {
+    const docs = await vestibulos.listarVestibulos(dbServer)
+    const ids = []
+    for (const doc of docs) {
+        const firma = doc.ultimaPublicacion?.firma
+        if (!firma) continue
+        const actual = await construirMensaje(doc, dbRol, {}, null, { vestibulos: docs })
+        if (firma !== firmaComponentes(actual.components)) ids.push(doc._id)
+    }
+    return ids
 }
 
 async function obtenerDoc(dbServer, id) {
@@ -281,8 +421,10 @@ async function guardarMensaje(dbServer, id, entrada, autorId) {
     const ahora = new Date()
     const set = { ...config, actualizadoEn: ahora, actualizadoPor: autorId }
     delete set._id
-    if (config.tipo === "tienda") set.components = null
-    else set.tienda = null
+    const propio = config.tipo === "personalizado" ? "components" : config.tipo
+    for (const campo of ["tienda", "components", "vestibulo"]) if (campo !== propio) set[campo] = null
+    if (config.tipo !== "personalizado") { set.etiquetas = null; set.webhook = null; set.adjuntos = null }
+    else set.adjuntos = await wh.vincularAdjuntos(dbServer, config._id, config.adjuntos)
     // Mover el mensaje a otro canal deja huérfano el anterior: se olvida y la próxima publicación lo envía nuevo
     if (previo && previo.canalId !== config.canalId) set.messageId = null
 
@@ -291,7 +433,27 @@ async function guardarMensaje(dbServer, id, entrada, autorId) {
         { $set: set, $setOnInsert: { creadoEn: ahora, creadoPor: autorId, ...(previo ? {} : { messageId: null, ultimaPublicacion: null }) } },
         { upsert: true }
     )
+    // Solo puede haber un punto de aparición
+    if (config.vestibulo?.inicial) {
+        await coleccion.updateMany({ tipo: "vestibulo", _id: { $ne: config._id }, "vestibulo.inicial": true }, { $set: { "vestibulo.inicial": false } })
+    }
     return coleccion.findOne({ _id: config._id })
+}
+
+/** Menciones permitidas al enviar: solo los personalizados hacen ping. */
+function mencionesDe(doc) {
+    return { parse: doc.tipo === "personalizado" ? ["everyone", "roles", "users"] : [] }
+}
+
+/** ¿Algún texto de los componentes cumple el patrón? */
+function menciona(componentes, patron) {
+    const textos = []
+    const recorrer = (lista) => (lista || []).forEach(c => {
+        if (typeof c?.content === "string") textos.push(c.content)
+        recorrer(c?.components)
+    })
+    recorrer(componentes)
+    return textos.some(t => patron.test(t))
 }
 
 /**
@@ -306,38 +468,75 @@ async function publicarMensaje(client, guildId, dbServer, dbRol, id, { modo = "a
     if (info.tipo === "foro") throw new ErrorEvento(400, "Un foro no admite mensajes sueltos: usa el ID de una publicación (hilo) del foro.")
     if (info.permisosFaltantes.length) throw new ErrorEvento(403, `Al bot le faltan permisos en #${info.nombre}: ${info.permisosFaltantes.join(", ")}.`)
 
-    const construido = await construirMensaje(doc, dbRol, eleccion)
+    const construido = await construirMensaje(doc, dbRol, eleccion, null, { dbServer })
     if (construido.problemas.length) throw new ErrorEvento(400, construido.problemas.join(" "))
     const payload = { components: limpiarParaEnvio(construido.components), flags: ["IsComponentsV2"] }
 
     const anterior = doc.messageId ? await canal.messages.fetch(doc.messageId).catch(() => null) : null
     // 'editar' nunca envía nada nuevo: es lo que usan los refrescos automáticos, que no deben resucitar un panel borrado
     if (modo === "editar" && !anterior) return { accion: "omitido", url: null, messageId: null, canalNombre: info.nombre }
+
+    // Con webhook, el nombre y la foto se fijan al enviar: si cambian (o se pasa de bot a webhook) hay que reenviarlo
+    const remitente = remitenteDe(doc)
+    const conWebhook = remitente !== "bot"
+    const cred = conWebhook ? await webhookParaDoc(client, guildId, dbServer, doc, canal) : null
+    if (cred && !cred.deApp && wh.tieneComponentesInteractivos(payload.components)) {
+        throw new ErrorEvento(400, "Ese webhook no es de una app: Discord solo le deja enviar componentes no interactivos. Quita los botones que no son de enlace o los menús, o usa el webhook del bot.")
+    }
+    const anteriorEditable = anterior && (conWebhook
+        ? anterior.webhookId === cred.id && (doc.ultimaPublicacion?.remitente || "bot") === remitente
+        : !anterior.webhookId && anterior.author?.id === client.user.id)
+    const reenviar = modo === "reenviar" || (anterior && !anteriorEditable)
+
+    // Imágenes subidas desde el dashboard: se mandan como archivos y los componentes las usan con attachment://nombre
+    const archivos = doc.tipo === "personalizado" ? await wh.archivosParaEnviar(dbServer, doc.adjuntos, payload.components) : []
+    // Al editar, `attachments` reemplaza los adjuntos anteriores por los que se suben ahora
+    // Los personalizados pueden avisar (@everyone, @here, roles, usuarios); tiendas y vestíbulos nunca mencionan
+    const menciones = mencionesDe(doc)
+    if (!conWebhook && menciona(payload.components, /@(everyone|here)/)) {
+        const permisos = canal.permissionsFor(client.user)
+        if (!permisos?.has(PermissionFlagsBits.MentionEveryone)) {
+            throw new ErrorEvento(403, `El mensaje usa @everyone/@here, pero el bot no tiene «Mencionar @everyone, @here y todos los roles» en #${info.nombre}: no haría ping. Dale ese permiso o publícalo con un webhook.`)
+        }
+    }
+    const cuerpoWh = { components: payload.components, flags: 1 << 15, allowed_mentions: menciones }
+
     let mensaje
     let accion
     try {
-        if (anterior && modo !== "reenviar") {
-            mensaje = await anterior.edit({ components: payload.components })
+        if (anterior && !reenviar) {
+            mensaje = conWebhook
+                ? await wh.editarMensajeWebhook(cred, anterior.id, { payload: { components: payload.components, allowed_mentions: menciones, ...(archivos.length ? {} : { attachments: [] }) }, archivos, threadId: cred.threadId })
+                : await anterior.edit({ components: payload.components, allowedMentions: { parse: menciones.parse }, files: archivos.map(a => ({ attachment: a.buffer, name: a.nombre })), attachments: [] })
             accion = "editado"
         } else {
-            mensaje = await canal.send(payload)
+            mensaje = conWebhook
+                ? await wh.ejecutarWebhook(cred, {
+                    payload: { ...cuerpoWh, ...(doc.webhook.nombre ? { username: doc.webhook.nombre } : {}), ...(doc.webhook.avatar ? { avatar_url: doc.webhook.avatar } : {}) },
+                    archivos,
+                    threadId: cred.threadId
+                })
+                : await canal.send({ ...payload, allowedMentions: { parse: menciones.parse }, files: archivos.map(a => ({ attachment: a.buffer, name: a.nombre })) })
             accion = anterior ? "reenviado" : (doc.messageId ? "restaurado" : "enviado")
-            if (anterior) await anterior.delete().catch(() => null)
+            if (anterior) await borrarMensajeDiscord(client, dbServer, canal, anterior)
         }
     } catch (err) {
+        if (err instanceof ErrorEvento) throw err
         const detalle = err.rawError?.errors ? ` ${JSON.stringify(err.rawError.errors).slice(0, 600)}` : ""
         throw new ErrorEvento(400, `Discord rechazó el mensaje: ${err.message}${detalle}`)
     }
+    const url = mensaje.url || `https://discord.com/channels/${guildId}/${canal.id}/${mensaje.id}`
 
     const ultimaPublicacion = {
         fecha: new Date(),
         autor: autorId,
         accion,
         eleccion: construido.eleccion,
-        firma: firmaComponentes(construido.components)
+        firma: firmaComponentes(construido.components),
+        remitente
     }
     await dbServer.collection(COLECCION).updateOne({ _id: doc._id }, { $set: { messageId: mensaje.id, ultimaPublicacion } })
-    return { accion, url: mensaje.url, messageId: mensaje.id, canalNombre: info.nombre }
+    return { accion, url, messageId: mensaje.id, canalNombre: info.nombre }
 }
 
 /**
@@ -370,6 +569,13 @@ async function refrescarPaneles(client, guildId, dbServer, dbRol, { lugares = nu
     return resultado
 }
 
+/** Documento de un vestíbulo guardado; falla si no existe o es otro tipo de mensaje. */
+async function obtenerVestibulo(dbServer, id) {
+    const doc = await obtenerDoc(dbServer, id)
+    if (doc.tipo !== "vestibulo" || !doc.vestibulo) throw new ErrorEvento(400, `'${id}' no es un vestíbulo.`)
+    return doc
+}
+
 /** Configuración de una tienda por su id, o null si no existe. */
 async function obtenerTienda(dbServer, id) {
     const doc = await dbServer.collection(COLECCION).findOne({ _id: String(id), tipo: "tienda" })
@@ -383,9 +589,10 @@ async function eliminarMensaje(client, dbServer, id, borrarDeDiscord) {
     if (borrarDeDiscord && client && doc.canalId && doc.messageId) {
         const canal = await client.channels.fetch(doc.canalId).catch(() => null)
         const mensaje = canal?.messages ? await canal.messages.fetch(doc.messageId).catch(() => null) : null
-        if (mensaje) borradoEnDiscord = Boolean(await mensaje.delete().catch(() => null))
+        if (mensaje) borradoEnDiscord = await borrarMensajeDiscord(client, dbServer, canal, mensaje)
     }
     await dbServer.collection(COLECCION).deleteOne({ _id: doc._id })
+    if (doc.tipo === "personalizado") await wh.vincularAdjuntos(dbServer, doc._id, [])
     return { borradoEnDiscord }
 }
 
@@ -436,5 +643,11 @@ module.exports = {
     eliminarMensaje,
     asignarObjetosATienda,
     refrescarPaneles,
-    obtenerTienda
+    vestibulosDesactualizados,
+    obtenerTienda,
+    obtenerVestibulo,
+    normalizarEtiquetas,
+    listarPerfilesWebhook,
+    guardarPerfilWebhook,
+    eliminarPerfilWebhook
 }

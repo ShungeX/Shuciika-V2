@@ -32,7 +32,7 @@ const FLUSH_MS = 60 * 1000
 const MOTIVOS = new Set([
     "cofre", "trabajo", "tienda", "purificacion", "venta", "regalo", "duelo",
     "evento", "reembolso", "admin", "clase", "exploracion", "combate", "hechizo",
-    "baja_personaje",
+    "baja_personaje", "contenedor",
 ])
 
 /** "2026-11-04": día en México de un instante, cortado a las 00:00 igual que la jornada. */

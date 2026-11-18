@@ -433,17 +433,25 @@ module.exports = crearModal({
                             nix: {
                                 personajeActivo: id,
                                 slotsPersonajes: {
-                                    total: 1,
+                                    // +1 si apoyó el servidor (Boost/Support) antes de tener personajes: slot gratis, una sola vez
+                                    total: usuariodb?.apoyo?.slotPendiente ? 2 : 1,
                                     usados: 1,
                                 },
                                 personajes: [
                                     { "id": id, nombre: cachepj.nombre }
                                 ],
                                 fechaRegistro: Math.floor(Date.now() / 1000),
-                            }
+                            },
+                            ...(usuariodb?.apoyo?.slotPendiente ? { "apoyo.slotEntregado": true } : {})
                         },
-                        $unset: { fichaStatus: "" }
+                        $unset: { fichaStatus: "", ...(usuariodb?.apoyo?.slotPendiente ? { "apoyo.slotPendiente": "" } : {}) }
                     }, { upsert: true });
+
+                    // Primer personaje: aparece en el vestíbulo marcado como punto de aparición y recibe su rol.
+                    // (Un personaje adicional no es el activo; se le asigna al cambiar a él.) No lanza ni bloquea la verificación.
+                    require("../../../functions/vestibulos").sincronizarUbicacion(
+                        interaction.client, interaction.guildId, dbServer, dbRol, targetUserId, id
+                    );
 
                     verificado = [
                         {

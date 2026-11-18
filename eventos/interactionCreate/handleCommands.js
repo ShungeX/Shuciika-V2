@@ -5,6 +5,7 @@ const getLocalCommands = require("../../utils/getLocalCommands");
 const getLocalModals = require("../../utils/getLocalModals");
 const getLocalSelect = require("../../utils/getLocalSelectMenus");
 const { manejarComponente} = require("../../interaction/manejarComponente")
+const accesoComandos = require("../../config/accesoComandos")
 const { ChatInputCommandInteraction, InteractionWebhook, Client, ChannelType, EmbedBuilder } = require("discord.js")
 const db1 = clientdb.db("Rol_db")
 const db2 = clientdb.db("Server_db")
@@ -23,9 +24,15 @@ const objetosdb = db1.collection("Objetos_globales")
 //Es posible renombrarlos una vez solicitados, algo asi cómo: ejecutar: async(options: {option1: data}) ahora la primera opción se llama data
 
 module.exports = async (client, interaction) => {
-    const userdb = await userdbs.findOne({_id: interaction.user.id})
 
     if (interaction.isAutocomplete()) {
+        // Un comando restringido no sugiere nada a quien no puede usarlo
+        const nombreComando = client.user.id === "857050098831065088" && interaction.commandName?.startsWith("navi-")
+            ? interaction.commandName.replace("navi-", "") : interaction.commandName
+        if (!accesoComandos.puedeUsar(interaction.user.id, nombreComando, accesoComandos.claveSubcomando(interaction))) {
+            return interaction.respond([]).catch(() => {})
+        }
+
         const focusedOptions = interaction.options.getFocused(true)
         const subcommand = interaction.options.getSubcommand()
 
@@ -83,7 +90,8 @@ module.exports = async (client, interaction) => {
             try {
                 // Solo lo necesario: traer el documento completo de cada personaje
                 // (inventario, buzón...) hace lenta una respuesta que tiene 3 s.
-                const characters = await chars.find({}, { projection: { _id: 1, "perfil.Nombre": 1 } }).toArray()
+                // Sin los personajes inactivos (su dueño salió del servidor)
+                const characters = await chars.find({ Inactivo: { $ne: true } }, { projection: { _id: 1, "perfil.Nombre": 1 } }).toArray()
                 const texto = String(focusedOptions.value ?? "").toLowerCase()
 
                 const filtro = characters
@@ -149,6 +157,11 @@ module.exports = async (client, interaction) => {
 
 
 
+    }
+
+    // Diálogos de combate: se mandan efímeros sobre la última interacción del jugador
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+        require("../../functions/Duelo/dialogoCombate").registrarInteraccion(interaction)
     }
 
     if (interaction.isModalSubmit()) {
@@ -227,6 +240,14 @@ module.exports = async (client, interaction) => {
                     return interaction.reply({ content: "No se puede usar este comando aqui", flags: ["Ephemeral"] })
                 }
             }
+
+            // Acceso restringido (dashboard → Configuración del servidor → Acceso a comandos)
+            const subClave = accesoComandos.claveSubcomando(interaction)
+            if (!accesoComandos.puedeUsar(interaction.user.id, commandsName, subClave)) {
+                return interaction.reply({ content: "Este comando todavía no está disponible para ti (｡•́︿•̀｡)\n-# Solo algunas personas pueden usarlo por ahora.", flags: ["Ephemeral"] })
+            }
+            // T0: comando pre-lanzamiento. Solo es un indicador; cada comando decide qué cambia.
+            interaction.t0 = accesoComandos.esT0(commandsName, subClave)
 
             await commandObject.ejecutar(client, interaction);
         } catch (e) {

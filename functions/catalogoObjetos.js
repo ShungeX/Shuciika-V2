@@ -19,7 +19,6 @@ async function cargarCatalogo(regionesCollection) {
             }));
             catalogoRegiones.set(region._id, objetosNormalizados);
         }
-        console.log(`📦 Catálogo de objetos cargado: ${catalogoRegiones.size} regiones`);
         return catalogoRegiones;
     } catch (error) {
         console.error("❌ Error al cargar catálogo de objetos:", error);

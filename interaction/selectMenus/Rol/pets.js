@@ -1,84 +1,34 @@
-const { ChatInputCommandInteraction, ModalBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder, Client, Embed, StringSelectMenuBuilder } = require("discord.js")
-const clientdb = require("../../../Server");
-const db = clientdb.db("Server_db")
-const db2 = clientdb.db("Rol_db")
-const souls = db2.collection("Soul")
-const character = db2.collection("Personajes")
-const version = require("../../../config");
-const { petConfig, petDesgaste, modificadoresLv, modifEtapa, pesosEstados } = require("../../../config/configPets");
-const { duelSystem } = require("../../../functions/Duelo/duelManager");
-const estadosMascota = require("../../../functions/petsStatus");
-const dbobjetos = db2.collection("Objetos_globales")
-const pets = db2.collection("Mascotas")
-const { splitCustomId } = require("../../../utils/constructores/customId")
+const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente");
+const servicio = require("../../../functions/Mascotas/servicio");
+const pantallas = require("../../../functions/Mascotas/pantallas");
+const vista = require("../../../functions/Mascotas/vista");
 
-
-module.exports = {
+// Selector de mascotas del panel: cambia la mascota activa del personaje.
+// customId: pets-{userId}--activar-{origen}   (characterId vacío → personaje activo de quien pulsa)
+module.exports = crearStringSelectMenu({
     customId: "pets",
     soloAutor: true,
     requirements: {
-        character: { obtener: true }
+        character: { obtener: true, required: true }
     },
+    optionNames: ["petId"],
 
+    ejecutar: async ({ interaction, character, componentData: { extras }, options: { petId } }) => {
+        const [accion, origenRaw] = extras;
+        const userId = interaction.user.id;
+        const origen = origenRaw === "e" ? "e" : "p";
+        const efimero = (content) => interaction.reply({ content, flags: ["Ephemeral"], allowedMentions: { parse: [] } });
 
-    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
-    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
-    ejecutar: async ({ client, interaction, character: personaje }) => {
-        // pets-<userId>-<characterId>-<accion>
-        const [, , charId, action] = splitCustomId(interaction.customId)
-        const char = personaje ?? { ID: Number(charId) || charId }
-        const id = interaction.values[0]
+        if (accion !== "activar") return efimero(vista.mensajeDe({ motivo: "accion_invalida" }));
 
+        const r = await servicio.activar({ character, petId });
+        if (!r.ok) return efimero(vista.mensajeDe(r));
 
-        console.log(id, action)
-
-        if (action === "incubar") {
-            petsJson = {
-                "_id": "randomEgg",
-                "characterID": char.ID,
-                "etapa": "Huevo",
-                "adoptada": Math.floor(Date.now() / 1000),
-                "rareza": dataegg.Rareza,
-                "activePet": null,
-                "emoji": {
-                    "name": "lemon_fox",
-                    "id": "1374263466034200616"
-                },
-                "diasCuidado": 0,
-                "lastDay": 0,
-                "crecimiento": 0,
-                "inIncubadora": true,
-            }
-
-            petsJson2 = {
-                "_id": "randomEgg",
-                "characterID": char.ID,
-                "nombre": null,
-                "tipo": "Huevo",
-                "etapa": "Huevo",               // Solo huevo
-                "vitalidad": 5, //Representado en corazones
-                "nacimientoEn": 1720905600,      // epoch si está en incubadora
-                "puntosRequeridos": 100,
-                "ProgresoIncubación": 5,
-                "creadoEn": 1720627200, //Epoch para fecha
-                "registroCuidado": {
-                    "ultimoCuidado": x, //ms date.Now para calcular el ultimo cuidado,
-                    "ciclosFallidos": 0 //En caso de que el usuario falle
-                },
-                "historial": [], //¿Deberia agregarlo?
-                "flags": {
-                    "incubadora": false,
-                    "fragmentado": false, //Roto / muerto
-                    //¿Deberia incluir más flags aqui?
-                },
-                 "emoji": {
-                    "name": "lemon_fox",
-                    "id": "1374263466034200616"
-                },
-            }
-
-
-            pets.updateOne()
-        }
+        const pantalla = await pantallas.mascotas({
+            userId, character, puedeCuidar: true, origen,
+            aviso: `\`[🐾]\` **${r.pet.Nombre}** te acompaña ahora.`,
+        });
+        await interaction.update({ components: pantalla.components, allowedMentions: { parse: [] } });
+        return pantallas.anunciar(interaction, pantalla);
     }
-}
+});

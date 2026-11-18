@@ -22,6 +22,12 @@ class NpcAi {
         // 1. Evaluate Boss Phase transitions
         this.evaluatePhaseTransitions(session, npc);
 
+        // 1b. Habilidad única (p. ej. Sosias): si usa el turno, no hay IA normal
+        if (npc.habilidadUnica && await require("./habilidadesNPC").turnoHabilidad(session, npc)) {
+            console.log(`[CONSOLA - NPC IA] ✨ "${npc.Nombre}" usó su habilidad única (${npc.habilidadUnica})`);
+            return;
+        }
+
         // 2. Select action based on behavior rules
         let actionExecuted = false;
         const sortedRules = [...(npc.comportamiento || [])].sort((a, b) => a.prioridad - b.prioridad);
@@ -341,7 +347,7 @@ class NpcAi {
                 case "recuperar_mana":
                     const manaAmount = Number(act.valor || 0);
                     const oldMana = npc.Mana;
-                    npc.Mana = Math.min(npc.stats.manaMax, npc.Mana + manaAmount);
+                    require("./hechizos/mana").ganarMana(npc, manaAmount);
                     session.addLog("objeto", {
                         autor: npc.Nombre,
                         item: { Nombre: "Recuperar Maná", Tipo: "AI", tipo: "curacion" },

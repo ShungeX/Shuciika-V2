@@ -55,6 +55,19 @@ module.exports = {
         }
 
         if (currentEnergyVal >= maxEnergy) {
+            // Con la energía llena el reloj no corre. Si se quedara en la hora en que se llenó, el primer
+            // gasto tras un rato al máximo se "regeneraría" entero en la siguiente lectura (gasto gratis).
+            // Solo se escribe cuando lleva un intervalo o más de retraso, no en cada lectura.
+            if (ahora - lastUpdate >= intervalMs) {
+                const targetId = soulObj._id ?? soulObj.id ?? soulObj.ID;
+                if (targetId) {
+                    await souls.updateOne(
+                        { _id: targetId, "nucleo.energy": { $gte: maxEnergy } },
+                        { $set: { "nucleo.lastEnergyUpdate": ahora } }
+                    );
+                }
+                if (soulObj.nucleo) soulObj.nucleo.lastEnergyUpdate = ahora;
+            }
             return currentEnergyVal;
         }
 

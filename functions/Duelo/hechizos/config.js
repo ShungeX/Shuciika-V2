@@ -50,7 +50,8 @@ const ESCALONES = Object.freeze({
 const ROLES = Object.freeze(["daño", "curación", "soporte", "control", "defensa", "híbrido"])
 const ALCANCES = Object.freeze(["single", "todos", "cadena"])
 const OBJETIVOS = Object.freeze(["enemigos", "aliados", "mismo", "global"])
-const VIAS_ADQUISICION = Object.freeze(["inicio", "tratado", "evento", "luna"])   // 'luna' reservado, no implementar
+// instituto / tienda: fuente de la página del hechizo (Aprendizaje). 'tratado' se conserva por compatibilidad.
+const VIAS_ADQUISICION = Object.freeze(["inicio", "instituto", "tienda", "tratado", "evento", "luna"])   // 'luna' reservado, no implementar
 
 const CASTEO = Object.freeze({
     FACTOR_MENTAL: 0.5,               // ⚙ la vía del experto sufre la mitad de las degradaciones
@@ -65,7 +66,8 @@ const CASTEO = Object.freeze({
     TIEMPO_CANALIZACION_MIN: 2,
 })
 
-const CADENA = Object.freeze({ FACTORES: [1, 0.7, 0.5] })   // ⚙ Electro-002
+// ⚙ Electro-002. Un daño en cadena puede limitarse con damage.objetivosMax (Doble Descarga: 2 → 100% / 70%)
+const CADENA = Object.freeze({ FACTORES: [1, 0.7, 0.5], MIN_OBJETIVOS: 2 })
 
 const INTERRUPCION = Object.freeze({
     FRACCION_COOLDOWN: 0.5,           // ⚙ el hechizo cortado entra a la mitad de su cooldown
@@ -173,6 +175,8 @@ const CALIBRACION = Object.freeze({
     PESOS: Object.freeze({
         TODOS_POR_OBJETIVO: 0.6, CADENA: 2.25, DOT: 0.8, HOT: 0.9,
         BUFF: 0.4, ESQUIVE: 0.6, DEBUFF_DANIO: 0.5, CLEANSE: 0.8, REVIVE: 300,
+        // ⚙ cada punto de maná recuperado vale lo que la eficiencia base de una Nota por punto de maná
+        REGEN_MANA: 5.5,
         CONTROL_DEFECTO: 0.4, DEGRADACION_DEFECTO: 0.3,
     }),
 })

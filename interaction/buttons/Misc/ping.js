@@ -1,35 +1,29 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, } = require(`discord.js`)
-const { splitCustomId } = require("../../../utils/constructores/customId")
+const { performance } = require("perf_hooks")
+const { obtenerDiagnostico } = require("../../../functions/diagnostico")
+const { menuPing } = require("../../../data/UI_ComponentsV2/menuPing")
 
+// Botón "Volver a medir" del comando /ping
 module.exports = {
     customId: "ping_button",
     soloAutor: true,
 
     /**
-     * 
-     * @param {*} client 
-     * @param {ChatInputCommandInteraction} interaction 
+     * @param {{ client: import('discord.js').Client, interaction: import('discord.js').ButtonInteraction }} param0
      */
-    // manejarComponente llama con un objeto ({ client, interaction, ... }). Los argumentos que antes
-    // llegaban posicionales se leen del customId sin convertir (manejarComponente pasa la 3ª parte a número).
     ejecutar: async ({ client, interaction }) => {
+        // Tiempo que tarda Discord en confirmar la respuesta del bot (ida y vuelta por HTTP)
+        const inicio = performance.now()
+        const internoMs = interaction.recibidaEn != null ? inicio - interaction.recibidaEn : null
+        await interaction.deferUpdate()
+        const confirmacionMs = performance.now() - inicio
+        const respuestaMs = confirmacionMs + (internoMs || 0)
 
-                
-                const interactionPing = interaction.createdTimestamp
-                
-    
-                const button = new ButtonBuilder()
-                .setCustomId(`ping_button-${interaction.user.id}`)
-                .setStyle(ButtonStyle.Primary)
-                .setLabel("Click")
-        
-                const row = new ActionRowBuilder().addComponents(button);
-                const embed = new EmbedBuilder()
-                .setTitle("Comando Ping")
-                .setDescription(`[T. Respuesta] ${Date.now() - interactionPing}ms\n[Websocket] ${client.ws.ping}ms`)
-                .setColor("Random")
+        const diagnostico = await obtenerDiagnostico(client)
 
-                await interaction.update({ embeds: [embed], components: [row] })
-        
+        await interaction.editReply({
+            components: menuPing(diagnostico, { userId: interaction.user.id, respuestaMs, internoMs, confirmacionMs }),
+            flags: ["IsComponentsV2"],
+            allowedMentions: { parse: [] },
+        })
     }
 };

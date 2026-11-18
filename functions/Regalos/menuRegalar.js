@@ -191,8 +191,9 @@ async function ponerDestino({ token, character, idTxt }) {
     const id = String(idTxt || "").trim()
     if (!/^\d{1,18}$/.test(id)) return "ID_INVALIDA"
     if (String(id) === String(character._id)) return "MISMO_PERSONAJE"
-    const dest = await c.leerPersonaje(id, { _id: 1, ownerID: 1 })
+    const dest = await c.leerPersonaje(id, { _id: 1, ownerID: 1, Inactivo: 1 })
     if (!dest) return "DESTINO_NO_EXISTE"
+    if (dest.Inactivo === true) return "DESTINO_INACTIVO"
     if (String(dest.ownerID) === String(character.ownerID)) return "DESTINO_INVALIDO"
     s.destino = c.normalizarId(id)
     return null

@@ -1,44 +1,38 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ChatInputCommandInteraction, } = require(`discord.js`)
-const {SlashCommandBuilder} = require("@discordjs/builders")
+const { ChatInputCommandInteraction } = require(`discord.js`)
+const { SlashCommandBuilder } = require("@discordjs/builders")
+const { obtenerDiagnostico } = require("../../functions/diagnostico")
+const { menuPing } = require("../../data/UI_ComponentsV2/menuPing")
 
 module.exports = {
     data: new SlashCommandBuilder()
-    .setName("ping")
-    .setDescription("Pong!"),
-    // DevOnly: Boolean,
-    // GuildOnly: Boolean,
-    // options: Object[],
-    // deleted: Boolean
+        .setName("ping")
+        .setDescription("Comprueba la latencia y el estado de Navi.")
+        .setContexts(['Guild']),
 
     /**
-     * 
-     * @param {*} client 
-     * @param {ChatInputCommandInteraction} interaction 
+     * @param {import('discord.js').Client} client
+     * @param {ChatInputCommandInteraction} interaction
      */
-
     ejecutar: async (client, interaction) => {
+        // Desglose: lo que tarda el bot en empezar a responder y lo que tarda Discord en confirmar
+        const antes = performance.now()
+        const internoMs = interaction.recibidaEn != null ? antes - interaction.recibidaEn : null
         await interaction.deferReply();
+        const confirmacionMs = performance.now() - antes
 
-        const reply = await interaction.fetchReply();
+        // Ambas marcas de tiempo las pone Discord (no el reloj de este equipo): es el tiempo real
+        // desde que el usuario envió el comando hasta que Discord registró la respuesta del bot.
+        const respuesta = await interaction.fetchReply();
+        const respuestaMs = respuesta.createdTimestamp - interaction.createdTimestamp
 
-        const ping = reply.createdTimestamp - interaction.createdTimestamp
+        const diagnostico = await obtenerDiagnostico(client)
 
-        const button = new ButtonBuilder()
-        .setCustomId(`ping_button-${interaction.user.id}`)
-        .setStyle(ButtonStyle.Primary)
-        .setLabel("Click")
-
-        const row = new ActionRowBuilder().addComponents(button);
-
-        const embed = new EmbedBuilder()
-        .setTitle("Comando Ping")
-        .setDescription(`[Cliente] ${ping}ms\n[Websocket] ${client.ws.ping}ms`)
-        .setColor("Random")
- 
-
-
-       interaction.editReply({embeds: [embed], components: [row]})
+        await interaction.editReply({
+            components: menuPing(diagnostico, { userId: interaction.user.id, respuestaMs, internoMs, confirmacionMs }),
+            flags: ["IsComponentsV2"],
+            allowedMentions: { parse: [] },
+        })
     },
 
-    deleted: true,
+    deleted: false,
 }

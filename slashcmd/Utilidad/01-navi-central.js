@@ -106,8 +106,7 @@ module.exports = {
             .setDescription("El evento a simular")
             .setChoices(
               {name: "[🏫] Bienvenida", value: "guildMemberAdd"},
-              {name: "[🏙️] Despedida", value: "guildMemberRemove"},
-              {name: "[⁉️] Boost", value: "guildmemberUpdate"}
+              {name: "[🏙️] Despedida", value: "guildMemberRemove"}
             )
             .setRequired(true)
         )

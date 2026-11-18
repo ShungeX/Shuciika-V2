@@ -73,6 +73,9 @@ class duelManager {
             // Maestría de hechizos: usos contados en este combate (con topes anti-farmeo)
             require("./hechizos/maestria").persistirSesion(sesion).catch(e => console.error("[duelManager] Error al guardar la maestría:", e.message));
 
+            // Contenedores: desgaste y carga reales contra NPCs; en duelos vuelven al estado inicial
+            await require("../Contenedores/servicio").persistirSesion(sesion).catch(e => console.error("[duelManager] Error al guardar los contenedores:", e.message));
+
             // 1. Mostrar estado de 0 HP y log de derrota "sucumbido 💀" en la UI regular
             await interfazCreate.update(sesion, this.client);
 
@@ -92,6 +95,11 @@ class duelManager {
 
             // 3. Resolver recompensas y enviar la pantalla de GameOver final
             const rewardsMap = await rewardCalculator.resolve(sesion, arrayWinner, arrayLosser, client);
+
+            // Salón de los Espejos: contador de Sosias, Invitación y recompensas del Anfitrión
+            const encuentros = require("./habilidadesNPC/anfitrion/encuentros");
+            const extrasAnfitrion = await encuentros.cerrarEncuentro(sesion).catch(e => { console.error("[duelManager] Error al cerrar el encuentro del Salón:", e.message); return new Map(); });
+            encuentros.fusionarRecompensas(rewardsMap, extrasAnfitrion);
 
             await interfazCreate.updateGameOver(sesion, this.client, datos, rewardsMap);
 

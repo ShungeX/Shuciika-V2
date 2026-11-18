@@ -1,0 +1,5758 @@
+{
+ "Hechizos_globales": [
+  {
+   "_id": "Aqua-002",
+   "Nombre": "Aguas Mansas",
+   "Descripcion": "Cura a un aliado y lava uno de sus males.",
+   "Elemento": "Aqua",
+   "Escalon": 2,
+   "Rol": "curación",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "instituto",
+    "aprecio": 2,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "cleanse",
+      "nombre": "Purificación",
+      "cantidad": 1,
+      "objetivo": "aliados",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.85,
+     "interruptible": true
+    },
+    "healing": {
+     "base": 45,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 3
+     },
+     "objetivo": "aliados",
+     "alcance": "single"
+    }
+   },
+   "Costos": {
+    "mana": 10,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Agua mansa, lleva lejos el mal que hiere y deja solo alivio."
+  },
+  {
+   "_id": "Aqua-003",
+   "Nombre": "Marea Serena",
+   "Descripcion": "Una marea que regenera a todos los aliados durante tres turnos.",
+   "Elemento": "Aqua",
+   "Escalon": 3,
+   "Rol": "curación",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "hot",
+      "nombre": "Marea Serena",
+      "base": 30,
+      "multi": 2.5,
+      "duracion": 3,
+      "objetivo": "aliados",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    }
+   },
+   "Costos": {
+    "mana": 22,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Agua de todos los mares, sube suave sobre nosotros y restaura lo que el combate ha roto, sin dejar a nadie atrás."
+  },
+  {
+   "_id": "Electro-003",
+   "Nombre": "Relámpago Tardío",
+   "Descripcion": "Reúne la tormenta durante dos turnos y la descarga sobre un único enemigo.",
+   "Elemento": "Electro",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Mecanicas": {
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 2,
+     "probabilidad": 0.8,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 150,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 6
+     },
+     "objetivo": "enemigos",
+     "alcance": "single"
+    },
+    "Efectos": []
+   },
+   "Costos": {
+    "mana": 22,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Escalon": 3,
+   "Rol": "daño",
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Invocacion": "Cielo que guardas la tormenta, reúnela en mis manos, dame tiempo para llamarla y déjala caer sobre uno solo."
+  },
+  {
+   "_id": "Kryo-001",
+   "Nombre": "Soplo Helado",
+   "Descripcion": "Una runa de escarcha que daña al enemigo y lo ralentiza.",
+   "Elemento": "Kryo",
+   "Escalon": 1,
+   "Rol": "control",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": null,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "instituto",
+    "aprecio": 1,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "degradacion",
+      "nombre": "Lentitud",
+      "duracion": 3,
+      "objetivo": "enemigos",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "escritura"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.8,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 10,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 1.5
+     },
+     "objetivo": "enemigos",
+     "alcance": "single"
+    }
+   },
+   "Costos": {
+    "mana": 5,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 1
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Que el invierno exhale por mi aliento."
+  },
+  {
+   "_id": "Kryo-002",
+   "Nombre": "Escarcha Inmóvil",
+   "Descripcion": "Congela a un enemigo. Su propio daño no rompe el hielo; el siguiente golpe sí.",
+   "Elemento": "Kryo",
+   "Escalon": 2,
+   "Rol": "control",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 3,
+    "precio": 500
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "control",
+      "nombre": "Congelado",
+      "duracion": 2,
+      "probabilidad": 0.7,
+      "objetivo": "enemigos",
+      "alcance": "single",
+      "bloquea": [
+       "hablado",
+       "movimiento",
+       "escritura",
+       "instinto"
+      ],
+      "rompeConDanio": true
+     }
+    ],
+    "cast": {
+     "vias": [
+      "escritura",
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.8,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 45,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 4.5
+     },
+     "objetivo": "enemigos",
+     "alcance": "single"
+    }
+   },
+   "Costos": {
+    "mana": 12,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Escarcha antigua, abraza a mi adversario con tu frío y detén su paso."
+  },
+  {
+   "_id": "Kryo-003",
+   "Nombre": "Invierno Profundo",
+   "Descripcion": "Un invierno que daña a todos los enemigos, los ralentiza y apaga su fuerza.",
+   "Elemento": "Kryo",
+   "Escalon": 3,
+   "Rol": "control",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "degradacion",
+      "nombre": "Lentitud",
+      "duracion": 3,
+      "objetivo": "enemigos",
+      "alcance": "todos"
+     },
+     {
+      "tipo": "debuff",
+      "nombre": "Invierno Profundo",
+      "stat": "daño",
+      "valor": -0.25,
+      "peso": 0.5,
+      "duracion": 3,
+      "objetivo": "enemigos",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 55,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 4.5
+     },
+     "objetivo": "enemigos",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 22,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Invierno antiguo, desciende sobre este campo, enfría la furia de quienes nos atacan y vuelve lento todo lo que se mueve."
+  },
+  {
+   "_id": "Lapis-002",
+   "Nombre": "Bastión de Piedra",
+   "Descripcion": "Levanta un escudo de piedra sobre un aliado durante tres turnos.",
+   "Elemento": "Lapis",
+   "Escalon": 2,
+   "Rol": "defensa",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "instituto",
+    "aprecio": 2,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "escudo",
+      "nombre": "Bastión de Piedra",
+      "base": 35,
+      "multi": 3.5,
+      "defensa": 0.15,
+      "duracion": 3,
+      "objetivo": "aliados",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "movimiento",
+      "escritura"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.9,
+     "interruptible": true
+    }
+   },
+   "Costos": {
+    "mana": 10,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Piedra primera, álzate ante mí y sé muro para quien me acompaña."
+  },
+  {
+   "_id": "Lapis-003",
+   "Nombre": "Derrumbe",
+   "Descripcion": "La tierra se desploma sobre todos los enemigos.",
+   "Elemento": "Lapis",
+   "Escalon": 3,
+   "Rol": "daño",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "control",
+      "nombre": "Aturdimiento",
+      "duracion": 2,
+      "probabilidad": 0.4,
+      "objetivo": "enemigos",
+      "alcance": "todos",
+      "bloquea": [
+       "mental",
+       "escritura",
+       "instinto"
+      ]
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 80,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 6
+     },
+     "objetivo": "enemigos",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 24,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Piedra primera, madre de todo cimiento, deja caer tu peso sobre quienes nos acechan y que tiemble el suelo bajo ellos."
+  },
+  {
+   "_id": "Lux-002",
+   "Nombre": "Fulgor Bendito",
+   "Descripcion": "Bendice al grupo: más daño y más defensa durante cuatro turnos.",
+   "Elemento": "Lux",
+   "Escalon": 2,
+   "Rol": "soporte",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "instituto",
+    "aprecio": 2,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "buff",
+      "nombre": "Fulgor (daño)",
+      "stat": "daño",
+      "valor": 0.15,
+      "duracion": 4,
+      "objetivo": "aliados",
+      "alcance": "todos"
+     },
+     {
+      "tipo": "buff",
+      "nombre": "Fulgor (defensa)",
+      "stat": "defensa",
+      "valor": 0.15,
+      "duracion": 4,
+      "objetivo": "aliados",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.85,
+     "interruptible": true
+    },
+    "healing": {
+     "base": 5,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 0.5
+     },
+     "objetivo": "aliados",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 12,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Luz bendita del Eón, cúbrenos con tu fuerza y tu firmeza."
+  },
+  {
+   "_id": "Lux-003",
+   "Nombre": "Gracia del Firmamento",
+   "Descripcion": "Una ofrenda al Firmamento devuelve a la vida a un aliado caído. Una vez por combate.",
+   "Elemento": "Lux",
+   "Escalon": 3,
+   "Rol": "curación",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "revive",
+      "nombre": "Gracia del Firmamento",
+      "porcentaje": 0.4,
+      "vecesPorCombate": 1,
+      "objetivo": "aliados",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    }
+   },
+   "Costos": {
+    "mana": 24,
+    "Vida": 0,
+    "Dinero": 50,
+    "Cooldown": 4
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Eón de la creación, que tu luz descienda sobre este caído y le devuelva el aliento; acepta mi ofrenda como pago."
+  },
+  {
+   "_id": "Pyro-002",
+   "Nombre": "Brasa Penitente",
+   "Descripcion": "Quema parte de tu propia vida para descargar una brasa devastadora sobre un enemigo.",
+   "Elemento": "Pyrós",
+   "Escalon": 2,
+   "Rol": "daño",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 4,
+    "precio": 750
+   },
+   "Mecanicas": {
+    "Efectos": [],
+    "cast": {
+     "vias": [
+      "escritura",
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.9,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 80,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 3.2
+     },
+     "objetivo": "enemigos",
+     "alcance": "single"
+    }
+   },
+   "Costos": {
+    "mana": 8,
+    "Vida": 12,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Eón, acepta mi ofrenda de dolor y concédeme tu brasa más viva."
+  },
+  {
+   "_id": "Pyro-003",
+   "Nombre": "Pira del Juicio",
+   "Descripcion": "Una pira que alcanza a todos los enemigos y los deja ardiendo.",
+   "Elemento": "Pyrós",
+   "Escalon": 3,
+   "Rol": "daño",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "dot",
+      "nombre": "Quemadura",
+      "base": 15,
+      "duracion": 3,
+      "objetivo": "enemigos",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 70,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 4.5
+     },
+     "objetivo": "enemigos",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 14,
+    "Vida": 20,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Eón justo, que el fuego sea juez de todo lo que me rodea; que arda lo falso y se purifique lo demás."
+  },
+  {
+   "_id": "Rakau-002",
+   "Nombre": "Corteza Viva",
+   "Descripcion": "Te cubres de corteza: más defensa y regeneración durante tres turnos.",
+   "Elemento": "Rakau",
+   "Escalon": 2,
+   "Rol": "defensa",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 3,
+    "precio": 500
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "buff",
+      "nombre": "Corteza Viva",
+      "stat": "defensa",
+      "valor": 0.25,
+      "duracion": 3,
+      "objetivo": "mismo",
+      "alcance": "single"
+     },
+     {
+      "tipo": "hot",
+      "nombre": "Savia",
+      "base": 10,
+      "multi": 1.5,
+      "duracion": 3,
+      "objetivo": "mismo",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "movimiento",
+      "hablado"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.9,
+     "interruptible": true
+    }
+   },
+   "Costos": {
+    "mana": 10,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Árbol de raíces profundas, vísteme con tu corteza y tu paciencia."
+  },
+  {
+   "_id": "Rakau-003",
+   "Nombre": "Raíz del Mundo",
+   "Descripcion": "Raíces brotan bajo todos los enemigos: los dañan, los inmovilizan y les impiden esquivar.",
+   "Elemento": "Rakau",
+   "Escalon": 3,
+   "Rol": "control",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "control",
+      "nombre": "Inmovilizado",
+      "duracion": 2,
+      "probabilidad": 0.85,
+      "objetivo": "enemigos",
+      "alcance": "todos",
+      "bloquea": [
+       "movimiento",
+       "escritura"
+      ]
+     },
+     {
+      "tipo": "debuff",
+      "nombre": "Enraizado",
+      "stat": "esquive",
+      "valor": 0,
+      "cero": true,
+      "duracion": 2,
+      "objetivo": "enemigos",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 60,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 5
+     },
+     "objetivo": "enemigos",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 22,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Raíces del mundo, despierten bajo mis enemigos, sujétenlos con paciencia y háganlos recordar el peso de la tierra."
+  },
+  {
+   "_id": "Wind-002",
+   "Nombre": "Paso del Viento",
+   "Descripcion": "El grupo se mueve como el viento: más esquive y velocidad durante tres turnos.",
+   "Elemento": "Wind",
+   "Escalon": 2,
+   "Rol": "soporte",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 3,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 3,
+    "precio": 500
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "buff",
+      "nombre": "Paso del Viento (esquive)",
+      "stat": "esquive",
+      "valor": 0.25,
+      "peso": 0.6,
+      "duracion": 3,
+      "objetivo": "aliados",
+      "alcance": "todos"
+     },
+     {
+      "tipo": "buff",
+      "nombre": "Paso del Viento (velocidad)",
+      "stat": "velocidad",
+      "valor": 0.25,
+      "duracion": 3,
+      "objetivo": "aliados",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": true,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.85,
+     "interruptible": true
+    },
+    "healing": {
+     "base": 5,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 1
+     },
+     "objetivo": "aliados",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 12,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Viento amigo, vuélvenos ligeros como hojas y guíanos lejos del daño."
+  },
+  {
+   "_id": "Wind-003",
+   "Nombre": "Torbellino",
+   "Descripcion": "Un torbellino golpea a todos los enemigos y les nubla la puntería.",
+   "Elemento": "Wind",
+   "Escalon": 3,
+   "Rol": "control",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "debuff",
+      "nombre": "Torbellino",
+      "stat": "precision",
+      "valor": -0.25,
+      "peso": 0.6,
+      "duracion": 3,
+      "objetivo": "enemigos",
+      "alcance": "todos"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "hablado",
+      "movimiento",
+      "escritura",
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 0.7,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 70,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 5
+     },
+     "objetivo": "enemigos",
+     "alcance": "todos"
+    }
+   },
+   "Costos": {
+    "mana": 22,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Invocacion": "Viento de los cuatro rincones, gira a nuestro alrededor, confunde la mirada de nuestros enemigos y esparce su certeza."
+  },
+  {
+   "_id": "default_001",
+   "Nombre": "Golpe",
+   "Descripcion": "Un golpe basico, usado en emergencias o situaciones algo... fuera de lugar",
+   "Elemento": null,
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": null,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Mecanicas": {
+    "alcance": "single",
+    "Efectos": [],
+    "cast": {
+     "vias": [
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 0,
+     "probabilidad": 1,
+     "interruptible": true
+    },
+    "damage": {
+     "base": 0,
+     "objetivo": "mismo",
+     "alcance": "single"
+    }
+   },
+   "Costos": {
+    "mana": 0,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 0
+   },
+   "Creado": "ShungeX",
+   "uso": "combate",
+   "Escalon": null,
+   "Rol": "daño",
+   "Adquisicion": {
+    "via": "inicio"
+   }
+  },
+  {
+   "_id": "univ-001",
+   "Nombre": "Guardia",
+   "Descripcion": "Te cubres: reduces a la mitad el daño que recibes hasta tu próximo turno.",
+   "Elemento": null,
+   "Escalon": null,
+   "Rol": "defensa",
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": null,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Adquisicion": {
+    "via": "inicio"
+   },
+   "Mecanicas": {
+    "Efectos": [
+     {
+      "tipo": "guardia",
+      "nombre": "Guardia",
+      "valor": 0.5,
+      "duracion": 1,
+      "objetivo": "mismo",
+      "alcance": "single"
+     }
+    ],
+    "cast": {
+     "vias": [
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 1,
+     "interruptible": true
+    }
+   },
+   "Costos": {
+    "mana": 0,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 1
+   },
+   "Creado": "",
+   "uso": "combate"
+  },
+  {
+   "_id": "univ-003",
+   "Nombre": "Provocar",
+   "Descripcion": "Obligas a los enemigos a atacarte durante dos turnos.",
+   "Elemento": null,
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": null,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Mecanicas": {
+    "cast": {
+     "vias": [
+      "hablado"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 1,
+     "interruptible": true
+    },
+    "Efectos": [
+     {
+      "tipo": "provocar",
+      "nombre": "Provocar",
+      "duracion": 2,
+      "objetivo": "mismo",
+      "alcance": "single"
+     }
+    ]
+   },
+   "Costos": {
+    "mana": 5,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Rol": "soporte",
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 2,
+    "precio": 400
+   },
+   "Escalon": null,
+   "Invocacion": "Que sea yo quien reciba su atención."
+  },
+  {
+   "_id": "univ-004",
+   "Nombre": "Primeros auxilios",
+   "Descripcion": "Una cura pequeña para un aliado o para ti.",
+   "Elemento": null,
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": null,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Mecanicas": {
+    "cast": {
+     "vias": [
+      "movimiento"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 1,
+     "interruptible": true
+    },
+    "healing": {
+     "base": 5,
+     "scaling": {
+      "stats": "inteligencia",
+      "multi": 0.5
+     },
+     "objetivo": "aliados",
+     "alcance": "single"
+    },
+    "Efectos": []
+   },
+   "Costos": {
+    "mana": 4,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 2
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Rol": "curación",
+   "Adquisicion": {
+    "via": "tienda",
+    "aprecio": 1,
+    "precio": 300
+   },
+   "Escalon": null
+  },
+  {
+   "_id": "univ-005",
+   "Nombre": "Reposo Estelar",
+   "Descripcion": "Te vuelves intocable como una estrella: Estasis de 1 turno sobre ti o un aliado.",
+   "Elemento": null,
+   "isActive": true,
+   "Req": {
+    "fe_min": 1,
+    "fe_max": null,
+    "resplandor_min": 5,
+    "resplandor_max": null,
+    "clase": null,
+    "stats": null
+   },
+   "Mecanicas": {
+    "cast": {
+     "vias": [
+      "mental"
+     ],
+     "mental": {
+      "permitido": false,
+      "maestria_min": 4,
+      "manaX": 1.5,
+      "tiempoExtra": 1
+     },
+     "tiempo": 1,
+     "probabilidad": 1,
+     "interruptible": true
+    },
+    "Efectos": [
+     {
+      "tipo": "estasis",
+      "nombre": "Estasis",
+      "duracion": 1,
+      "inmune": true,
+      "pausa": true,
+      "objetivo": "aliados",
+      "alcance": "single"
+     }
+    ]
+   },
+   "Costos": {
+    "mana": 12,
+    "Vida": 0,
+    "Dinero": 0,
+    "Cooldown": 3
+   },
+   "Creado": "",
+   "uso": "combate",
+   "Rol": "defensa",
+   "Adquisicion": {
+    "via": "evento",
+    "aprecio": 5,
+    "precio": null
+   },
+   "Escalon": null
+  }
+ ],
+ "Objetos_globales": [
+  {
+   "_id": "TOB-01",
+   "Descripcion": "Descripcion detallada sobre la región",
+   "Objetos": [
+    {
+     "ID": 8,
+     "ID_Autocomplete": "TOB-018",
+     "Region": "TOB-01",
+     "Nombre": "Contenedor elemental",
+     "Descripcion": "Es un artefacto creado para poder contener la **Esencia Natural **.  Principalmente se usa en personas que no poseen naturalmente esa esencia, esto les ayuda a poder usar y controlar la Magia.",
+     "Rareza": "Arcano",
+     "Tipo": [
+      "Artefacto",
+      "Contenedor"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "3/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "durabilidad": 60,
+     "resistencia": 0,
+     "vendible": false
+    },
+    {
+     "ID": 707,
+     "ID_Autocomplete": "TOB-01707",
+     "Region": "TOB-01",
+     "Nombre": "Testeo",
+     "Descripcion": "Desc de testeo",
+     "Rareza": "NIX",
+     "Tipo": [
+      "Otro"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 6
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "12/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 10,
+      "fe_max": 22,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 460,
+     "ID_Autocomplete": "TOB-01460",
+     "Region": "TOB-01",
+     "Nombre": "Piedra Temporal",
+     "Descripcion": "Permite crear desde cero tu personaje.",
+     "Rareza": "Divino",
+     "Tipo": [
+      "Consumible"
+     ],
+     "Cantidad": 80,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": true,
+     "precio": 7500,
+     "vendido": 0,
+     "fecha": "26/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 2,
+     "ID_Autocomplete": "TOB-012",
+     "Region": "TOB-01",
+     "Nombre": "Galleta",
+     "Descripcion": "Una galleta para comer o regalar [Recupera 15 de vitalidad y 5 de Mana]",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Alimento"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": true,
+     "precio": 15,
+     "en_tienda": [
+      "Enfermeria",
+      "Cafeteria"
+     ],
+     "vendido": 30,
+     "fecha": "26/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 15,
+       "duracion": null
+      },
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 5,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 203,
+     "ID_Autocomplete": "TOB-01203",
+     "Region": "TOB-01",
+     "Nombre": "Disco rayado",
+     "Descripcion": "Te permite agregar una canción temporal a la radio",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible"
+     ],
+     "Cantidad": 1000,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 10000,
+     "vendido": 0,
+     "fecha": "26/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 741,
+     "ID_Autocomplete": "TOB-01741",
+     "Region": "TOB-01",
+     "Nombre": "Bolsa de regalo",
+     "Descripcion": "Una bolsa para guardar regalos. Ideal para amigos",
+     "Rareza": "Comun",
+     "Tipo": [
+      "Consumible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": true,
+     "precio": 100,
+     "vendido": 5,
+     "fecha": "26/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "en_tienda": [
+      "Magica"
+     ]
+    },
+    {
+     "ID": 946,
+     "ID_Autocomplete": "TOB-01946",
+     "Region": "TOB-01",
+     "Nombre": "Frasco de aliento",
+     "Descripcion": "Cura a tu personaje o el de alguien más [50 vitalidad]",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Regalo"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 5
+     },
+     "inStore": true,
+     "precio": 40,
+     "en_tienda": [
+      "Enfermeria"
+     ],
+     "vendido": 10,
+     "fecha": "26/1/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 50,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 336,
+     "ID_Autocomplete": "TOB-01336",
+     "Region": "TOB-01",
+     "Nombre": "Huevo fragmentado",
+     "Descripcion": "Un huevo con piedras saliendo de el. ¿Qué criatura nacerá?",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Huevo",
+      "Mascota"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 30
+     },
+     "inStore": true,
+     "precio": 1200,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "2/2/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 320,
+     "ID_Autocomplete": "TOB-01320",
+     "Region": "TOB-01",
+     "Nombre": "Cofre del Aprendiz",
+     "Descripcion": "Un regalo ofrecido por parte de Tobeya.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Cofre"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "2/2/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 748,
+     "ID_Autocomplete": "TOB-01748",
+     "Region": "TOB-01",
+     "Nombre": "Baston de Madera",
+     "Descripcion": "El baston ancestral de todo mago, es el que te acompaña en tus primeros pasos y esta para ti en los peores momentos...",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Arma",
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "15/2/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 120,
+     "ID_Autocomplete": "TOB-01120",
+     "Region": "TOB-01",
+     "Nombre": "Pincel Magico",
+     "Descripcion": "Un pincel especial que te permite ampliar la historia de tu personaje",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Lore"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 10
+     },
+     "inStore": true,
+     "precio": 1250,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 2,
+     "fecha": "01/4/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": 8,
+     "max_inventario": null,
+     "vendible": true,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 982,
+     "ID_Autocomplete": "TOB-01982",
+     "Region": "TOB-01",
+     "Nombre": "Cristal Pálido",
+     "Descripcion": "Trozo brillante usado en encantamientos menores.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/ab/0a/c8/ab0ac8046d9a051dfe9152b64ed623d9.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [],
+     "valor_base": 1,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 866,
+     "ID_Autocomplete": "TOB-01866",
+     "Region": "TOB-01",
+     "Nombre": "Madera Rúnica",
+     "Descripcion": "Extraída de árboles mágicos, aún emite calor.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/51/92/a9/5192a9c8830d478a235f6fec12f7d6ed.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 2,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 849,
+     "ID_Autocomplete": "TOB-01849",
+     "Region": "TOB-01",
+     "Nombre": "Polvo Rocapúrpura",
+     "Descripcion": "Se encuentra en minas profundas, útil para pigmentos",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/71/c3/d8/71c3d835f661692bd38e95f90157e390.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 3,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 968,
+     "ID_Autocomplete": "TOB-01968",
+     "Region": "TOB-01",
+     "Nombre": "Escama de Espectro",
+     "Descripcion": "Se dice que proviene de espíritus errantes al desaparecer.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 60,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 30,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 618,
+     "ID_Autocomplete": "TOB-01618",
+     "Region": "TOB-01",
+     "Nombre": "Pergamino viejo",
+     "Descripcion": "Restos de antiguos escritos, algunos aún contienen símbolos mágicos.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 30,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 936,
+     "ID_Autocomplete": "TOB-01936",
+     "Region": "TOB-01",
+     "Nombre": "Polvo de tiza encantada",
+     "Descripcion": "Tiza mágica molida usada en círculos de invocación.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 2,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 816,
+     "ID_Autocomplete": "TOB-01816",
+     "Region": "TOB-01",
+     "Nombre": "Cristal de Observación",
+     "Descripcion": "Retiene ecos de hechizos lanzados. Usados para aprender hechizos basicos",
+     "Rareza": "Arcano",
+     "Tipo": [
+      "Consumible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "maximoUnoPorPersona": false,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 482,
+     "ID_Autocomplete": "TOB-01482",
+     "Region": "TOB-01",
+     "Nombre": "Hongo luxeterna",
+     "Descripcion": "Un tipo de hongo que crece en rincones oscuros del Instituto. Algunos emiten una luz azul tenue, se cree que es por el mana que almacenan.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Alimento",
+      "Comestible",
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 20,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 5,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://upload.wikimedia.org/wikipedia/commons/2/25/Mycenaluxaeterna.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 15,
+       "duracion": null
+      },
+      {
+       "tipo": "resta",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 5,
+       "duracion": null
+      },
+      {
+       "tipo": "aplica",
+       "Nombre": null,
+       "condicion": null,
+       "efecto": "confusion",
+       "valor": 1,
+       "duracion": 2
+      }
+     ]
+    },
+    {
+     "ID": 522,
+     "ID_Autocomplete": "TOB-01522",
+     "Region": "TOB-01",
+     "Nombre": "Fragmento de tela rúnica",
+     "Descripcion": "Retazo de antiguos uniformes estudiantiles cargados con símbolos mágicos",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/69/d4/3d/69d43da08c99e25cd92fc9883cf68aed.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 6,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 132,
+     "ID_Autocomplete": "TOB-01132",
+     "Region": "TOB-01",
+     "Nombre": "Polvo de estrella falsa",
+     "Descripcion": "Residuos de experimentos ástronomicos fallidos",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/f8/31/7f/f8317f854b504e2dbd2dba2b7fd11705.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [],
+     "valor_base": 5,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 525,
+     "ID_Autocomplete": "TOB-01525",
+     "Region": "TOB-01",
+     "Nombre": "Flor de mana",
+     "Descripcion": "Flores de tono azul. Contienen una gran cantidad de mana almacenada, usado para crear todo tipo de consumibles de mana [Restaura 3 de maná]",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 3,
+     "en_tienda": [
+      "Enfermeria",
+      "Magica"
+     ],
+     "vendido": 40,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/51/9f/7b/519f7bb9c3a98e2dc2500ebb60f99797.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 3,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 177,
+     "ID_Autocomplete": "TOB-01177",
+     "Region": "TOB-01",
+     "Nombre": "Fragmento de llave oxidada",
+     "Descripcion": "Un fragmento de una llave que se encuentra rodeada de oxido",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 178,
+     "ID_Autocomplete": "TOB-01929",
+     "Region": "TOB-01",
+     "Nombre": "llave oxidada",
+     "Descripcion": "Una llave que se encuentra oxidada, en sus tiempos se dedicaba a abrir cofres. Ahora que ha perdido su utilidad, tambien su sentido de existir",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 62,
+     "ID_Autocomplete": "TOB-0162",
+     "Region": "TOB-01",
+     "Nombre": "Semilla de Lumflora",
+     "Descripcion": "Planta que florece bajo la luz lunar.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 3,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 415,
+     "ID_Autocomplete": "TOB-01415",
+     "Region": "TOB-01",
+     "Nombre": "Fragmento de  Espejo Encantado",
+     "Descripcion": "Refleja imágenes ligeramente alteradas",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 173,
+     "ID_Autocomplete": "TOB-01173",
+     "Region": "TOB-01",
+     "Nombre": "Marca-páginas Desgastado",
+     "Descripcion": "Conserva una débil impresión del texto que marcaba",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 2,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 386,
+     "ID_Autocomplete": "TOB-01386",
+     "Region": "TOB-01",
+     "Nombre": "Pluma Gastada",
+     "Descripcion": "Instrumento de escritura con apenas rastros de tinta",
+     "Rareza": "Común",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": true,
+     "vender_en": [
+      "Magica"
+     ],
+     "valor_base": 2,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": true,
+     "purificable": true,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 700,
+     "ID_Autocomplete": "TOB-01700",
+     "Region": "TOB-01",
+     "Nombre": "Hoja de Memoria temporal",
+     "Descripcion": "Registra brevemente lo que se escribe en ella antes de desvanecerse",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 250,
+     "ID_Autocomplete": "TOB-01250",
+     "Region": "TOB-01",
+     "Nombre": "Dispositivo de Traducción",
+     "Descripcion": "Permite entender idiomas desconocidos al leer a través de él",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Herramienta"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 121,
+     "ID_Autocomplete": "TOB-01121",
+     "Region": "TOB-01",
+     "Nombre": "Polvo de Memorización",
+     "Descripcion": "Mejora la retención al espolvorearse sobre textos",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/5/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 871,
+     "ID_Autocomplete": "TOB-01871",
+     "Region": "TOB-01",
+     "Nombre": "Caramelo de mana",
+     "Descripcion": "Unos dulces llenos de mana, listos para ser consumidos",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Alimento"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": true,
+     "precio": 15,
+     "en_tienda": [
+      "Enfermeria"
+     ],
+     "vendido": 5,
+     "fecha": "18/5/2025",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/af/46/75/af46754f0cf641eb66c73a305f46ae9b.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 15,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 52,
+     "ID_Autocomplete": "TOB-0152",
+     "Region": "TOB-01",
+     "Nombre": "Incubadora",
+     "Descripcion": "Permite criar automaticamente un huevo de mascota",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Herramienta",
+      "Mascota"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 20
+     },
+     "inStore": true,
+     "precio": 250,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "14/6/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 524,
+     "ID_Autocomplete": "TOB-01524",
+     "Region": "TOB-01",
+     "Nombre": "Paginas incomprensibles",
+     "Descripcion": "Un conjunto de paginas que contenian información valiosa, sin embargo la tinta se ha esparcido por todo su contenido, ahora incomprensible",
+     "Rareza": "Comun",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "8/7/2025",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 83,
+     "ID_Autocomplete": "TOB-01983",
+     "Region": "TOB-01",
+     "Nombre": "Talismán de Umbral",
+     "Descripcion": "Un pequeño milagro temporal, según los registros del Instituto. Se dice que fue diseñado con una sola intención: que ningún explorador tenga que enfrentar lo desconocido completamente solo.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Herramienta",
+      "Lore"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/8/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "maximoUnoPorPersona": true,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 84,
+     "ID_Autocomplete": "TOB-01984",
+     "Region": "TOB-01",
+     "Nombre": "Talismán de Umbral Original (Roto)",
+     "Descripcion": "El Talismán de Umbral original que fue entregado por Shuciika. Ya no tiene utilidad ni reparación, pero lo guardas por aprecio. Parece que hay una nota adjuntada detrás del talismán: 'Cuídalo bien, ¿eh?'",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Lore"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/8/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "maximoUnoPorPersona": true,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "ambos",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 85,
+     "ID_Autocomplete": "TOB-01985",
+     "Region": "TOB-01",
+     "Nombre": "Talismán de Umbral",
+     "Descripcion": "Artefacto temporal otorgado por el Instituto a todo explorador que se aventura fuera de zona segura. Permite recolectar objetos incluso en presencia de interferencia arcana, aunque estos llegarán sin afinar hasta ser purificados en un Faro de Sintonía. Su estructura es frágil ante el esfuerzo extremo; si se rompe, el Instituto lo reemplaza sin costo.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Herramienta"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "5/8/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "maximoUnoPorPersona": false,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 983,
+     "ID_Autocomplete": "TOB-01983",
+     "Region": "TOB-01",
+     "Nombre": "Bolsa del viajero",
+     "Descripcion": "La vieja confiable que permite almacenar una cantidad suficiente de objetos [+20 de capacidad]",
+     "Rareza": "Común",
+     "Tipo": [
+      "Equipamiento",
+      "Herramienta"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 5
+     },
+     "inStore": true,
+     "precio": 300,
+     "en_tienda": [
+      "Cooperativa"
+     ],
+     "vendido": 1,
+     "fecha": "8/8/2026",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/80/14/85/801485cfdcf3ea33420ac0d9dff94d50.jpg",
+     "intercambiable": true,
+     "maximoUnoPorPersona": true,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 984,
+     "ID_Autocomplete": "TOB-01984",
+     "Region": "TOB-01",
+     "Nombre": "Pan puente",
+     "Descripcion": "Se parte en dos. Siempre te queda el lado que no elegiste. [Restaura 10 de vitalidad ]",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Regalo",
+      "Comestible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 2
+     },
+     "inStore": true,
+     "precio": 15,
+     "en_tienda": [
+      "Cafeteria"
+     ],
+     "vendido": 15,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://res.cloudinary.com/dn1cubayf/image/upload/v1793756597/2806a9ba-3de1-4ea1-bb56-c2816f4a6d24_m6lr1v.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 10,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 985,
+     "ID_Autocomplete": "TOB-01985",
+     "Region": "TOB-01",
+     "Nombre": "Café de olla",
+     "Descripcion": "Amargo, con canela. Ahuyenta el sueño, aunque no siempre el que debería. [Restaura 5 de vitalidad y 5 de maná]",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Bebible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 3
+     },
+     "inStore": true,
+     "precio": 10,
+     "en_tienda": [
+      "Cafeteria"
+     ],
+     "vendido": 16,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/5b/0e/4c/5b0e4ca2432dd351ed1ef1faf004d5b1.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 5,
+       "duracion": null
+      },
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 5,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 986,
+     "ID_Autocomplete": "TOB-01986",
+     "Region": "TOB-01",
+     "Nombre": "Torta de jamón",
+     "Descripcion": "Tibia, con frijoles. Sabe a un lugar al que no recuerdas haber ido.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Comestible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 5
+     },
+     "inStore": true,
+     "precio": 30,
+     "en_tienda": [
+      "Cafeteria"
+     ],
+     "vendido": 10,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/1200x/b6/95/d0/b695d0004bf97efb1b4517d101f3a3b8.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 35,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 987,
+     "ID_Autocomplete": "TOB-01987",
+     "Region": "TOB-01",
+     "Nombre": "Agua de jamaica",
+     "Descripcion": "Hecha de pétalos rojos en agua fría. Nadie recuerda quién empezó a servirla aquí.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Regalo",
+      "Bebible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 3
+     },
+     "inStore": true,
+     "precio": 35,
+     "en_tienda": [
+      "Cafeteria"
+     ],
+     "vendido": 5,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://i.pinimg.com/736x/63/b9/de/63b9de41e0f49d3af4ba2d68244427c3.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.mana",
+       "valor": 38,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 988,
+     "ID_Autocomplete": "TOB-01988",
+     "Region": "TOB-01",
+     "Nombre": "Tónico de Lux",
+     "Descripcion": "La luz vuelve a quien la gasta. Eso dicen en Tobeya \n\n-# [restaura 63 de vitalidad]",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Regalo",
+      "Bebible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 10
+     },
+     "inStore": true,
+     "precio": 55,
+     "en_tienda": [
+      "Enfermeria"
+     ],
+     "vendido": 0,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://res.cloudinary.com/dn1cubayf/image/upload/v1793760559/Designing_anime_game_asset_adf3d6b5_ldsuiu.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "suma",
+       "Nombre": null,
+       "condicion": null,
+       "stat": "nucleo.HP",
+       "valor": 63,
+       "duracion": null
+      }
+     ]
+    },
+    {
+     "ID": 989,
+     "ID_Autocomplete": "TOB-01989",
+     "Region": "TOB-01",
+     "Nombre": "Dulce de tamarindo",
+     "Descripcion": "Agridulce. En el instituto dicen que enseña a recibir lo amargo con gusto.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Regalo",
+      "Comestible"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": true,
+     "precio": 6,
+     "en_tienda": [
+      "Cooperativa"
+     ],
+     "vendido": 99,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": "https://res.cloudinary.com/dn1cubayf/image/upload/v1793760559/Designing_anime_tamarind_candy_9cc724c0_qm5k2a.jpg",
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "vender_en": [],
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [
+      {
+       "tipo": "limpia",
+       "Nombre": null,
+       "condicion": null,
+       "efectos": [
+        "confusion"
+       ]
+      }
+     ]
+    },
+    {
+     "ID": 990,
+     "ID_Autocomplete": "TOB-01990",
+     "Region": "TOB-01",
+     "Nombre": "Kit de reparación",
+     "Descripcion": "Para lo que se quebró por intentar. El Instituto lo vende barato y no pregunta cuántas veces. [+25 de durabilidad a tu contenedor, fuera de combate]",
+     "Rareza": "Común",
+     "Tipo": [
+      "Herramienta"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 20
+     },
+     "inStore": true,
+     "precio": 50,
+     "en_tienda": [
+      "Cooperativa",
+      "Magica"
+     ],
+     "vendido": 5,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "maximoUnoPorPersona": false,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 991,
+     "ID_Autocomplete": "TOB-01991",
+     "Region": "TOB-01",
+     "Nombre": "Refuerzo de mochila",
+     "Descripcion": "Tiene más bolsillos de los que se ven. Los llenas tú. [Capacidad de mochila: +5]",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Regalo",
+      "Herramienta"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 99
+     },
+     "inStore": true,
+     "precio": 800,
+     "en_tienda": [
+      "Cooperativa"
+     ],
+     "vendido": 2,
+     "fecha": "3/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": true,
+     "maximoUnoPorPersona": false,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "665421882694041630",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "combate",
+      "consumible": true,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 992,
+     "ID_Autocomplete": "TOB-01992",
+     "Region": "TOB-01",
+     "Nombre": "Contenedor de Cortesía",
+     "Descripcion": "El respaldo que el Instituto entrega a toda Alma Desafinada: cristal opaco, forma estándar y un maná más corto. Te mantiene en pie mientras consigues el tuyo. No se repara: si se rompe, el Instituto te da otro.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Artefacto",
+      "Contenedor"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 1
+     },
+     "inStore": false,
+     "precio": 0,
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": 25,
+     "resistencia": 0,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 1001,
+     "ID_Autocomplete": "TOB-011001",
+     "Region": "TOB-01",
+     "Nombre": "Página: Chispa Ígnea",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Chispa Ígnea». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Pyro-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1002,
+     "ID_Autocomplete": "TOB-011002",
+     "Region": "TOB-01",
+     "Nombre": "Página: Brasa Penitente",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Brasa Penitente». Úsala para empezar a practicarla.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 750,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Pyro-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1003,
+     "ID_Autocomplete": "TOB-011003",
+     "Region": "TOB-01",
+     "Nombre": "Página: Pira del Juicio",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Pira del Juicio». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Pyro-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1004,
+     "ID_Autocomplete": "TOB-011004",
+     "Region": "TOB-01",
+     "Nombre": "Página: Ola Curativa",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Ola Curativa». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Aqua-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1005,
+     "ID_Autocomplete": "TOB-011005",
+     "Region": "TOB-01",
+     "Nombre": "Página: Aguas Mansas",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Aguas Mansas». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Aqua-002",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1006,
+     "ID_Autocomplete": "TOB-011006",
+     "Region": "TOB-01",
+     "Nombre": "Página: Marea Serena",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Marea Serena». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Aqua-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1007,
+     "ID_Autocomplete": "TOB-011007",
+     "Region": "TOB-01",
+     "Nombre": "Página: Brillo de esperanza",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Brillo de esperanza». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lux-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1008,
+     "ID_Autocomplete": "TOB-011008",
+     "Region": "TOB-01",
+     "Nombre": "Página: Fulgor Bendito",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Fulgor Bendito». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lux-002",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1009,
+     "ID_Autocomplete": "TOB-011009",
+     "Region": "TOB-01",
+     "Nombre": "Página: Gracia del Firmamento",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Gracia del Firmamento». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lux-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1010,
+     "ID_Autocomplete": "TOB-011010",
+     "Region": "TOB-01",
+     "Nombre": "Página: Bendición de la naturaleza",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Bendición de la naturaleza». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Rakau-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1011,
+     "ID_Autocomplete": "TOB-011011",
+     "Region": "TOB-01",
+     "Nombre": "Página: Corteza Viva",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Corteza Viva». Úsala para empezar a practicarla.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 500,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 1,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Rakau-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1012,
+     "ID_Autocomplete": "TOB-011012",
+     "Region": "TOB-01",
+     "Nombre": "Página: Raíz del Mundo",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Raíz del Mundo». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Rakau-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1013,
+     "ID_Autocomplete": "TOB-011013",
+     "Region": "TOB-01",
+     "Nombre": "Página: Golpe Terrestre",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Golpe Terrestre». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lapis-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1014,
+     "ID_Autocomplete": "TOB-011014",
+     "Region": "TOB-01",
+     "Nombre": "Página: Bastión de Piedra",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Bastión de Piedra». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lapis-002",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1015,
+     "ID_Autocomplete": "TOB-011015",
+     "Region": "TOB-01",
+     "Nombre": "Página: Derrumbe",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Derrumbe». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Lapis-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1016,
+     "ID_Autocomplete": "TOB-011016",
+     "Region": "TOB-01",
+     "Nombre": "Página: Descarga Eléctrica",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Descarga Eléctrica». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Electro-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1017,
+     "ID_Autocomplete": "TOB-011017",
+     "Region": "TOB-01",
+     "Nombre": "Página: Cadena Voltaica",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Cadena Voltaica». Úsala para empezar a practicarla.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 500,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Electro-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1018,
+     "ID_Autocomplete": "TOB-011018",
+     "Region": "TOB-01",
+     "Nombre": "Página: Relámpago Tardío",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Relámpago Tardío». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Electro-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1019,
+     "ID_Autocomplete": "TOB-011019",
+     "Region": "TOB-01",
+     "Nombre": "Página: Brisa revitalizante",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Brisa revitalizante». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Wind-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1020,
+     "ID_Autocomplete": "TOB-011020",
+     "Region": "TOB-01",
+     "Nombre": "Página: Paso del Viento",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Paso del Viento». Úsala para empezar a practicarla.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 500,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Wind-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1021,
+     "ID_Autocomplete": "TOB-011021",
+     "Region": "TOB-01",
+     "Nombre": "Página: Torbellino",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Torbellino». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Wind-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1022,
+     "ID_Autocomplete": "TOB-011022",
+     "Region": "TOB-01",
+     "Nombre": "Página: Soplo Helado",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Soplo Helado». Úsala para empezar a practicarla. El Instituto la entrega sin costo, una por alumno.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": 5,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 0,
+     "en_tienda": [
+      "Instituto"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": 1,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Kryo-001",
+     "ligada": true,
+     "fuente": "instituto"
+    },
+    {
+     "ID": 1023,
+     "ID_Autocomplete": "TOB-011023",
+     "Region": "TOB-01",
+     "Nombre": "Página: Escarcha Inmóvil",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Escarcha Inmóvil». Úsala para empezar a practicarla.",
+     "Rareza": "Resonante",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 500,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Kryo-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1024,
+     "ID_Autocomplete": "TOB-011024",
+     "Region": "TOB-01",
+     "Nombre": "Página: Invierno Profundo",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Invierno Profundo». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "Kryo-003",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1025,
+     "ID_Autocomplete": "TOB-011025",
+     "Region": "TOB-01",
+     "Nombre": "Página: Concentrar",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Concentrar». Úsala para empezar a practicarla.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 400,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "univ-002",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1026,
+     "ID_Autocomplete": "TOB-011026",
+     "Region": "TOB-01",
+     "Nombre": "Página: Provocar",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Provocar». Úsala para empezar a practicarla.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 400,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "univ-003",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1027,
+     "ID_Autocomplete": "TOB-011027",
+     "Region": "TOB-01",
+     "Nombre": "Página: Primeros auxilios",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Primeros auxilios». Úsala para empezar a practicarla.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": true,
+     "precio": 300,
+     "en_tienda": [
+      "Magica"
+     ],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "univ-004",
+     "ligada": true,
+     "fuente": "tienda"
+    },
+    {
+     "ID": 1028,
+     "ID_Autocomplete": "TOB-011028",
+     "Region": "TOB-01",
+     "Nombre": "Página: Reposo Estelar",
+     "Descripcion": "Página suelta del grimorio del Instituto. Guarda la forma de «Reposo Estelar». Úsala para empezar a practicarla. No figura en los estantes del Instituto.",
+     "Rareza": "Común",
+     "Tipo": [
+      "Consumible",
+      "Página"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": null,
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": [],
+     "hechizo": "univ-005",
+     "ligada": true,
+     "fuente": "evento"
+    },
+    {
+     "ID": 1029,
+     "ID_Autocomplete": "TOB-011029",
+     "Region": "TOB-01",
+     "Nombre": "Invitación",
+     "Descripcion": "Una tarjeta de cristal con tu nombre escrito al revés. Nadie del Instituto recuerda haberla enviado. Úsala para aceptarla: la próxima vez que te encuentres un Sosias, el anfitrión te estará esperando. Ahí ya no se puede huir.",
+     "Rareza": "Arcano",
+     "Tipo": [
+      "Consumible",
+      "Lore"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": "salon_espejos",
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 1030,
+     "ID_Autocomplete": "TOB-011030",
+     "Region": "TOB-01",
+     "Nombre": "Espejo de Mano",
+     "Descripcion": "No da poder: da información. Al mirarlo ves cómo te leyó el Salón en tu último encuentro con un reflejo: lo que repites y lo que evitas.",
+     "Rareza": "Divino",
+     "Tipo": [
+      "Herramienta",
+      "Lore"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": "salon_espejos",
+     "imagenURL": null,
+     "intercambiable": false,
+     "max_por_persona": null,
+     "max_inventario": 1,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    },
+    {
+     "ID": 1031,
+     "ID_Autocomplete": "TOB-011031",
+     "Region": "TOB-01",
+     "Nombre": "Esquirla de espejo",
+     "Descripcion": "Un fragmento del cristal del Salón. Todavía refleja con medio segundo de retraso.",
+     "Rareza": "Luminoso",
+     "Tipo": [
+      "Material"
+     ],
+     "Cantidad": null,
+     "atributos": {
+      "peso": 0
+     },
+     "inStore": false,
+     "precio": 0,
+     "en_tienda": [],
+     "vendido": 0,
+     "fecha": "9/11/2026",
+     "evento_origen": "salon_espejos",
+     "imagenURL": null,
+     "intercambiable": true,
+     "max_por_persona": null,
+     "max_inventario": null,
+     "vendible": false,
+     "valor_base": null,
+     "durabilidad": null,
+     "resistencia": null,
+     "contaminable": false,
+     "purificable": false,
+     "tiempo_limite": null,
+     "creador": "sistema",
+     "restricciones": {
+      "fe_min": 0,
+      "fe_max": 0,
+      "resplandor_min": 0,
+      "resplandor_max": 0,
+      "clase": null,
+      "region": null,
+      "reputacion": null
+     },
+     "uso": {
+      "contexto": "mapa",
+      "consumible": false,
+      "requiereSeleccion": false,
+      "objetivo": {
+       "tipo": "mismo",
+       "cantidad": 1
+      },
+      "cooldown": null
+     },
+     "efectos": []
+    }
+   ]
+  }
+ ]
+}

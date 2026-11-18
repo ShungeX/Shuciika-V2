@@ -13,8 +13,46 @@ const { ESTADOS, definicionEstado } = require("./estados")
 
 const TIPOS_EFECTO = new Set([
     "control", "degradacion", "estasis", "inmunidad", "dot", "hot", "buff", "debuff",
-    "escudo", "cleanse", "revive", "mana", "guardia", "provocar", "legacy", "instantaneo",
+    "escudo", "cleanse", "revive", "mana", "regen_mana", "guardia", "provocar", "legacy", "instantaneo",
 ])
+
+/** Tipos que, sin objetivo explícito, apuntan a aliados. */
+const TIPOS_DE_APOYO = Object.freeze(["buff", "hot", "escudo", "guardia", "provocar", "estasis", "mana", "regen_mana", "revive", "cleanse"])
+
+/**
+ * Claves cortas (NPCs inline, objetos con "aplica") que se traducen a un efecto tipado.
+ * `base` del dato es la intensidad: en buffs/debuffs, un % entero (25 = 25%); sin base, el valor por defecto.
+ */
+const CLAVES_TIPADAS = Object.freeze({
+    esquive: { tipo: "buff", stat: "esquive", nombre: "Esquive" },
+    animo: { tipo: "buff", stat: "daño", nombre: "Ánimo" },
+    fortaleza: { tipo: "buff", stat: "defensa", nombre: "Fortaleza" },
+    debilidad: { tipo: "debuff", stat: "daño", nombre: "Debilidad" },
+    imprecision: { tipo: "debuff", stat: "precision", nombre: "Imprecisión" },
+    regen_mana: { tipo: "regen_mana", nombre: "Flujo de maná", porDefecto: 3 },
+    flujo_de_mana: { tipo: "regen_mana", nombre: "Flujo de maná", porDefecto: 3 },
+    purificacion: { tipo: "cleanse", nombre: "Purificación" },
+    limpieza: { tipo: "cleanse", nombre: "Purificación" },
+})
+
+/** Clave corta + datos → efecto tipado (null si la clave no es de las tipadas). */
+function efectoDesdeClaveTipada(clave, datos = {}) {
+    const def = CLAVES_TIPADAS[quitarTildes(clave).replace(/\s+/g, "_")]
+    if (!def) return null
+    const base = num(datos.base ?? datos.valor, NaN)
+    const duracion = datos.duracion === null || datos.duracion === undefined ? null : num(datos.duracion)
+    const e = { tipo: def.tipo, nombre: datos.Nombre || datos.nombre || def.nombre }
+    if (def.stat) {
+        e.stat = def.stat
+        const defecto = Math.abs(BUFFS[def.stat] ?? 0.15)
+        const valor = Number.isFinite(base) && base !== 0 ? Math.abs(base) / (Math.abs(base) > 1 ? 100 : 1) : defecto
+        e.valor = def.tipo === "debuff" ? -valor : valor
+    }
+    if (def.tipo === "regen_mana") e.valor = Number.isFinite(base) && base > 0 ? base : def.porDefecto
+    if (def.tipo === "cleanse") e.cantidad = Number.isFinite(base) && base > 0 ? Math.floor(base) : 1
+    if (duracion) e.duracion = duracion
+    return e
+}
 
 // ─── Objetivo / alcance ──────────────────────────────────────────────────────
 
@@ -111,6 +149,13 @@ function efectoDesdeLegacy(clave, datos = {}) {
     const comun = { objetivo, alcance }
     if (datos.probabilidad !== undefined && datos.probabilidad !== null) comun.probabilidad = num(datos.probabilidad, 1)
 
+    // Claves cortas de buffs/debuffs/regeneración de maná/limpieza (NPCs inline)
+    const tipada = efectoDesdeClaveTipada(k, datos)
+    if (tipada && (tipada.duracion || tipada.tipo === "cleanse")) {
+        const sep = separarObjetivo(datos.objetivo ?? (TIPOS_DE_APOYO.includes(tipada.tipo) ? "aliados" : "enemigos"), datos.alcance)
+        return { ...tipada, objetivo: sep.objetivo, alcance: sep.alcance, ...(comun.probabilidad !== undefined ? { probabilidad: comun.probabilidad } : {}) }
+    }
+
     const def = definicionEstado({ id: k, Nombre: datos.Nombre, tipo: "legacy" })
     if (def && duracion) {
         if (def.familia === "bloqueo") {
@@ -153,7 +198,7 @@ function completarEfecto(e) {
     const out = { ...e }
     out.tipo = quitarTildes(out.tipo)
     if (out.tipo === "degradación") out.tipo = "degradacion"
-    const { objetivo, alcance } = separarObjetivo(out.objetivo ?? (["buff", "hot", "escudo", "guardia", "provocar", "estasis", "mana", "revive", "cleanse"].includes(out.tipo) ? "aliados" : "enemigos"), out.alcance)
+    const { objetivo, alcance } = separarObjetivo(out.objetivo ?? (TIPOS_DE_APOYO.includes(out.tipo) ? "aliados" : "enemigos"), out.alcance)
     out.objetivo = objetivo
     out.alcance = alcance
     if (out.duracion !== undefined && out.duracion !== null) out.duracion = num(out.duracion)
@@ -175,6 +220,10 @@ function completarEfecto(e) {
         out.pausa = true
     }
     if (out.Nombre && !out.nombre) out.nombre = out.Nombre
+    // Solo a otro aliado (Savia Vital): el lanzador nunca es objetivo de este efecto
+    if (out.excluirLanzador !== undefined) out.excluirLanzador = out.excluirLanzador === true || out.excluirLanzador === "true"
+    if (!out.excluirLanzador) delete out.excluirLanzador
+    if (out.tipo === "regen_mana" && out.valor !== undefined) out.valor = num(out.valor)
     delete out.Nombre
     return out
 }
@@ -200,6 +249,9 @@ function normalizarMecanica(mec, objetivoDefecto, alcanceGlobal) {
     const { objetivo, alcance } = separarObjetivo(mec.objetivo ?? objetivoDefecto, mec.alcance ?? alcanceGlobal)
     const out = { ...mec, base, objetivo, alcance }
     if (mec.scaling) out.scaling = { stats: mec.scaling.stats || "inteligencia", multi }
+    // Cadena con tope de objetivos (Doble Descarga: 2). Sin tope, todos los factores de CADENA
+    if (alcance === "cadena" && num(mec.objetivosMax, 0) > 0) out.objetivosMax = Math.floor(num(mec.objetivosMax))
+    else delete out.objetivosMax
     return out
 }
 
@@ -302,5 +354,5 @@ function nombreEscalon(escalon) {
 
 module.exports = {
     normalizarHechizo, convertirEfectos, separarObjetivo, normalizarVias, viaDesdeTipo,
-    nombreEscalon, TIPOS_EFECTO,
+    nombreEscalon, TIPOS_EFECTO, TIPOS_DE_APOYO, CLAVES_TIPADAS, efectoDesdeClaveTipada,
 }

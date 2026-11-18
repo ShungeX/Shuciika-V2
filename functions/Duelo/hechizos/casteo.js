@@ -8,6 +8,8 @@ const { VIAS, VIAS_CORPORALES, VIAS_LENTAS, CASTEO, MAESTRIA, KIT } = require(".
 const { normalizarElemento, esUniversal } = require("./elementos")
 const { efectosActivos, viasBloqueadas, quienBloquea } = require("./estados")
 const { normalizarHechizo } = require("./adaptador")
+const { manaActual } = require("./mana")
+const { evaluarContenedor } = require("../../Contenedores/nucleo")
 
 const { MOVIMIENTO, MENTAL, INSTINTO } = VIAS
 
@@ -89,6 +91,13 @@ function evaluarCasteo(pj, hechizo, opciones = {}) {
     const activos = efectosActivos(pj)
     if (activos.some(a => a.familia === "total")) return fallo(["estasis"], "en Estasis")
 
+    // Alma Desafinada: sin un contenedor que funcione no hay magia elemental, y solo traduce un
+    // elemento a la vez. También aporta la latencia, el modificador por etapa y el costo en Vida.
+    const costos = h.Costos || {}
+    const manaBase = Number(costos.mana ?? costos.Mana ?? 0) || 0
+    const cont = evaluarContenedor(pj, h, { costoMana: manaBase, ignorarKit: opciones.ignorarKit })
+    if (!cont.ok) return fallo(cont.razon, cont.motivo)
+
     if (!opciones.ignorarKit && !enKit(pj, h)) {
         return fallo(["elemento"], `no es de tu elemento activo (${elementoActivo(pj)})`)
     }
@@ -125,23 +134,24 @@ function evaluarCasteo(pj, hechizo, opciones = {}) {
     if (activos.some(a => a.lentitud) && usadas.some(v => VIAS_LENTAS.includes(v))) {
         tiempoExtra += CASTEO.LENTITUD_TIEMPO_EXTRA
     }
+    tiempoExtra += cont.tiempoExtra || 0   // latencia de traducción (desafinados)
 
     const nivel = h._accion ? 1 : nivelMaestria(pj, h._id)
     const probBase = Number(cast.probabilidad ?? 1)
-    const pFinal = probabilidadConMaestria(probBase, nivel) * pSinFalla
+    // El contenedor fisurado / crítico resta puntos de probabilidad
+    const pFinal = Math.max(0, Math.min(1, probabilidadConMaestria(probBase, nivel) * pSinFalla + (cont.modProbabilidad || 0)))
     const manaX = modo === "mental" ? (Number(cast.mental?.manaX) || CASTEO.MENTAL.manaX) : 1
 
-    const costos = h.Costos || {}
-    const manaBase = Number(costos.mana ?? costos.Mana ?? 0) || 0
     const descuento = (nivel >= 4 && probBase >= 1) ? MAESTRIA.DESCUENTO_MANA_MAESTRO : 0
     const costoMana = manaBase > 0 ? Math.max(MAESTRIA.MANA_MINIMO, Math.ceil((manaBase - descuento) * manaX)) : 0
-    const costoVida = Number(costos.Vida ?? costos.vida ?? 0) || 0
+    const vidaBase = Number(costos.Vida ?? costos.vida ?? 0) || 0
+    const costoVida = vidaBase > 0 && cont.factorVida !== undefined ? Math.ceil(vidaBase * cont.factorVida) : vidaBase
     const costoDinero = Number(costos.Dinero ?? costos.dinero ?? 0) || 0
 
     if (!opciones.ignorarCostos && !h._accion) {
         const cd = pj?.cooldowns?.[h._id]
         if (cd > 0) return fallo(["cooldown"], `en enfriamiento (${cd} ronda/s)`, { cooldown: cd })
-        if ((Number(pj?.Mana) || 0) < costoMana) return fallo(["mana"], `maná insuficiente (${costoMana} PM)`, { costoMana })
+        if (manaActual(pj) < costoMana) return fallo(["mana"], `maná insuficiente (${costoMana} PM)`, { costoMana })
         if (costoVida > 0 && ((Number(pj?.HP) || 0) - 1) <= costoVida) return fallo(["vida"], `vida insuficiente (${costoVida} HP)`, { costoVida })
     }
 
@@ -159,6 +169,7 @@ function evaluarCasteo(pj, hechizo, opciones = {}) {
         costoDinero,
         tiempo: Math.max(0, Number(cast.tiempo ?? 1)) + tiempoExtra,
         nivelMaestria: nivel,
+        etapaContenedor: cont.etapa ?? null,
     }
 }
 

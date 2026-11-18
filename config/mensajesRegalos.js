@@ -18,6 +18,7 @@ const MENSAJES = {
     HP_CERO_ENVIAR: "Estás agotadito… descansa un poco antes de envolver regalos, ¿sí?",
     OCUPADO: `Ahora mismo estás en medio de algo importante. Cuando termines, aquí te espero ${FIRMA}`,
     DESTINO_NO_EXISTE: "No encuentro a ese alumno en los registros del Instituto (・・ ) ?",
+    DESTINO_INACTIVO: "Ese alumno no está en el Instituto ahora mismo, así que no puedo llevarle tu regalo (｡•́︿•̀｡)",
     DESTINO_INVALIDO: `Tus personajes ya comparten todo en el corazón; los regalos son para otras almas ${FIRMA}`,
     MISMO_PERSONAJE: `Un regalo para ti… ¡te lo mereces! Pero esto necesita a alguien más ${FIRMA}`,
     SIN_ALMA: "Ese personaje aún no despierta su alma, así que su buzón no puede guardar regalos todavía (｡•́︿•̀｡)",

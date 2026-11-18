@@ -7,6 +7,7 @@ const {
     STATS_MOSTRAR, STATS_MEJORABLES, COSTO_FE_POR_PUNTO, valorStat, mejorasCompradas,
 } = require("../../functions/Economia/progresionEstelar")
 const { esBeneficioso } = require("../../functions/Duelo/efectosPersistentes")
+const { manaDeAlma, esAlmaDesafinada } = require("../../functions/Contenedores/nucleo")
 
 const IMAGEN_ALMA = "https://res.cloudinary.com/dn1cubayf/image/upload/v1737346978/idk3_v2s9hr.jpg?format=webp"
 const MAX_SENDERO = 50       // resonancia/disonancia llegan hasta 50 (dialogoVinculos)
@@ -75,9 +76,9 @@ function selectorOtrosMenus(userId, characterId, activo = null) {
 
 // ─── Fila de navegación del perfil ───────────────────────────────────────────
 
-/** Selector principal del perfil (perfil, galería, historia, alma, mascotas), con "alma" activo. */
-function filaNavegacionPerfil(userId, characterId) {
-    const opcion = (label, value, emoji) => ({ label, value, description: null, emoji, default: value === "alma", disabled: false })
+/** Selector principal del perfil (perfil, galería, historia, alma, mascotas), con `activo` marcado ("alma" por defecto). */
+function filaNavegacionPerfil(userId, characterId, activo = "alma") {
+    const opcion = (label, value, emoji) => ({ label, value, description: null, emoji, default: value === activo, disabled: false })
     return {
         type: 1,
         components: [{
@@ -118,7 +119,8 @@ function construirAlmaMain({ character, soul, userId, filaNavegacion = null }) {
     const resonancia = Number(sendero.resonancia) || 0
     const disonancia = Number(sendero.disonancia) || 0
     const disonanciaPct = Math.round(Math.min(1, disonancia / MAX_SENDERO) * 100)
-    const afinado = resonancia >= disonancia ? "Afinado" : "Desafinado"
+    const afinado = esAlmaDesafinada(soul) ? "Desafinado" : "Afinado"
+    const mana = manaDeAlma(soul)   // en un desafinado es la carga de su contenedor
     const heraldo = sendero.heraldo?.Nombre || sendero.heraldo?.nombre || (typeof sendero.heraldo === "string" ? sendero.heraldo : null)
 
     const contenedor = {
@@ -154,7 +156,7 @@ function construirAlmaMain({ character, soul, userId, filaNavegacion = null }) {
                 },
                 components: [
                     texto(
-                        `\n\n-# \`[💜]\` HP: ${nucleo.HP ?? 0}/${stats.hpMax ?? 0}   ̸   \`[💧]\` Mana: ${nucleo.Mana ?? 0}/${stats.manaMax ?? 0}\n` +
+                        `\n\n-# \`[💜]\` HP: ${nucleo.HP ?? 0}/${stats.hpMax ?? 0}   ̸   \`[💧]\` Mana: ${mana.actual}/${mana.max}\n` +
                         `-# \`[🖤]\` Disonancia: ${disonanciaPct}%\n\n` +
                         bloqueEfectos(nucleo.efectos)
                     ),
@@ -226,7 +228,8 @@ function construirAlmaStats({ character, soul, userId, filaNavegacion = null }) 
 
 // ─── Vista de equipamiento ───────────────────────────────────────────────────
 
-function construirAlmaEquipamiento({ character, userId, textoEquipamiento, filaNavegacion = null }) {
+/** @param {Object[]} [p.extras] - componentes adicionales bajo el equipo (panel del contenedor) */
+function construirAlmaEquipamiento({ character, userId, textoEquipamiento, filaNavegacion = null, extras = [] }) {
     const contenedor = {
         type: 17,
         accent_color: null,
@@ -242,6 +245,7 @@ function construirAlmaEquipamiento({ character, userId, textoEquipamiento, filaN
             },
             divisor(),
             texto(textoEquipamiento),
+            ...extras,
             divisor(),
             selectorOtrosMenus(userId, character._id, "equipamiento"),
         ],

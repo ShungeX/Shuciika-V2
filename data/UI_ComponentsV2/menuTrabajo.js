@@ -70,7 +70,7 @@ function gafete({ userId, nombre, booster, energia, jornada, activo, otro, sinPr
     lineas.push(`-# Jornada: ${barraJornada(jornada.turnosHoy, jornada.turnosMax)}`)
 
     if (otro) {
-        const estado = otro.enPausa ? " (en pausa hasta que vuelvas a boostear)" : ""
+        const estado = otro.enPausa ? " (en pausa: este personaje no tiene beneficio de apoyo)" : ""
         lineas.push(`-# ${otro.slot === "boost" ? "Puesto de boost" : "Puesto principal"}: ${otro.nombre} · ${otro.rango.nombre}${estado}`)
         if (otro.renunciaEn) lineas.push(`-# Renuncia en trámite: se procesa <t:${otro.renunciaEn}:R>`)
     }

@@ -2,7 +2,6 @@ const { ActivityType } = require("discord.js")
 const configV = require(`../../config`)
 
 module.exports = (client) => {
-    console.log(`Bienvenido Asrii, soy \x1b[35m${client.user.tag}\x1b[0m`)
 
     const presenceFinal = () => {
         client.user.setPresence({

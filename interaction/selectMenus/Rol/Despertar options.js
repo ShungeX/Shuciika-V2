@@ -4,6 +4,8 @@ const { crearStringSelectMenu } = require("../../../utils/constructores/crearCom
 const { crearCustomId } = require("../../../utils/constructores/customId")
 const { souls: Soul } = require("../../../utils/getDataCharacters")
 const { aplicarVinculos } = require("../../../functions/dialogoVinculos")
+const contenedores = require("../../../functions/Contenedores/nucleo")
+const { RESPALDO, ADVERTENCIA } = require("../../../functions/Contenedores/config")
 
 const sleep = promisify(setTimeout)
 const ACTION = "despertarOptions"
@@ -17,6 +19,9 @@ const ACTION = "despertarOptions"
  * Etapas:
  *  - rf  → Sintonía inicial: afinidad natural, lienzo en blanco o aleatorio
  *  - rf2 → Sello del alma: elección del elemento, cierra el despertar
+ *
+ * Elegir "Lienzo en blanco" (Alma Desafinada) pasa antes por una advertencia con confirmación
+ * explícita (botón despertarConfirmar): el jugador debe saber que su poder vivirá en un contenedor.
  *
  * La resonancia, disonancia e hilos lunares los suma el diálogo con sus variables
  * vinculadas (ver functions/dialogoVinculos); despertarAlma los escribe en el Soul.
@@ -146,6 +151,24 @@ function uiSintonia({ userId, characterId, elegido, disabled }) {
     )
 }
 
+/** Advertencia previa a elegir ser un Alma Desafinada: voz oficial + resumen mecánico + confirmación. */
+function textoAdvertencia() {
+    return `${ADVERTENCIA.TEXTO}\n\n**Lo que significa: ** \n${ADVERTENCIA.RESUMEN.map(l => `- -# ${l}`).join("\n")}`
+}
+
+function uiAdvertencia({ userId, characterId }) {
+    const boton = (label, valor, style) => ({
+        type: 2, style, label,
+        custom_id: crearCustomId({ action: "despertarConfirmar", userId, characterId, extras: [valor] }),
+    })
+    return contenedor(
+        seccion(IMAGENES.lienzo, "# Antes de elegir el silencio", textoAdvertencia()),
+        separador(),
+        texto("-# El Instituto te entregará un **Contenedor de Cortesía** al despertar. Esta decisión no se puede deshacer."),
+        { type: 1, components: [boton("Seré un Alma Desafinada", "si", 4), boton("Volver a elegir", "no", 2)] },
+    )
+}
+
 function uiSello({ userId, characterId, elegido, disabled }) {
     return contenedor(
         seccion(IMAGENES.sello,
@@ -166,12 +189,14 @@ function uiSello({ userId, characterId, elegido, disabled }) {
 
 function uiFinal(soul) {
     const naturaleza = soul.nucleo.artefactoMagico === true ? "Lienzo en blanco" : "Alma en resonancia (afinada)"
+    const equipado = contenedores.entradaEquipada(soul.dominio?.equipo)
+    const lineaContenedor = contenedores.esAlmaDesafinada(soul) && equipado ? `\n- -# Contenedor: ${contenedores.nombreVisible(equipado)}` : ""
 
     return contenedor(
         texto("# En busca de un lugar en las estrellas"),
         texto("Tu poder ha despertado, portador. Tu alma ha sido reconocida.\n\nCada lección, cada desafío y cada acto de lealtad te acercará a tu destino final: **la Ascensión.** \nEsfuérzate, mantén tu *resonancia pura* y reclama el lugar que te espera entre los protectores de nuestro firmamento. "),
         separador(),
-        texto(`- -# Naturaleza anímica: ${naturaleza} \n- -# Pilar de la realidad: ${soul.nucleo.Elemento}\n- -# FE Inicial: ${soul.nucleo.nivelMagico}`),
+        texto(`- -# Naturaleza anímica: ${naturaleza} \n- -# Pilar de la realidad: ${soul.nucleo.Elemento}\n- -# FE Inicial: ${soul.nucleo.nivelMagico}${lineaContenedor}`),
         { type: 12, items: [{ media: { url: IMAGENES.sintonia } }] },
         separador(),
         texto("-# *Tu perfil ha sido actualizado en los Archivos del Instituto, usa `/rol perfil` para visualizar dichos cambios*"),
@@ -195,14 +220,22 @@ function ecoDelSendero({ resonancia, disonancia }) {
 
 // ─── Etapas ──────────────────────────────────────────────────────────────────
 
-/** rf: fija la naturaleza del alma y muestra el Sello del alma */
-async function elegirSintonia({ interaction, character, soul, respuesta }) {
+/**
+ * rf: fija la naturaleza del alma y muestra el Sello del alma.
+ * @param {boolean} [p.confirmado] - el jugador ya leyó la advertencia y pulsó el botón de confirmación
+ */
+async function elegirSintonia({ interaction, character, soul, respuesta, confirmado = false }) {
     if (!soul) {
         soul = soulInicial(character._id, interaction.user.id)
         await Soul.insertOne(soul)
     }
 
     const ids = { userId: interaction.user.id, characterId: character._id }
+
+    // Alma Desafinada: primero la advertencia; solo se fija con la confirmación explícita
+    if (respuesta === "disonancia" && !confirmado && contenedores.contenedoresActivos()) {
+        return interaction.update({ components: uiAdvertencia(ids) })
+    }
     await interaction.update({ components: uiSintonia({ ...ids, elegido: `rf*${respuesta}`, disabled: true }) })
 
     let sintonia = respuesta
@@ -212,6 +245,10 @@ async function elegirSintonia({ interaction, character, soul, respuesta }) {
         const { nombre, detalle } = SINTONIAS[sintonia]
         await interaction.editReply({ components: uiSintonia({ ...ids, elegido: `rf*${sintonia}`, disabled: true }) })
         await interaction.followUp({ content: `El destino eligió por ti: **${nombre}** *(${detalle})*`, flags: ["Ephemeral"] })
+        // El destino no pregunta, pero el jugador igual debe saber qué implica
+        if (sintonia === "disonancia" && contenedores.contenedoresActivos()) {
+            await interaction.followUp({ content: textoAdvertencia(), flags: ["Ephemeral"] })
+        }
     }
 
     if (!(sintonia in SINTONIAS)) {
@@ -283,12 +320,19 @@ async function finalizarDespertar(user, characterId, elemento) {
     await user.send({ content: "El claro se desvanece. Las luces de tu alma comienzan a apagarse, cómo si de un teatro se tratara. Dejando solo un foco sobre ti, el jugador. El silencio es total..." })
     .then(m => setTimeout(() => m.delete().catch(() => { }), 12000))
 
+    // Alma Desafinada: el Instituto entrega el Contenedor de Cortesía y el elemento elegido pasa a ser el activo
+    const previa = await Soul.findOne({ _id: characterId })
+    const recibeContenedor = contenedores.contenedoresActivos() && contenedores.esAlmaDesafinada(previa)
+    const equipo = [{ ID: 748, Region: "TOB-01", Type: 1 }]
+    if (recibeContenedor) equipo.push(contenedores.crearInstancia("cortesia", { manaMaxBase: previa?.stats?.manaMax }))
+
     await Soul.updateOne({ _id: characterId }, {
         $set: {
             "metadata.Despertado": Math.floor(Date.now() / 1000),
             isFinish: true,
-            "dominio.equipo": [{ ID: 748, Region: "TOB-01", Type: 1 }],
+            "dominio.equipo": equipo,
             "dominio.hechizos": [{ ID: elemento.hechizo, InCombat: true }],
+            ...(recibeContenedor ? { "nucleo.elementoActivo": contenedores.elementoActivoDeAlma({ nucleo: { Elemento: elemento.nombre } }) } : {}),
         },
         $unset: { messageTemp: "" },
     })
@@ -297,6 +341,10 @@ async function finalizarDespertar(user, characterId, elemento) {
 
     const soul = await Soul.findOne({ _id: characterId })
     await user.send({ components: uiFinal(soul), flags: ["IsComponentsV2"] })
+    if (recibeContenedor) {
+        await user.send({ content: `${RESPALDO.TEXTO_ENTREGA}\n-# Puedes revisarlo en ` + "`/rol perfil`" + ` → Alma → Equipamiento.` })
+            .catch(e => console.warn("[Despertar] No se pudo enviar el aviso del contenedor:", e.message))
+    }
 }
 
 // ─── Entrada desde el diálogo ────────────────────────────────────────────────
@@ -386,4 +434,7 @@ module.exports = crearStringSelectMenu({
     },
 
     despertarAlma,
+    // Botón despertarConfirmar (advertencia del Alma Desafinada)
+    elegirSintonia,
+    uiSintonia,
 })

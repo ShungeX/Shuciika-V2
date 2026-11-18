@@ -1,7 +1,7 @@
 // ─── Validación de esquema al guardar (XII.B) ────────────────────────────────
 // Mejor rechazar al guardar desde el dashboard que fallar en pleno combate.
 
-const { VIAS_VALIDAS, ESCALONES, ROLES, ALCANCES, OBJETIVOS, ELEMENTOS, VIAS_ADQUISICION } = require("./config")
+const { VIAS_VALIDAS, ESCALONES, ROLES, ALCANCES, OBJETIVOS, ELEMENTOS, VIAS_ADQUISICION, CADENA } = require("./config")
 const { normalizarHechizo, convertirEfectos, normalizarVias, separarObjetivo, TIPOS_EFECTO } = require("./adaptador")
 const { normalizarElemento } = require("./elementos")
 
@@ -34,13 +34,20 @@ function validarHechizo(h) {
         if (!mec) continue
         if (!OBJETIVOS.includes(mec.objetivo)) errores.push(`${nombre}.objetivo inválido: ${mec.objetivo}`)
         if (!ALCANCES.includes(mec.alcance)) errores.push(`${nombre}.alcance inválido: ${mec.alcance}`)
+        if (mec.objetivosMax !== undefined && mec.objetivosMax !== null) {
+            const n = Number(mec.objetivosMax)
+            if (mec.alcance !== "cadena") errores.push(`${nombre}.objetivosMax solo aplica a alcance 'cadena'`)
+            else if (!Number.isInteger(n) || n < CADENA.MIN_OBJETIVOS || n > CADENA.FACTORES.length) {
+                errores.push(`${nombre}.objetivosMax debe ser un entero entre ${CADENA.MIN_OBJETIVOS} y ${CADENA.FACTORES.length}`)
+            }
+        }
     }
 
     ;(h.Mecanicas?.Efectos || []).forEach((e, i) => {
         const pre = `Efectos[${i}]`
         if (!TIPOS_EFECTO.has(e.tipo)) errores.push(`${pre}: tipo desconocido (${e.tipo})`)
         if (e.probabilidad !== undefined && !(e.probabilidad >= 0 && e.probabilidad <= 1)) errores.push(`${pre}: probabilidad fuera de 0..1`)
-        if (["control", "degradacion", "dot", "hot", "buff", "debuff"].includes(e.tipo) && !(Number(e.duracion) > 0)) errores.push(`${pre}: necesita duracion > 0`)
+        if (["control", "degradacion", "dot", "hot", "buff", "debuff", "regen_mana"].includes(e.tipo) && !(Number(e.duracion) > 0)) errores.push(`${pre}: necesita duracion > 0`)
         if (e.tipo === "control") {
             if (!Array.isArray(e.bloquea) || !e.bloquea.length) errores.push(`${pre}: un control debe declarar las vías que bloquea`)
             else for (const v of e.bloquea) if (!VIAS_VALIDAS.includes(v)) errores.push(`${pre}: vía bloqueada inválida (${v})`)
@@ -49,6 +56,8 @@ function validarHechizo(h) {
         if (e.degrada && !["falla", "desvio"].includes(e.degrada.tipo)) errores.push(`${pre}: degrada.tipo debe ser 'falla' o 'desvio'`)
         if (e.tipo === "estasis" && Number(e.duracion) !== 1) errores.push(`${pre}: la Estasis dura 1 turno fijo`)
         if (!OBJETIVOS.includes(e.objetivo)) errores.push(`${pre}: objetivo inválido (${e.objetivo})`)
+        if (e.tipo === "regen_mana" && !(Number(e.valor ?? e.base) > 0)) errores.push(`${pre}: regen_mana necesita valor > 0 (maná por turno)`)
+        if (e.excluirLanzador && e.objetivo !== "aliados") errores.push(`${pre}: 'solo a otro aliado' exige objetivo 'aliados'`)
     })
     return errores
 }
@@ -96,7 +105,8 @@ function completarHechizoParaGuardar(armado, entrada = {}, previo = null) {
     doc.Nombre = String(doc.Nombre || "").trim()
     doc.Elemento = armado.Elemento === null ? null : (normalizarElemento(armado.Elemento) === ELEMENTOS.NEUTRO ? null : normalizarElemento(armado.Elemento))
 
-    for (const campo of ["Escalon", "Rol", "Adquisicion"]) {
+    // Invocacion: texto escrito a mano (minijuego de hablado). El dashboard no lo edita: se conserva
+    for (const campo of ["Escalon", "Rol", "Adquisicion", "Invocacion"]) {
         if (tiene(entrada, campo)) doc[campo] = entrada[campo]
         else if (tiene(previo, campo)) doc[campo] = previo[campo]
     }
@@ -114,6 +124,10 @@ function completarHechizoParaGuardar(armado, entrada = {}, previo = null) {
         const alcance = inMec[k]?.alcance ?? prevMec[k]?.alcance
         const sep = separarObjetivo(doc.Mecanicas[k].objetivo, alcance)
         doc.Mecanicas[k] = { ...doc.Mecanicas[k], objetivo: sep.objetivo, alcance: sep.alcance }
+        // Tope de la cadena: el dashboard lo manda; si no viene (formulario antiguo) se conserva el previo
+        const tope = inMec[k] && Object.prototype.hasOwnProperty.call(inMec[k], "objetivosMax") ? inMec[k].objetivosMax : prevMec[k]?.objetivosMax
+        if (sep.alcance === "cadena" && tope !== null && tope !== undefined && tope !== "") doc.Mecanicas[k].objetivosMax = Number(tope)
+        else delete doc.Mecanicas[k].objetivosMax
     }
 
     doc.Mecanicas.Efectos = fusionarEfectos(inMec, prevMec)

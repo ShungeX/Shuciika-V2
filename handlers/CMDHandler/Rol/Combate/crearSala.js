@@ -358,6 +358,7 @@ module.exports = {
 
         } else if (tipoDuelo === 1) {
             if (!rival) return interaction.reply({ content: `Hmm... No existe ningun personaje con el ID: **${rivalID}**`, flags: ["Ephemeral"] });
+            if (require("../../../../utils/personajeInactivo").esInactivo(rival)) return interaction.reply({ content: "Ese alumno no está en el Instituto ahora mismo, así que no puede aceptar un duelo (｡•́︿•̀｡)", flags: ["Ephemeral"] });
 
             if (character._id === rival?._id) return interaction.reply({ content: `No puedes tener un duelo contigo mismo... ¿O si? (¬_¬")`, flags: ["Ephemeral"] });
             if (userData.nix.personajes.some(p => p.id === rival?._id)) {

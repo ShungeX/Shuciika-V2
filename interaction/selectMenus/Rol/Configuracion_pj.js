@@ -11,6 +11,7 @@ const souls = db2.collection("Soul")
 const {crearStringSelectMenu} = require("../../../utils/constructores/crearComponente")
 const { crearCustomId } = require("../../../utils/constructores/customId")
 const { puedeMostrarBanner, recortarBannerDiscord } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { leerProgreso } = require("../../../functions/Economia/progresionEstelar")
 
 // Mismos campos y niveles que la web (Server.js → POST /api/personaje/privacidad).
 const CAMPOS_PRIVACIDAD = [
@@ -96,7 +97,7 @@ module.exports = crearStringSelectMenu({
             }
             const puede = await puedeMostrarBanner(interaction.user.id, interaction.client)
             if (!puede && action === "mostrar") {
-                return interaction.reply({ content: "Mostrar el banner en Discord es exclusivo para quienes apoyan al servidor con un boost ♡( ◡‿◡ )", flags: ["Ephemeral"] })
+                return interaction.reply({ content: "Mostrar el banner en Discord es exclusivo para quienes apoyan al servidor con un boost o siendo Support ♡( ◡‿◡ )", flags: ["Ephemeral"] })
             }
 
             const mostrar = action === "mostrar"
@@ -140,6 +141,11 @@ module.exports = crearStringSelectMenu({
                     "usuario.nix.personajeActivo": nuevoId,
                 }
             })
+            // El miembro pasa a llevar el rol del área donde quedó este personaje (no bloquea la respuesta)
+            const dbDeVestibulos = require("../../../Server")
+            require("../../../functions/vestibulos").sincronizarUbicacion(
+                interaction.client, interaction.guildId, dbDeVestibulos.db("Server_db"), dbDeVestibulos.db("Rol_db"), interaction.user.id, nuevoId
+            )
 
             const inicioMess = [
                 {
@@ -292,7 +298,7 @@ module.exports = crearStringSelectMenu({
             const recortado = recortarBannerDiscord(character.perfil?.bannerURL, character.perfil?.bannerDiscord)
             const activo = character.perfil?.mostrarBannerDiscord === true
             let estado
-            if (!puede) estado = "-# `🔒` Exclusivo para Server Boosters."
+            if (!puede) estado = "-# `🔒` Exclusivo para Server Boosters y Supporters."
             else if (!recortado) estado = "-# `⚠️` Aún no tienes banner. Súbelo desde tu perfil en el dashboard (click sobre el banner)."
             else estado = activo ? "-# `✅` Tu banner se muestra en `/rol perfil`." : "-# `💤` Tu banner está oculto en Discord."
 
@@ -341,6 +347,9 @@ ${estado}` },
                 const soul = await souls.findOne({ _id: ch._id });
 
                 const apodoFormateado = ch.perfil.apodo ? `[${ch.perfil.apodo}]` : "";
+                // Mismo cálculo que el menú del Alma (sendero.nivel ya no existe)
+                const prog = leerProgreso(soul || {});
+                const progresoTexto = `Resplandor ${prog.resplandorRomano} · FE: ${prog.disponibles}`;
 
                 allCharacters.push({
                     "type": 9,
@@ -355,7 +364,7 @@ ${estado}` },
                     "components": [
                         {
                             "type": 10,
-                            "content": `# ${ch.perfil.Nombre} ${apodoFormateado} - Lv: ${soul ? soul.sendero.nivel : "0"}
+                            "content": `# ${ch.perfil.Nombre} ${apodoFormateado}\n-# ${progresoTexto}
                             \n\n- -# ID: ${ch._id} \n- -# Estado: ${activo ? "Activo" : "Inactivo"} \n- -# Rol: ${ch.estado.Rol}
                             \n- -# Lumens: ${ch.economia.Lumens}\n- -# Fecha de creación: <t:${ch.metadata.fechaCreacion}:R>`
                         }
@@ -363,7 +372,7 @@ ${estado}` },
                 });
 
                 selectCharacter.push({
-                    "label": `${ch.perfil.Nombre} - Lv: ${soul ? soul.sendero.nivel : "0"}`,
+                    "label": `${ch.perfil.Nombre} - ${progresoTexto}`.slice(0, 100),
                     "value": `${ch._id}`,
                     "description": null,
                     "emoji": null,

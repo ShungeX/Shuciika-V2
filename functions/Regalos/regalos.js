@@ -125,6 +125,7 @@ async function enviarRegalo({ remitente, alma, destino, borrador }) {
     // 4. El destinatario existe, tiene alma
     const dest = await resolverDestino(destino || {})
     if (!dest) return c.fallo("DESTINO_NO_EXISTE")
+    if (dest.Inactivo === true) return c.fallo("DESTINO_INACTIVO")
     if (String(dest._id) === String(remitente._id)) return c.fallo("MISMO_PERSONAJE")
 
     // 5. Nunca entre personajes de la misma cuenta

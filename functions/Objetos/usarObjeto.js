@@ -7,6 +7,8 @@ const updateInventario = require("../updateInventario")
 const { moverLumens } = require("../Economia/lumens")
 const { limitarEntradas } = require("./limiteInventario")
 
+const { REPARACION: { KIT: KIT_REPARACION } } = require("../Contenedores/config")
+
 const MAX_USOS_POR_MODAL = 3
 const SEP = "|"
 
@@ -25,7 +27,7 @@ const tiposDe = (def) => (Array.isArray(def?.Tipo) ? def.Tipo : [def?.Tipo]).fil
 
 /**
  * Cómo se usa un objeto del inventario fuera de combate, o null si no se puede usar.
- * @returns {"regalo"|"bolsa"|"cofre"|"efecto"|null}
+ * @returns {"regalo"|"bolsa"|"cofre"|"reparacion"|"pagina"|"invitacion"|"espejo"|"huevo"|"incubadora"|"efecto"|null}
  */
 function tipoDeUso(item) {
     const def = definicionDe(item)
@@ -41,10 +43,23 @@ function tipoDeUso(item) {
         return "bolsa"
     }
     if (Number(def.ID) === COFRE_ID) return "cofre"
+    // Salón de los Espejos: Invitación (fuerza El Anfitrión) y Espejo de Mano (tu perfil de acciones)
+    const { OBJETOS: SALON } = require("../Duelo/habilidadesNPC/anfitrion/config").ANFITRION
+    const es = (o) => Number(def.ID) === o.ID && def.Region === o.Region
+    if (es(SALON.INVITACION)) return "invitacion"
+    if (es(SALON.ESPEJO_DE_MANO)) return "espejo"
+    // Página de un hechizo: abre su pantalla de práctica (se consume solo al aprenderlo)
+    if (require("../Aprendizaje/nucleo").esDefinicionPagina(def)) return "pagina"
+    // Kit de reparación: repara el contenedor equipado (solo fuera de combate)
+    if (Number(def.ID) === KIT_REPARACION.ID && def.Region === KIT_REPARACION.Region) return "reparacion"
 
-    // Alimento de mascotas, incubadoras y huevos van por el sistema de mascotas
-    if (def.atributos?.alimento || def.atributos?.incubadora) return null
-    if (tiposDe(def).includes("Huevo")) return null
+    // Huevos e incubadora: abren la crianza del sistema de mascotas (functions/Mascotas).
+    // Cualquier objeto cuyo Tipo incluya "Huevo" se puede criar.
+    const mascotas = require("../Mascotas/nucleo")
+    if (mascotas.esObjetoHuevo(def)) return "huevo"
+    if (mascotas.esIncubadora(def)) return "incubadora"
+    // El alimento de mascota se usa desde su panel (/rol perfil → Mascotas)
+    if (def.atributos?.alimento) return null
 
     if ((def.efectos || []).length && (def.uso?.contexto || "ambos") !== "combate") return "efecto"
     return null
@@ -67,6 +82,11 @@ function opcionesUsables(items) {
 function descripcionUso(item) {
     const tipo = tipoDeUso(item)
     if (tipo === "bolsa") return "Abre la bolsa (1 por uso)"
+    if (tipo === "pagina") return "Abre la página para practicar el hechizo"
+    if (tipo === "invitacion") return "Acepta la invitación (pide confirmación)"
+    if (tipo === "espejo") return "Mira cómo te lee el Salón"
+    if (tipo === "huevo") return `Empieza a criarlo · tienes x${item.Cantidad ?? 1}`
+    if (tipo === "incubadora") return "Mira tus huevos en crianza"
     if (tipo === "regalo") {
         const estado = item.Metadata?.regalo?.estado
         if (estado === "cerrado") return "Regalo cerrado: ábrelo para recuperar su contenido"
@@ -115,6 +135,10 @@ async function usarObjeto({ interaction, character, soul, clave, cantidadTexto }
     if (!tipo) return fallo(`**${item.Nombre}** no se puede usar fuera de combate (╥﹏╥)`)
 
     if (tipo === "regalo") return usarBolsaRegalo({ interaction, character, soul, item })
+    if (tipo === "pagina") return usarPagina({ interaction, character, soul, item })
+    if (tipo === "invitacion") return usarInvitacion({ interaction, character })
+    if (tipo === "espejo") return usarEspejo({ soul })
+    if (tipo === "huevo" || tipo === "incubadora") return usarCrianza({ interaction, character, soul, item, tipo })
 
     const def = definicionDe(item)
     const tiene = Number(item.Cantidad ?? 1)
@@ -124,6 +148,7 @@ async function usarObjeto({ interaction, character, soul, clave, cantidadTexto }
 
     if (tipo === "bolsa") return abrirBolsa({ character, item })
     if (tipo === "cofre") return abrirCofres({ interaction, character, def, cantidad })
+    if (tipo === "reparacion") return usarKits({ character, soul, cantidad })
     return aplicarEfectos({ soul, def, cantidad })
 }
 
@@ -157,6 +182,28 @@ async function aplicarEfectos({ soul, def, cantidad }) {
     }
 
     if (usados > 1) lineas.unshift(`Usaste **${def.Nombre}** x${usados}.`)
+    return { ok: usados > 0, publico: false, lineas }
+}
+
+/** Kit de reparación: cada kit devuelve durabilidad al contenedor equipado. Se detiene al llegar al máximo. */
+async function usarKits({ character, soul, cantidad }) {
+    // Imports diferidos: el servicio arrastra la base de datos y el sistema de combate
+    const servicio = require("../Contenedores/servicio")
+    const { mensajeDe } = require("../Contenedores/vista")
+    const souls = require("../../Server").db("Rol_db").collection("Soul")
+    const personajes = require("../../Server").db("Rol_db").collection("Personajes")
+    if (!soul) return { ok: false, publico: false, lineas: [mensajeDe({ motivo: "no_desafinado" })] }
+
+    const lineas = []
+    let usados = 0
+    for (let i = 0; i < cantidad; i++) {
+        // Cada uso parte del estado que dejó el anterior
+        const [pj, alma] = i === 0 ? [character, soul] : await Promise.all([personajes.findOne({ _id: character._id }), souls.findOne({ _id: soul._id })])
+        const r = await servicio.repararConKit(pj, alma)
+        if (!r.ok) { lineas.push(mensajeDe(r)); break }
+        usados++
+        lineas.push(`\`[🧰]\` +${r.puntos} de durabilidad: tu contenedor queda **${r.etapa}**.`)
+    }
     return { ok: usados > 0, publico: false, lineas }
 }
 
@@ -233,6 +280,76 @@ async function abrirBolsa({ character, item }) {
     })
 
     return { ok: true, publico: true, titulo: "Contenido de la bolsa", lineas: ["**Has obtenido:**", ...lineas] }
+}
+
+/** Invitación del Anfitrión: pide confirmación explícita antes de aceptarla (después ya no se puede huir). */
+function usarInvitacion({ interaction, character }) {
+    const { crearCustomId } = require("../../utils/constructores/customId")
+    const id = (accion) => crearCustomId({ action: "salonEspejos", userId: interaction.user.id, characterId: "", extras: [accion] })
+    return {
+        ok: false, publico: false, lineas: [],
+        componentesV2: [{
+            type: 17,
+            components: [
+                { type: 10, content: "### ✉️ Invitación\n-# Tu nombre está escrito al revés. La letra es la tuya." },
+                { type: 14, divider: true, spacing: 1 },
+                { type: 10, content: "Si la aceptas, la próxima vez que te encuentres un **Sosias**, el anfitrión te estará esperando.\n-# **¿Seguro?** Una vez que el espejo se rompa, ya no podrás huir ni rendirte." },
+                { type: 1, components: [
+                    { type: 2, style: 4, label: "Sí, acepto", emoji: { name: "🪞" }, custom_id: id("aceptar") },
+                    { type: 2, style: 2, label: "Todavía no", custom_id: id("rechazar") },
+                ] },
+            ],
+        }],
+    }
+}
+
+/** Espejo de Mano: no da poder, da información. Cómo te leyó el Salón en tu último encuentro. */
+function usarEspejo({ soul }) {
+    const { CATEGORIAS } = require("../Duelo/habilidadesNPC/anfitrion/perfil")
+    const perfil = soul?.salonEspejos?.perfil
+    const usos = perfil?.usos || {}
+    const total = Object.values(usos).reduce((a, b) => a + (Number(b) || 0), 0)
+    if (!total) return { ok: false, publico: false, lineas: ["`[🪞]` El espejo solo te devuelve la mirada. Todavía no se ha encontrado contigo en el Salón."] }
+    const barra = (f) => `${"▰".repeat(Math.round(f * 10))}${"▱".repeat(10 - Math.round(f * 10))}`
+    const lineas = Object.keys(CATEGORIAS).map(c => {
+        const f = (Number(usos[c]) || 0) / total
+        return `-# ${barra(f)} ${Math.round(f * 100)}% · ${CATEGORIAS[c]}`
+    })
+    const evitadas = Object.keys(CATEGORIAS).filter(c => !(usos[c] > 0)).map(c => CATEGORIAS[c])
+    return {
+        ok: false, publico: false,
+        lineas: [
+            "`[🪞]` **Espejo de Mano**: así te leyó el Salón la última vez.",
+            ...lineas,
+            evitadas.length ? `-# *Lo que evitas: ${evitadas.join(", ")}.*` : "-# *No evitas nada. Eso también se ve.*",
+        ],
+    }
+}
+
+/**
+ * Huevo: pregunta cómo criarlo (a mano o en la incubadora); se consume al elegir.
+ * Incubadora: abre el panel de huevos en crianza. Ninguno gasta nada aquí.
+ */
+async function usarCrianza({ interaction, character, soul, item, tipo }) {
+    // Import diferido: las pantallas arrastran la base de datos y la UI del perfil
+    const pantallas = require("../Mascotas/pantallas")
+    const userId = interaction.user.id
+    const pantalla = tipo === "huevo"
+        ? await pantallas.nuevoHuevo({ userId, character, soul, def: definicionDe(item) })
+        : await pantallas.huevos({ userId, character, soul, origen: "e" })
+    return { ok: false, publico: false, lineas: [], componentesV2: pantalla.components }
+}
+
+/**
+ * Página de un hechizo: muestra su pantalla (vías, progreso, prácticas restantes). No consume nada:
+ * la página se consume al aprender el hechizo.
+ */
+async function usarPagina({ interaction, character, soul, item }) {
+    const flujo = require("../Aprendizaje/flujo")
+    const def = definicionDe(item)
+    const r = await flujo.abrirPagina({ character, soul, hechizoId: def.hechizo, userId: interaction.user.id })
+    if (!r.ok) return { ok: false, publico: false, lineas: [r.mensaje] }
+    return { ok: false, publico: false, lineas: [], componentesV2: r.componentesV2 }
 }
 
 /**

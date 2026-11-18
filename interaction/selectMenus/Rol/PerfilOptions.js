@@ -3,12 +3,11 @@ const clientdb = require("../../../Server");
 const db = clientdb.db("Server_db")
 const db2 = clientdb.db("Rol_db")
 const version = require("../../../config");
-const petConfig = require("../../../config/configPets");
 const dbobjetos = db2.collection("Objetos_globales")
-const pets = db2.collection("Mascotas")
 
+const premium = require("../../../functions/Premium/premium")
 const { crearStringSelectMenu } = require("../../../utils/constructores/crearComponente")
-const { construirPerfilV2, obtenerBannerPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
+const { construirPerfilV2, obtenerBannerPerfil, obtenerApoyoPerfil } = require("../../../handlers/CMDHandler/Rol/Personajes/Perfil")
 const { construirAlmaMain, construirAlmaStats, construirAlmaEquipamiento, filaNavegacionPerfil } = require("../../../data/UI_ComponentsV2/menuAlma")
 
 module.exports = crearStringSelectMenu({
@@ -31,7 +30,7 @@ module.exports = crearStringSelectMenu({
                 perfil(character)
                 break;
             case "galeria":
-                galeria(character)
+                await galeria(character)
                 break;
             case "historia":
                 historia(character)
@@ -40,7 +39,7 @@ module.exports = crearStringSelectMenu({
                 await alma(character)
                 break;
             case "mascota":
-                mascotas(character)
+                await mascotas(character)
                 break;
             case "stats":
                 await stats(character)
@@ -58,11 +57,12 @@ module.exports = crearStringSelectMenu({
 
         async function perfil(pjuser) {
             const bannerURL = await obtenerBannerPerfil(pjuser, interaction.client);
-            const perfilV2 = construirPerfilV2(pjuser, userId || interaction.user.id, bannerURL);
+            const apoyo = await obtenerApoyoPerfil(pjuser, interaction.client);
+            const perfilV2 = construirPerfilV2(pjuser, userId || interaction.user.id, bannerURL, apoyo);
             return interaction.update({ components: perfilV2 });
         }
 
-        function galeria(pjuser) {
+        async function galeria(pjuser) {
             const galeriaItems = pjuser?.social?.galeria;
             if (!galeriaItems || !Array.isArray(galeriaItems) || galeriaItems.length === 0) {
                 return interaction.reply({
@@ -71,7 +71,12 @@ module.exports = crearStringSelectMenu({
                 });
             }
 
-            const imagenes = galeriaItems.slice(0, 9);
+            // Galería ampliada (premium): 10 imágenes; sin premium se ven 3 y las demás quedan ocultas, no borradas
+            // Beneficio en rol: solo en los personajes elegidos del dueño (máx. 2)
+            const usuarioServer = await db.collection("usuarios_server").findOne({ _id: String(pjuser.ownerID) }, { projection: { roles: 1, isBooster: 1, nix: 1, apoyo: 1 } }).catch(() => null)
+            const dueñoPremium = await premium.esPremiumEnPersonaje(interaction.client, pjuser.ownerID, pjuser._id, { usuarioServer })
+            const limite = dueñoPremium ? premium.LIMITES.galeriaPremium : premium.LIMITES.galeriaLibre
+            const imagenes = galeriaItems.filter(img => img?.url).slice(0, limite);
             const items = imagenes.map(img => ({
                 "media": {
                     "url": img.url,
@@ -433,21 +438,16 @@ module.exports = crearStringSelectMenu({
         }
 
         async function mascotas(pjuser) {
-            const petsSystem = require("../../buttons/Rol/petsActs");
+            // Las mascotas son del personaje, no del usuario: solo se cuidan con ese personaje activo.
+            // Viendo el perfil de otro personaje (propio o ajeno) el panel es de solo lectura.
+            const servicioMascotas = require("../../../functions/Mascotas/servicio")
+            const pantallasMascotas = require("../../../functions/Mascotas/pantallas")
+            const activoId = interaction.user.id === pjuser.ownerID ? await servicioMascotas.idPersonajeActivo(interaction.user.id) : null
+            const puedeCuidar = activoId !== null && String(activoId) === String(pjuser._id)
 
-            const mascotaComp = await petsSystem.perfilPet(null, pjuser, interaction)
-
-            const embed = new EmbedBuilder()
-                .setTitle("Mascotas de " + pjuser.perfil.Nombre)
-                .setDescription("Sin mascotas")
-                .setAuthor({ name: user?.displayName || interaction.member.displayName, iconURL: user?.displayAvatarURL({ dynamic: true }) || interaction.member.displayAvatarURL({ dynamic: true }) })
-                .setThumbnail(pjuser.avatarURL)
-                .setColor(`Random`)
-                .setFooter({ text: `Sistema de perfil  /  Version: ${version.versionRol}` });
-            return interaction.reply(mascotaComp)
-            return interaction.update({ components: mascotas4, flags: ["IsComponentsV2"] })
-
-
+            const pantalla = await pantallasMascotas.mascotas({ userId: interaction.user.id, character: pjuser, puedeCuidar, origen: "p" })
+            await interaction.update({ components: pantalla.components, allowedMentions: { parse: [] } })
+            return pantallasMascotas.anunciar(interaction, pantalla)
         }
 
         /** Fila con el selector principal del perfil (debajo de las vistas del alma) */
@@ -482,12 +482,9 @@ module.exports = crearStringSelectMenu({
 
         async function equipamiento(pjuser) {
             if (!puedeVerAlma(pjuser)) return
-            const vista = construirAlmaEquipamiento({
-                character: pjuser,
-                userId: interaction.user.id,
-                textoEquipamiento: await getequipamiento(),
-                filaNavegacion: filaNavegacion(pjuser)
-            })
+            // Equipo + panel del contenedor (Almas Desafinadas): functions/Contenedores/vista.js
+            const { construirVistaEquipamiento } = require("../../../functions/Contenedores/vista")
+            const vista = construirVistaEquipamiento({ character: pjuser, soul, userId: interaction.user.id })
             return interaction.update({ components: vista })
         }
 
@@ -504,62 +501,6 @@ module.exports = crearStringSelectMenu({
         }
 
 
-        async function getequipamiento() {
-            const tiposEquipamiento = {
-                "Arma": { nombre: "Arma", emoji: "🪄" },
-                "Armadura": { nombre: "Armadura", emoji: "🧤" },
-                "Artefacto": { nombre: "Artefactos", emoji: "💍" }
-            };
-
-            if (!soul.dominio.equipo || soul.dominio.equipo.length === 0) {
-                return "**🥊 Equipamiento**\n\n" + Object.entries(tiposEquipamiento)
-                    .map(([type, info]) => `-# \`[${info.emoji}]\` ${info.nombre} : Sin ${info.nombre.toLowerCase()}]`)
-                    .join("\n");
-            }
-
-            const Regiones = {};
-            soul.dominio.equipo.forEach(equip => {
-                if (!Regiones[equip.Region]) Regiones[equip.Region] = [];
-                Regiones[equip.Region].push(equip.ID);
-            });
-
-            const objetosPorTipo = {};
-
-            for (const region in Regiones) {
-                const documentoRegion = await dbobjetos.findOne({ _id: region });
-
-                if (documentoRegion) {
-                    const objetos = documentoRegion.Objetos.filter(obj =>
-                        Regiones[region].includes(obj.ID)
-                    );
-
-                    for (const obj of objetos) {
-                        if (Array.isArray(obj.Tipo)) {
-                            for (const tipo of obj.Tipo) {
-                                if (tiposEquipamiento[tipo] && !objetosPorTipo[tipo]) {
-                                    objetosPorTipo[tipo] = obj.Nombre;
-                                }
-                            }
-                        } else if (typeof obj.Tipo === "string") {
-                            if (tiposEquipamiento[obj.Tipo] && !objetosPorTipo[obj.Tipo]) {
-                                objetosPorTipo[obj.Tipo] = obj.Nombre;
-                            }
-                        }
-                    }
-                }
-            }
-
-            let resultado = "**🥊 Equipamiento**\n\n";
-            for (const [type, info] of Object.entries(tiposEquipamiento)) {
-                const nombre = objetosPorTipo[type];
-                resultado += `-# \`[${info.emoji}]\` **${info.nombre}**: ${nombre || `Sin ${info.nombre.toLowerCase()}`}\n`;
-            }
-
-            console.log("Entregando equipamiento...");
-            console.log(objetosPorTipo);
-
-            return resultado.trim();
-        }
         function NumRomano(num) {
             const romanos = [
                 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',

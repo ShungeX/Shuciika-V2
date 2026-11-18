@@ -25,11 +25,19 @@ module.exports = async(client, interaction) => {
     }
 
 
+    // Solo bienvenida y despedida. La simulación usa tu propio miembro y no toca la base de datos
+    // (no marca/reactiva personajes, no borra fichas en caché ni gasta el reenvío de la carta por MD)
+    const EVENTOS = { guildMemberAdd: "Bienvenida", guildMemberRemove: "Despedida" }
+    if (!EVENTOS[evento]) {
+        return interaction.reply({content: "Ese evento ya no se puede simular", flags: ["Ephemeral"]})
+    }
+
     try {
-        client.emit(evento, interaction.member)
-        interaction.reply({content: "Evento ejecutado correctamente\n-# Nombre del evento: `" + `${evento}` + "`", flags: ["Ephemeral"]})
+        client.emit(evento, interaction.member, { simulado: true })
+        await interaction.reply({content: `Evento simulado: **${EVENTOS[evento]}**\n-# Nombre del evento: \`${evento}\` · sin cambios en la base de datos`, flags: ["Ephemeral"]})
     } catch (error) {
-        interaction.reply({content: "Ocurrio un error al ejecutar el evento, revisa la consola", flags: ["Ephemeral"]})
+        console.error("[simular_evento]", error)
+        interaction.reply({content: "Ocurrio un error al ejecutar el evento, revisa la consola", flags: ["Ephemeral"]}).catch(() => {})
     }
 
 
