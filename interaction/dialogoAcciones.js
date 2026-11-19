@@ -40,7 +40,8 @@ async function enviarRespuestaDePlantilla({ interaction, userData, dialogue, pla
     const plantilla = obtenerPlantilla(dialogue, plantillaId);
     if (!plantilla) return false;
 
-    const paso = construirPasoDePlantilla(plantilla, dialogue, userData.context);
+    const contexto = require('../functions/dialogoManager').contextoConSistema(userData);
+    const paso = construirPasoDePlantilla(plantilla, dialogue, contexto);
     const texto = paso?.embeds?.[0]?.description ?? paso?.content ?? '';
     if (!paso || !String(texto).trim()) {
         // Discord rechaza los mensajes vacíos: mejor no enviar nada que romper el diálogo

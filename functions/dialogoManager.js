@@ -108,6 +108,26 @@ class DialogueSystem {
         return null;
     }
 
+    /**
+     * Variables del sistema ($fecha, $apertura_abierta...) para las condiciones.
+     * Se calculan en el momento de evaluar: no se guardan en el contexto del
+     * jugador, así que no se pueden asignar ni se persisten.
+     */
+    sistemaDe(userData) {
+        const apertura = require('./Apertura/apertura');
+        const ts = Number(apertura.estado.timestamp) || 0;
+        return {
+            '$fecha': Date.now(),
+            '$apertura_abierta': !apertura.preApertura(),
+            '$ceremonia_pasada': ts > 0 && Date.now() / 1000 >= ts,
+            '$ficha_t0': Boolean(userData?.charDoc?.registroT0),
+        };
+    }
+
+    contextoConSistema(userData) {
+        return { ...(userData?.context || {}), ...this.sistemaDe(userData) };
+    }
+
     registerCommandHandler(commandName, handlerFn) {
         this.commandHandlers.set(commandName, handlerFn);
     }
@@ -265,8 +285,6 @@ class DialogueSystem {
     async handleShowGuiaPrincipiante(param, options = {}) {
         const { interaction, user, userData, messageOptions } = options;
         try {
-            const { crearCustomId } = require('../utils/constructores/customId');
-
             let charDoc = userData?.charDoc;
             if (!charDoc && (user || interaction)) {
                 const uId = user?.id || interaction?.user?.id;
@@ -282,101 +300,20 @@ class DialogueSystem {
                 perfil.Nombre = charDoc?.Nombre || userData?.context?.nombre || user?.displayName || user?.username || 'Estudiante';
             }
 
-            const guiaOficial = [
-                        {
-                            "type": 17,
-                            "accent_color": null,
-                            "spoiler": false,
-                            "components": [
-                                {
-                                    "type": 9,
-                                    "accessory": {
-                                        "type": 11,
-                                        "media": {
-                                            "url": "https://i.pinimg.com/736x/9e/e7/d3/9ee7d3a8aba958ea3cee267f469bc9df.jpg"
-                                        },
-                                        "description": null,
-                                        "spoiler": false
-                                    },
-                                    "components": [
-                                        {
-                                            "type": 10,
-                                            "content": "# Ficha académica verificada"
-                                        },
-                                        {
-                                            "type": 10,
-                                            "content": `*Estimado/a ${perfil.Nombre}*\n\nTras una cuidadosa revisión de tu solicitud de admisión, nos complace informarte que tu registro ha sido **validado y aceptado** por el instituto.\n\nUn gran viaje de conocimiento y poder te espera entre nuestros muros. A partir de este momento, eres oficialmente aprendiz de las artes arcanas. Que tus estudios sean fructíferos y tu lealtad a los principios que nos rigen sea tan brillante como tu propia magia. \n\n**¡Bienvenido/a a tu nuevo hogar!**`
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": 14,
-                                    "divider": true,
-                                    "spacing": 2
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "**✧ Tus Herramientas Mágicas ** \n- -# Tu conexión con el instituto ha sido activada. Ahora puedes usar los comandos de rol `(/rol + comando)` para interactuar con el mundo. Comienza por consultar tu perfil con `/rol perfil` en el canal de comandos."
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "**✧ Tu Identidad Institucional ** \n- -# Se te han asignado roles que reflejan tu información. Estas credenciales te otorgan acceso formal a las dependencias, aulas y zonas comunes del instituto."
-                                },
-                                {
-                                    "type": 10,
-                                    "content": "**✧ Siguientes Pasos ** \n- -# Para asegurar una transición fluida y honorable a tu nueva vida en el instituto, te instamos a familiarizarte con los siguientes recursos:"
-                                },
-                                {
-                                    "type": 1,
-                                    "components": [
-                                        {
-                                            "type": 2,
-                                            "style": 5,
-                                            "label": "Normas del rol",
-                                            "emoji": null,
-                                            "disabled": false,
-                                            "url": "https://discord.com/channels/716342375303217285/716865470648680448"
-                                        },
-                                        {
-                                            "type": 2,
-                                            "style": 2,
-                                            "label": "Canales principales",
-                                            "emoji": null,
-                                            "disabled": false,
-                                            "custom_id": crearCustomId({
-                                                action: "informacionRol",
-                                                characterId: id,
-                                                userId: targetUserId,
-                                                extras: ["null", "chprincipales"]
-                                            })
-                                        },
-                                        {
-                                            "type": 2,
-                                            "style": 2,
-                                            "label": "Primeros pasos",
-                                            "emoji": null,
-                                            "disabled": false,
-                                            "custom_id": crearCustomId({
-                                                action: "informacionRol",
-                                                characterId: id,
-                                                userId: targetUserId,
-                                                extras: ["null", "inicioRol"]
-                                            })
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": 14,
-                                    "divider": true,
-                                    "spacing": 1
-                                },
-                                {
-                                    "type": 10,
-                                    "content": `-# Ficha revisada y verificada por la Administración del Instituto | Instituto mágico Shuciika`
-                                }
-                            ]
-                        }
-                    ];
+            // Carta pre-apertura: ficha creada con T0 y la Campana todavía sin sonar.
+            // sendEditMessage guarda dónde queda (cartaMsg) para que el trabajo de la
+            // Campana la edite después con la final (functions/Apertura/cartas.js).
+            const apertura = require('./Apertura/apertura');
+            const { cartaFinal, cartaPreApertura } = require('./Apertura/carta');
+            const esPre = Boolean(charDoc?.registroT0) && apertura.preApertura();
+            const datosCarta = { nombre: perfil.Nombre, charId: id, userId: targetUserId };
+            const guiaOficial = esPre
+                ? cartaPreApertura({ ...datosCarta, timestamp: apertura.estado.timestamp, eventoId: apertura.estado.eventoId })
+                : cartaFinal(datosCarta);
+
+            if (esPre && userData && charDoc?._id !== undefined) {
+                userData.cartaPendiente = { charId: charDoc._id };
+            }
 
             if (messageOptions) {
                 messageOptions.components = guiaOficial;
@@ -697,6 +634,13 @@ class DialogueSystem {
             return false;
         }
 
+        // Los diálogos de servidor no los inicia un jugador: se lanzan desde el
+        // dashboard o a su hora programada (functions/dialogoServidor.js)
+        if (dialogue.modo === 'servidor') {
+            console.warn(`[dialogoManager] '${dialogueId}' es un diálogo de servidor: no se inicia por jugador.`);
+            return { success: false, error: "Diálogo de servidor" };
+        }
+
         // Un evento en borrador se puede editar y previsualizar en el dashboard,
         // pero no se ejecuta: solo los publicados llegan al jugador.
         if (dialogue.estado === 'borrador') {
@@ -876,7 +820,7 @@ class DialogueSystem {
                 userData.currentStep = Number(currentDialogue.nextStep);
             } else if (currentDialogue.control === 'condicion') {
                 const { evaluarCondicion } = require('./dialogoCondiciones');
-                const cumple = evaluarCondicion(currentDialogue.condicion, userData.context, dialogue?.variables);
+                const cumple = evaluarCondicion(currentDialogue.condicion, this.contextoConSistema(userData), dialogue?.variables);
                 userData.currentStep = Number(cumple ? currentDialogue.siStep : currentDialogue.noStep);
             } else {
                 // Fin: su hook es el que se ejecuta, no el del evento entero
@@ -941,7 +885,7 @@ class DialogueSystem {
         // cambiado (el setVar se aplica en el propio clic); reevaluar podría escoger otra
         // variante y desviar su nextStep. Con el índice, render y clic ven el mismo paso.
         const { resolverVariante, pasoConVariante } = require('./dialogoCondiciones');
-        userData.varianteActiva = resolverVariante(currentDialogue.variantes, userData.context, dialogue?.variables);
+        userData.varianteActiva = resolverVariante(currentDialogue.variantes, this.contextoConSistema(userData), dialogue?.variables);
         currentDialogue = pasoConVariante(currentDialogue, userData.varianteActiva);
         this.activeDialogues.set(user.id, userData);
 
@@ -1159,7 +1103,31 @@ class DialogueSystem {
             console.error(`Error en la acción de mensaje '${type}':`, error);
         }
 
+        await this.guardarCartaPendiente(userData, message);
         return message;
+    }
+
+    /**
+     * Si este paso pintó la carta pre-apertura ({show_guia_principiante}), guarda en
+     * el personaje dónde quedó: el trabajo de la Campana la editará con la final.
+     */
+    async guardarCartaPendiente(userData, message) {
+        const pendiente = userData?.cartaPendiente;
+        if (!pendiente) return;
+        delete userData.cartaPendiente;
+        if (!message?.id || !message?.channelId) return;
+        try {
+            const clientdb = require('../Server');
+            await clientdb.db("Rol_db").collection("Personajes").updateOne(
+                { _id: pendiente.charId },
+                {
+                    $set: { cartaMsg: { canalId: message.channelId, mensajeId: message.id }, cartaActualizada: false },
+                    $unset: { cartaFallida: "", cartaReenviada: "", cartaError: "" }
+                }
+            );
+        } catch (err) {
+            console.error('[dialogoManager] No se pudo guardar cartaMsg:', err.message);
+        }
     }
 
     async buildMessageOptions(dialogueData, userData, interaction, user) {

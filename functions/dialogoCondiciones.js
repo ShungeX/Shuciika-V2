@@ -6,6 +6,11 @@
 // reglas aquí, cámbialas también allí: ambas copias se prueban con la misma tabla
 // de casos, y una divergencia haría que la previa mienta sobre lo que verá Discord.
 //
+// Variables del sistema (empiezan por $): no se declaran en el evento ni se
+// pueden asignar; el bot las pone en el contexto al evaluar (dialogoManager.
+// sistemaDe). $fecha es la hora actual en ms y se compara con «antes de» /
+// «desde» contra una fecha guardada también en ms.
+//
 // Árbol de condición:
 //   { tipo: 'grupo', op: 'Y' | 'O', items: [nodos] }
 //   { tipo: 'cond', variable, operador, valor }
@@ -13,7 +18,18 @@
 // Variante (de un paso o de una plantilla):
 //   { condicion: nodo, content?, embedTitle?, embedDescription?, nextStep? }
 
-const OPERADORES = ['=', '!=', '>', '>=', '<', '<=', 'contiene'];
+const OPERADORES = ['=', '!=', '>', '>=', '<', '<=', 'contiene', 'antes', 'despues'];
+const OPERADORES_FECHA = ['antes', 'despues'];
+
+const VARIABLES_SISTEMA = [
+    { name: '$fecha', type: 'fecha', etiqueta: 'Fecha y hora actual' },
+    { name: '$apertura_abierta', type: 'boolean', etiqueta: 'La Campana ya sonó (instituto abierto)' },
+    { name: '$ceremonia_pasada', type: 'boolean', etiqueta: 'Ya pasó la fecha de la ceremonia' },
+    { name: '$ficha_t0', type: 'boolean', etiqueta: 'El personaje se registró en T0' },
+];
+const esVariableSistema = (nombre) => typeof nombre === 'string' && nombre.startsWith('$');
+const declaracionDe = (nombre, variables) =>
+    (variables || []).find(v => v && v.name === nombre) || VARIABLES_SISTEMA.find(v => v.name === nombre) || null;
 const OPERADORES_ORDEN = ['>', '>=', '<', '<='];
 const PROFUNDIDAD_MAX = 3;
 const MAX_ITEMS_GRUPO = 10;
@@ -21,11 +37,16 @@ const MAX_VARIANTES = 10;
 
 function valorPorDefecto(tipo) {
     if (tipo === 'number') return 0;
+    if (tipo === 'fecha') return Date.now();
     if (tipo === 'boolean') return false;
     return '';
 }
 
 function castear(valor, tipo) {
+    if (tipo === 'fecha') {
+        const n = typeof valor === 'number' ? valor : (/^\d+$/.test(String(valor ?? '')) ? Number(valor) : Date.parse(valor));
+        return Number.isFinite(n) ? n : 0;
+    }
     if (tipo === 'number') {
         const n = Number(valor);
         return Number.isFinite(n) ? n : 0;
@@ -40,7 +61,7 @@ function castear(valor, tipo) {
  * aplicarSetVar al sumar sobre una variable vacía.
  */
 function valorDeVariable(nombre, context, variables) {
-    const declarada = (variables || []).find(v => v && v.name === nombre);
+    const declarada = declaracionDe(nombre, variables);
     const tipo = declarada?.type || 'string';
     const crudo = context ? context[nombre] : undefined;
     if (crudo === undefined || crudo === null || crudo === '') {
@@ -55,8 +76,9 @@ function compararCondicion(cond, context, variables) {
     const { tipo, valor: izq } = valorDeVariable(cond.variable, context, variables);
     const der = castear(cond.valor, tipo);
 
-    // Mayor/menor solo tienen sentido sobre números
+    // Mayor/menor solo tienen sentido sobre números; antes/desde solo sobre fechas
     if (OPERADORES_ORDEN.includes(cond.operador) && tipo !== 'number') return false;
+    if (OPERADORES_FECHA.includes(cond.operador) !== (tipo === 'fecha')) return false;
 
     switch (cond.operador) {
         case '=': return izq === der;
@@ -66,6 +88,8 @@ function compararCondicion(cond, context, variables) {
         case '<': return izq < der;
         case '<=': return izq <= der;
         case 'contiene': return String(izq).toLowerCase().includes(String(der).toLowerCase());
+        case 'antes': return izq < der;
+        case 'despues': return izq >= der;
         default: return false;
     }
 }
@@ -184,6 +208,9 @@ function obtenerPlantilla(dialogue, plantillaId) {
 
 module.exports = {
     OPERADORES,
+    OPERADORES_FECHA,
+    VARIABLES_SISTEMA,
+    esVariableSistema,
     OPERADORES_ORDEN,
     PROFUNDIDAD_MAX,
     MAX_ITEMS_GRUPO,

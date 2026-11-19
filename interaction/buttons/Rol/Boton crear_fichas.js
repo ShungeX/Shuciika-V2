@@ -830,8 +830,12 @@ module.exports = crearBoton({
                 }
             })
 
+            // T0: si /rol crear_ficha está marcado como pre-lanzamiento al enviarla, la
+            // ficha lo recuerda; al verificarla recibirá la carta pre-apertura.
+            const fichaT0 = require("../../../config/accesoComandos").esT0("rol", "crear_ficha");
+
             await Cachedb.updateOne({ _id: interaction.user.id },
-                { $set: { waiting: true, hiloId: hilo.id, "status.estado": "Pendiente", "status.fecha": Date.now(), "status.fechaOriginal": Date.now(), "status.motivo": "No se ha revisado la ficha" } }
+                { $set: { waiting: true, t0: fichaT0, hiloId: hilo.id, "status.estado": "Pendiente", "status.fecha": Date.now(), "status.fechaOriginal": Date.now(), "status.motivo": "No se ha revisado la ficha" } }
             )
 
             return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial. Mientras puedes revisar el [hilo de tu ficha haciendo click aqui](https://discord.com/channels/716342375303217285/" + hilo.id + ")**\n\n-# *No te preocupes, yo te avisare cuando la verifiquen.~*" })

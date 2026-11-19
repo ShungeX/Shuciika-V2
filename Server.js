@@ -1943,8 +1943,11 @@ function dlgSanearModal(modal) {
 // se sanea con lista blanca (a diferencia de los pasos, que traen campos antiguos).
 // Las reglas deben coincidir con functions/dialogoCondiciones.js.
 
-const DLG_OPERADORES = ['=', '!=', '>', '>=', '<', '<=', 'contiene'];
+const DLG_OPERADORES = ['=', '!=', '>', '>=', '<', '<=', 'contiene', 'antes', 'despues'];
 const DLG_OPERADORES_ORDEN = ['>', '>=', '<', '<='];
+const DLG_OPERADORES_FECHA = ['antes', 'despues'];
+// Variables del sistema ($fecha, $apertura_abierta...): no se declaran en el evento
+const DLG_VARIABLES_SISTEMA = new Map(require('./functions/dialogoCondiciones').VARIABLES_SISTEMA.map(v => [v.name, v]));
 const DLG_PROFUNDIDAD_MAX = 3;
 const DLG_MAX_ITEMS_GRUPO = 10;
 const DLG_MAX_VARIANTES = 10;
@@ -1968,13 +1971,17 @@ function dlgSanearCondicion(nodo, variablesPorNombre, profundidad = 1) {
 
     if (nodo.tipo === 'cond') {
         const variable = dlgTexto(nodo.variable).trim();
-        const declarada = variablesPorNombre.get(variable);
+        const declarada = variablesPorNombre.get(variable) || DLG_VARIABLES_SISTEMA.get(variable);
         if (!declarada || !DLG_OPERADORES.includes(nodo.operador)) return null;
-        // Mayor/menor solo sobre números
+        // Mayor/menor solo sobre números; antes/desde solo sobre fechas
         if (DLG_OPERADORES_ORDEN.includes(nodo.operador) && declarada.type !== 'number') return null;
+        if (DLG_OPERADORES_FECHA.includes(nodo.operador) !== (declarada.type === 'fecha')) return null;
 
         let valor;
-        if (declarada.type === 'number') {
+        if (declarada.type === 'fecha') {
+            valor = Number(nodo.valor);
+            if (!Number.isFinite(valor) || valor < 0) valor = 0;
+        } else if (declarada.type === 'number') {
             valor = Number(nodo.valor);
             if (!Number.isFinite(valor)) valor = 0;
         } else if (declarada.type === 'boolean') {
@@ -2149,6 +2156,54 @@ function dlgSanearComponentesDePaso(lista, variablesPorNombre, plantillasIds) {
     return [...selects, ...botones];
 }
 
+// ── Diálogos de servidor: canal, remitente y programación ──
+const DLG_RE_ID = /^\d{17,20}$/;
+const DLG_REMITENTES = ['bot', 'webhook_bot', 'webhook_canal'];
+
+function dlgSanearRemitente(r) {
+    if (!r || typeof r !== 'object' || !DLG_REMITENTES.includes(r.tipo)) return null;
+    const nombre = dlgTexto(r.nombre, 80).trim();
+    const avatar = dlgTexto(r.avatar, 500).trim();
+    const webhookId = String(r.webhookId || '').trim();
+    return {
+        tipo: r.tipo,
+        nombre: r.tipo === 'bot' ? '' : nombre,
+        avatar: r.tipo !== 'bot' && /^https?:\/\//i.test(avatar) ? avatar : '',
+        webhookId: r.tipo === 'webhook_canal' && DLG_RE_ID.test(webhookId) ? webhookId : ''
+    };
+}
+
+/** Bloque `servidor` del evento. Cambiar la fecha programada rearma el lanzamiento. */
+function dlgSanearServidor(s, guardado) {
+    if (!s || typeof s !== 'object') return null;
+    const canalId = String(s.canalId || '').trim();
+    const fecha = Number(s.programado?.fecha);
+    const fechaOk = Number.isFinite(fecha) && fecha > 0 ? Math.floor(fecha) : null;
+    const previo = guardado?.programado || {};
+    const mismaFecha = fechaOk !== null && Number(previo.fecha) === fechaOk;
+    return {
+        canalId: DLG_RE_ID.test(canalId) ? canalId : null,
+        remitente: dlgSanearRemitente(s.remitente) || { tipo: 'bot', nombre: '', avatar: '', webhookId: '' },
+        programado: {
+            fecha: fechaOk,
+            lanzado: mismaFecha ? Boolean(previo.lanzado) : false,
+            ...(mismaFecha && previo.lanzadoEn ? { lanzadoEn: previo.lanzadoEn } : {}),
+            ...(mismaFecha && previo.vencido ? { vencido: true } : {})
+        }
+    };
+}
+
+/** `paso.destino` de un nodo Mensaje: lo que no traiga lo hereda del evento. */
+function dlgSanearDestino(d) {
+    if (!d || typeof d !== 'object') return null;
+    const canalId = String(d.canalId || '').trim();
+    const limpio = {};
+    if (DLG_RE_ID.test(canalId)) limpio.canalId = canalId;
+    const remitente = dlgSanearRemitente(d.remitente);
+    if (remitente) limpio.remitente = remitente;
+    return Object.keys(limpio).length ? limpio : null;
+}
+
 function dlgSanearPasos(dialogos, variables, plantillas = []) {
     if (!Array.isArray(dialogos)) return [];
     const variablesPorNombre = new Map(variables.map(v => [v.name, v]));
@@ -2177,6 +2232,10 @@ function dlgSanearPasos(dialogos, variables, plantillas = []) {
         // Variantes condicionales del paso (textos del paso y del embed, y salto opcional)
         const variantes = dlgSanearVariantes(paso.variantes, variablesPorNombre, { conEmbed: true, conSalto: true });
         if (variantes.length > 0) saneado.variantes = variantes; else delete saneado.variantes;
+
+        // Canal y remitente propios (diálogos de servidor)
+        const destino = dlgSanearDestino(paso.destino);
+        if (destino) saneado.destino = destino; else delete saneado.destino;
 
         return saneado;
     });
@@ -2372,7 +2431,7 @@ app.get('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
 // POST /api/admin/dialogos (Crear nuevo diálogo - Solo Admins/Mods)
 app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     try {
-        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete } = req.body;
+        const { _id, requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete, modo, servidor } = req.body;
         if (!_id) return res.status(400).json({ error: 'El ID del evento es obligatorio.' });
 
         const db = clientdb.db(dbname);
@@ -2403,7 +2462,9 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
             embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
             variables: variablesConVinculos,
             plantillas: plantillasSaneadas,
-            onComplete: onComplete || null
+            onComplete: onComplete || null,
+            modo: modo === 'servidor' ? 'servidor' : 'md',
+            servidor: modo === 'servidor' ? dlgSanearServidor(servidor, null) : null
         };
 
         await col.insertOne(nuevoDoc);
@@ -2419,11 +2480,32 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     }
 });
 
+// ── Diálogos de servidor (functions/dialogoServidor.js) ──
+
+// POST /api/admin/dialogos/:id/lanzar — publica el guion en sus canales ahora mismo
+app.post('/api/admin/dialogos/:id/lanzar', requireAdminOrMod, (req, res) => {
+    const r = require('./functions/dialogoServidor').lanzar(client, String(req.params.id), { origen: `dashboard:${req.session.user.id}` });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ success: true, message: 'Diálogo lanzado.' });
+});
+
+// POST /api/admin/dialogos/:id/detener — corta la ejecución entre mensajes
+app.post('/api/admin/dialogos/:id/detener', requireAdminOrMod, (req, res) => {
+    const r = require('./functions/dialogoServidor').detener(String(req.params.id));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ success: true, message: 'Se detendrá antes del siguiente mensaje.' });
+});
+
+// GET /api/admin/dialogos/:id/ejecucion — progreso de la ejecución (o la última)
+app.get('/api/admin/dialogos/:id/ejecucion', requireAdminOrMod, (req, res) => {
+    res.json(require('./functions/dialogoServidor').estadoDe(String(req.params.id)));
+});
+
 // PUT /api/admin/dialogos/:id (Editar diálogo existente - Solo Admins/Mods)
 app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
     try {
         const id = String(req.params.id);
-        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete } = req.body;
+        const { requisitos, limite, canal, mensajeMDPersonalizado, cooldownEspera, grafo, estado, embedPresets, variables, plantillas, onComplete, modo, servidor } = req.body;
 
         const db = clientdb.db(dbname);
         const col = db.collection('Dialogos');
@@ -2435,7 +2517,7 @@ app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
 
         // Quien no es aprobador conserva los vínculos guardados, mande lo que mande
         const { fusionarVinculos } = require('./functions/dialogoVinculos');
-        const guardado = await col.findOne({ _id: id }, { projection: { variables: 1 } });
+        const guardado = await col.findOne({ _id: id }, { projection: { variables: 1, servidor: 1 } });
         const { variables: variablesConVinculos, rechazados } = fusionarVinculos(variablesSaneadas, variables, guardado?.variables, req.session.user.id);
 
         const updateFields = {
@@ -2449,7 +2531,9 @@ app.put('/api/admin/dialogos/:id', requireAdminOrMod, async (req, res) => {
             embedPresets: Array.isArray(embedPresets) ? embedPresets : [],
             variables: variablesConVinculos,
             plantillas: plantillasSaneadas,
-            onComplete: onComplete !== undefined ? onComplete : null
+            onComplete: onComplete !== undefined ? onComplete : null,
+            modo: modo === 'servidor' ? 'servidor' : 'md',
+            servidor: modo === 'servidor' ? dlgSanearServidor(servidor, guardado?.servidor) : null
         };
 
         // `dialogos` era la lista de pasos del editor antiguo: desde el editor
@@ -6614,6 +6698,59 @@ app.post('/api/admin/system-config/save', async (req, res) => {
 // GET /api/admin/system-config/comandos - Catálogo de comandos del bot + su acceso restringido y T0
 // catalogo: [{ nombre, descripcion, devOnly, subcomandos: [{ nombre, descripcion, grupo?, carpeta?, devOnly, mantenimiento }] }]
 // config:   lo guardado en Server_db.config (_id: "comandos"), ya saneado
+// ── Apertura del instituto (functions/Apertura) ──
+function guardiaPanel(req, res) {
+    if (!req.session?.user) { res.status(401).json({ error: "No autenticado" }); return false; }
+    if (!req.session.systemConfigUnlocked) { res.status(403).json({ error: "Acceso denegado: panel de administración bloqueado" }); return false; }
+    return true;
+}
+
+// GET: fecha de la ceremonia, evento, Campana y progreso del trabajo de cartas
+app.get('/api/admin/system-config/apertura', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    try {
+        const apertura = require('./functions/Apertura/apertura');
+        const [pendientes, recordatorios] = await Promise.all([
+            clientdb.db("Rol_db").collection("Personajes").countDocuments({ cartaMsg: { $exists: true }, cartaActualizada: { $ne: true }, cartaFallida: { $ne: true } }),
+            clientdb.db("Server_db").collection("apertura_recordatorios").countDocuments({})
+        ]);
+        res.json({ success: true, apertura: apertura.publico(), cartasPendientes: pendientes, recordatorios });
+    } catch (err) {
+        console.error('[Apertura] GET:', err);
+        res.status(500).json({ error: 'No se pudo leer la apertura.' });
+    }
+});
+
+// POST: guarda fecha (segundos UNIX) e ID del evento de Discord
+app.post('/api/admin/system-config/apertura', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    try {
+        const apertura = require('./functions/Apertura/apertura');
+        const estado = await apertura.guardarConfig({ timestamp: req.body?.timestamp, eventoId: req.body?.eventoId });
+        res.json({ success: true, message: 'Apertura guardada.', apertura: estado });
+    } catch (err) {
+        console.error('[Apertura] POST:', err);
+        res.status(500).json({ error: 'No se pudo guardar la apertura.' });
+    }
+});
+
+// POST: suena la Campana a mano (si la ceremonia no la suena)
+app.post('/api/admin/system-config/apertura/campana', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    if (!client?.user) return res.status(503).json({ error: 'El bot no está conectado.' });
+    const r = await require('./functions/Apertura/apertura').sonarCampana({ origen: `dashboard:${req.session.user.id}` });
+    if (r.yaSonada) return res.status(400).json({ error: 'La Campana ya sonó.' });
+    res.json({ success: true, message: 'La Campana ha sonado: las cartas se están actualizando.', apertura: r.estado });
+});
+
+// POST: deja la Campana sin sonar (solo pruebas; no deshace cartas ni avisos)
+app.post('/api/admin/system-config/apertura/reiniciar', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    const r = await require('./functions/Apertura/apertura').reiniciarCampana();
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ success: true, message: 'Campana reiniciada.', apertura: r.estado });
+});
+
 app.get('/api/admin/system-config/comandos', async (req, res) => {
     if (!req.session?.user) {
         return res.status(401).json({ error: "No autenticado" });

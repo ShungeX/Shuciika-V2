@@ -279,6 +279,8 @@ module.exports = crearModal({
                 await characterPj.insertOne({
                     _id: id,
                     ownerID: targetUserId,
+                    // Ficha enviada con /rol crear_ficha en T0: su carta será la pre-apertura
+                    ...(cachepj?.t0 ? { registroT0: true } : {}),
                     perfil: {
                         Nombre: cachepj.nombre,
                         Apodo: defaultIfEmpty(cachepj?.apodo, ""),

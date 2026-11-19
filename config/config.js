@@ -56,6 +56,7 @@ async function cargarConfiguracionDesdeDB(dbClient) {
 
         // Acceso restringido a comandos y marca T0 (_id: "comandos")
         await require("./accesoComandos").cargarDesdeDB(dbClient);
+        await require("../functions/Apertura/apertura").cargarDesdeDB(dbClient);
     } catch (error) {
         console.error("⚠️ [ConfigManager] Error al cargar configuraciones desde MongoDB, usando valores por defecto:", error.message);
     }

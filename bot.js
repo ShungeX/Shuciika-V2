@@ -145,6 +145,8 @@ async function arrancar() {
 
   client.listo = true
   client.emit("cargaCompleta")
+  // Apertura: aviso de 1 hora, diálogos de servidor programados y reanudar cartas
+  require('./functions/Apertura/apertura').iniciar(client, clientdb);
   precargarMiembros();
 }
 
