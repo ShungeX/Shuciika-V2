@@ -13,15 +13,12 @@ const {
 } = require('../../functions/clases/evaluadorClases');
 
 // Cargar plantillas de UI Components V2
+// Nombres de archivo sin tildes: en Linux una ruta con tilde puede no coincidir (NFC/NFD).
 let plantillaMismoDia;
 try {
-    plantillaMismoDia = require('../../data/UI_ComponentsV2/notificaciónClases.js');
-} catch (e) {
-    try {
-        plantillaMismoDia = require('../../data/UI_ComponentsV2/notificacionClases.js');
-    } catch (err) {
-        console.error("[verificadorClases] Error cargando plantilla de notificación de clases:", err.message);
-    }
+    plantillaMismoDia = require('../../data/UI_ComponentsV2/notificacionClases.js');
+} catch (err) {
+    console.error("[verificadorClases] Error cargando plantilla de notificación de clases:", err.message);
 }
 
 const {
