@@ -3,7 +3,7 @@
 // dinámica, o el nuevo) y devuelve SIEMPRE el formato final:
 //   Escalon, Rol, Adquisicion, Mecanicas.cast.{vias, mental, tiempo, probabilidad, interruptible},
 //   damage/healing con { objetivo, alcance }, Efectos como array de objetos con `tipo`.
-// No escribe en la base de datos: la colección se migra con scripts/migrarHechizosVias.js.
+// No escribe en la base de datos: la colección se migró con scripts/migrarHechizosVias.js (retirado; está en el historial de git).
 
 const {
     VIAS, VIA_NATIVA, ESCALONES, ROLES, BUFFS, UNIVERSALES_INICIALES, CASTEO,

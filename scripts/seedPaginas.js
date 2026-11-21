@@ -126,7 +126,7 @@ function itemPagina(d, hechizo, previo) {
 }
 
 async function main() {
-    const uri = process.env.MONGODB_URI
+    const uri = require("../config/entorno").variable("MONGODB_URI")
     if (!uri) throw new Error("Falta MONGODB_URI en .env")
     const client = new MongoClient(uri)
     await client.connect()

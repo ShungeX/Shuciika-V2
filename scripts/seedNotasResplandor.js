@@ -30,7 +30,7 @@ const APLICAR = process.argv.includes("--aplicar")
 const PALABRAS_NOTA = [6, 8]
 
 async function main() {
-    const uri = process.env.MONGODB_URI
+    const uri = require("../config/entorno").variable("MONGODB_URI")
     if (!uri) throw new Error("Falta MONGODB_URI en .env")
 
     // Validación previa (sin BD): esquema, invocaciones y banda de eficiencia

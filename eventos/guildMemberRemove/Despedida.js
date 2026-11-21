@@ -1,4 +1,5 @@
 const { Client, EmbedBuilder, GuildMember } = require('discord.js')
+const entorno = require("../../config/entorno")
 const { enviarDespedida, marcarInactivos, borrarFichaEnCache, embedPersonajesInactivos } = require("../../functions/Miembros/salidas")
 
 const CANAL_LOGS = "716518718947065868"
@@ -11,7 +12,8 @@ const CANAL_STAFF = "803723665107451904"
  * @param {{ simulado?: boolean }} [opciones] Lo pasa /utilidad simular_evento: no toca la base de datos
  */
 module.exports = async (client, member, opciones = {}) => {
-    if (!opciones.simulado && client.user.id === "857050098831065088") return
+    // Las salidas reales solo las atiende la versión final (en Navi saldrían duplicadas)
+    if (!opciones.simulado && !entorno.esProduccion) return
     if (member.user?.bot) return
 
     if (!opciones.simulado) {

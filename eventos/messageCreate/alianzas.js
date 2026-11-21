@@ -1,4 +1,5 @@
 const clientdb = require("../../Server");
+const entorno = require("../../config/entorno");
 const {ChatInputCommandInteraction, InteractionWebhook, Client, ChannelType, EmbedBuilder, Message} = require("discord.js")
 const db1 = clientdb.db("Rol_db")
 const db2 = clientdb.db("Server_db")
@@ -13,7 +14,7 @@ const users = db2.collection("usuarios_server")
 
 module.exports = async(client, message) => {
     const messages = message.content
-    if(message.channel.id !== "741735370986618952" || message.author.bot || client.user.id === "857050098831065088") return;
+    if(message.channel.id !== "741735370986618952" || message.author.bot || !entorno.esProduccion) return;
 
     const validLink = /(https?:\/\/)?(www\.)?(discord\.gg|discord\.com\/invite)\/[A-Za-z0-9]+/
     

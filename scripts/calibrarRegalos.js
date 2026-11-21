@@ -7,7 +7,7 @@ require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") }
 const { reporteCalibracion, tablaCalibracion } = require("../functions/Regalos/calibracion")
 
 async function run() {
-    const uri = process.env.MONGODB_URI
+    const uri = require("../config/entorno").variable("MONGODB_URI")
     if (!uri) {
         console.error("Error: MONGODB_URI no está definido en el archivo .env")
         process.exit(1)

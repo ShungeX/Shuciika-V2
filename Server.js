@@ -1,5 +1,6 @@
 const { MongoClient, ServerApiVersion, Int32, Double } = require("mongodb")
 const config = require("./config/config.js")
+const entorno = require("./config/entorno.js")
 
 
 
@@ -300,7 +301,7 @@ async function procesarAvatar(targetId, avatarInput, prevAvatarUrl = null) {
 
     return nuevaUrl;
 }
-const uri = process.env.MONGODB_URI
+const uri = entorno.variable("MONGODB_URI")
 const clientdb = new MongoClient(uri, { family: 4 });
 const dbserverName = "Server_db"
 const dbname = "Rol_db"
@@ -350,13 +351,17 @@ async function obtenerPersonajeActivoUsuario(discordID) {
     return { charDoc, usuarioServer, activePjId, misPersonajes };
 }
 
-const port = process.env.PORT || 3000;
+const port = entorno.variable("PORT", 3000);
 const app = express();
 
 let client = null;
 let sessionMiddleware = null;
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = entorno.variable("FRONTEND_URL", 'http://localhost:5173');
+// Login del dashboard: la app de Discord y la URL de regreso cambian según el entorno
+const OAUTH_CLIENT_ID = entorno.variable("ClientID", entorno.botId);
+const OAUTH_CLIENT_SECRET = entorno.variable("ClientSecret");
+const OAUTH_REDIRECT_URI = entorno.variable("OAUTH_REDIRECT_URI", `http://localhost:${port}/api/auth/discord/redirect`);
 
 // CORS para permitir peticiones del frontend (Vite 5173 y Live Server 5500)
 const allowedOrigins = ['http://localhost:5173', 'http://localhost:5500', 'http://127.0.0.1:5173', 'http://127.0.0.1:5500', FRONTEND_URL];
@@ -457,8 +462,8 @@ app.get('/api/auth/discord', async (req, res) => {
         req.session.oauthState = state;
     }
 
-    const client_id = process.env.ClientID || '721903366837501975';
-    const redirect_uri = encodeURIComponent('http://localhost:3000/api/auth/discord/redirect');
+    const client_id = OAUTH_CLIENT_ID;
+    const redirect_uri = encodeURIComponent(OAUTH_REDIRECT_URI);
     const discordOAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify+guilds&state=${state}`;
     
     res.redirect(discordOAuthUrl);
@@ -490,11 +495,11 @@ app.get('/api/auth/discord/redirect', async (req, res) => {
     try {
         // SOLUCIÓN 1: Agregamos "new" antes de URLSearchParams
         const formData = new url.URLSearchParams({
-            client_id: process.env.ClientID,
-            client_secret: process.env.ClientSecret,
+            client_id: OAUTH_CLIENT_ID,
+            client_secret: OAUTH_CLIENT_SECRET,
             grant_type: 'authorization_code',
             code: code.toString(),
-            redirect_uri: 'http://localhost:3000/api/auth/discord/redirect',
+            redirect_uri: OAUTH_REDIRECT_URI,
         });
 
         const output = await axios.post('https://discord.com/api/v10/oauth2/token',
@@ -7178,10 +7183,10 @@ app.post('/api/instituto/clases/crear', async (req, res) => {
                 console.warn("No se pudo obtener el nombre del canal con client:", e.message);
             }
         }
-        if (salonNombre === `Salón ${salonIdSeleccionado}` && process.env.TOKEN_BOT) {
+        if (salonNombre === `Salón ${salonIdSeleccionado}` && entorno.token) {
             try {
                 const resDiscord = await axios.get(`https://discord.com/api/v10/channels/${salonIdSeleccionado}`, {
-                    headers: { Authorization: `Bot ${process.env.TOKEN_BOT}` }
+                    headers: { Authorization: `Bot ${entorno.token}` }
                 });
                 if (resDiscord.data && resDiscord.data.name) {
                     salonNombre = resDiscord.data.name;
@@ -7547,7 +7552,7 @@ app.post('/api/instituto/clases/:id/cancelar-profesor', async (req, res) => {
 
 clientdb.iniciarServidorWeb = () => {
     sessionMiddleware = session({
-        secret: process.env.SESSION_SECRET || 'nixworld_secret_temp',
+        secret: entorno.variable("SESSION_SECRET", 'nixworld_secret_temp'),
         resave: false,
         saveUninitialized: false,
         rolling: true,

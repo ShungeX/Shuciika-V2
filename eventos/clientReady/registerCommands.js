@@ -1,6 +1,6 @@
 const { Client } = require("discord.js")
 
-const { clientId, guild, devs } = require("../../config/configslash.json");
+const entorno = require("../../config/entorno");
 const getApplicationCommands = require("../../utils/getApplicationCommands");
 const getLocalCommands = require("../../utils/getLocalCommands")
 const areCommandsDifferent = require("../../utils/areCommandsDifferent");
@@ -16,13 +16,9 @@ module.exports = async (client) => {
 
     progreso.comenzar("Comandos")
     const localcmd = []
-    var nameApp = ""
-
-    if (client.user.id === "857050098831065088") {
-        nameApp = "navi-"
-    } else {
-        nameApp = ""
-    }
+    // Prefijo según el entorno (config/entorno.js): "navi-" en Navi, "" en Shuciika
+    const nameApp = entorno.prefijoComandos
+    entorno.verificarSesion(client)
 
     try {
         const localCommands = await getLocalCommands();
@@ -68,7 +64,7 @@ module.exports = async (client) => {
                 }
 
                 await applicationCommands.create({
-                    name,
+                    name: `${nameApp}${name}`,
                     description,
                     options,
                 })
@@ -84,14 +80,12 @@ module.exports = async (client) => {
         // cuyo archivo se borró (p. ej. /musica) seguía registrado en Discord
         // para siempre. Aquí se borra todo comando global que ya no tenga
         // archivo local (o que esté marcado como deleted).
-        // Se aceptan ambos nombres (con y sin prefijo) porque create() registra
-        // sin prefijo aunque la búsqueda use `${nameApp}${name}`.
+        // Solo vale el nombre con el prefijo del entorno: en Navi esto también borra
+        // los comandos sin prefijo que quedaron de cuando create() no lo ponía.
         const nombresVigentes = new Set()
         for (const localCommand of localCommands) {
             if (localCommand.deleted) continue
-            const n = localCommand.data.name
-            nombresVigentes.add(n)
-            nombresVigentes.add(`${nameApp}${n}`)
+            nombresVigentes.add(`${nameApp}${localCommand.data.name}`)
         }
 
         for (const cmd of applicationCommands.cache.values()) {

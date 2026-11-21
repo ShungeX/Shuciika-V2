@@ -6,6 +6,7 @@ const Cachedb = db2.collection("CachePJ")
 const characters = db2.collection("Personajes")
 const version = require("../../../../config")
 const interfazCreate = require("../../../../functions/interfazCreate")
+const entorno = require("../../../../config/entorno")
 
 
 module.exports = {
@@ -33,7 +34,7 @@ module.exports = {
 
         if (character.economia.Inventario.length === 0) {
             const embed = new EmbedBuilder()
-                .setDescription("**Aquí todavía no habita nada.**\n-# ¿Porque no intentas comprar o llenarla al explorar? </rol:1334751557375230033> ( •̀ ω •́ )✧")
+                .setDescription(`**Aquí todavía no habita nada.**\n-# ¿Porque no intentas comprar o llenarla al explorar? ${entorno.mencionComando(client, "rol", "tienda")} ( •̀ ω •́ )✧`)
                 .setColor("Red")
             return interaction.reply({ embeds: [embed], flags: ["Ephemeral"] })
         }

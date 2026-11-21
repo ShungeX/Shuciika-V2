@@ -1,5 +1,6 @@
 
-const token = process.env.TOKEN_BOT;
+// El token sale del entorno (Navi o Shuciika): ver config/entorno.js
+const token = require("./entorno").token;
 
 // Estado en memoria local de las configuraciones
 let configState = {

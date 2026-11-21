@@ -1,5 +1,5 @@
 // ─── Catálogo: 24 hechizos elementales + 5 universales (III.C / III.D) ──────
-// Formato final (XI.D). Es la semilla que escribe scripts/migrarHechizosVias.js.
+// Formato final (XI.D). Fue la semilla de scripts/migrarHechizosVias.js (retirado; está en el historial de git).
 // Los números son PUNTO DE PARTIDA para INT = 10 y T = 15: se calibran con calibracion.js.
 
 const { VIAS, ESTADOS_VALORES, BUFFS, ADQUISICION } = require("./config")

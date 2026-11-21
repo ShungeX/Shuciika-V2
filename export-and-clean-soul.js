@@ -9,7 +9,7 @@ const PROTECTED_IDS = [
 ];
 
 async function main() {
-  const uri = process.env.MONGODB_URI;
+  const uri = require("./config/entorno").variable("MONGODB_URI");
   if (!uri) {
     throw new Error('MONGODB_URI no está definido en el archivo .env');
   }

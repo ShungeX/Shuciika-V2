@@ -60,7 +60,7 @@ const OBJETOS = [
 ]
 
 async function main() {
-    const client = new MongoClient(process.env.MONGODB_URI)
+    const client = new MongoClient(require("../config/entorno").variable("MONGODB_URI"))
     await client.connect()
     const col = client.db("Rol_db").collection("Objetos_globales")
     console.log(APLICAR ? "== MODO APLICAR ==" : "== EN SECO (sin escribir; usa --aplicar) ==")

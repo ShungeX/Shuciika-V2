@@ -6,6 +6,7 @@ const getLocalModals = require("../../utils/getLocalModals");
 const getLocalSelect = require("../../utils/getLocalSelectMenus");
 const { manejarComponente} = require("../../interaction/manejarComponente")
 const accesoComandos = require("../../config/accesoComandos")
+const entorno = require("../../config/entorno")
 const { ChatInputCommandInteraction, InteractionWebhook, Client, ChannelType, EmbedBuilder } = require("discord.js")
 const db1 = clientdb.db("Rol_db")
 const db2 = clientdb.db("Server_db")
@@ -27,8 +28,7 @@ module.exports = async (client, interaction) => {
 
     if (interaction.isAutocomplete()) {
         // Un comando restringido no sugiere nada a quien no puede usarlo
-        const nombreComando = client.user.id === "857050098831065088" && interaction.commandName?.startsWith("navi-")
-            ? interaction.commandName.replace("navi-", "") : interaction.commandName
+        const nombreComando = entorno.nombreLocal(interaction.commandName)
         if (!accesoComandos.puedeUsar(interaction.user.id, nombreComando, accesoComandos.claveSubcomando(interaction))) {
             return interaction.respond([]).catch(() => {})
         }
@@ -222,8 +222,7 @@ module.exports = async (client, interaction) => {
                 return interaction.reply({ content: "No puedes usar comandos en MD", flags: ["Ephemeral"] })
             }
 
-            const commandsName = client.user.id === "857050098831065088" && interaction?.commandName?.startsWith("navi-") ?
-                interaction?.commandName.replace("navi-", "") : interaction?.commandName
+            const commandsName = entorno.nombreLocal(interaction?.commandName)
 
             const commandObject = localCommands.find((cmd) => cmd.data.name === commandsName)
 

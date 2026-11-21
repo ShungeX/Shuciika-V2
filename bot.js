@@ -5,9 +5,10 @@ process.env.FORCE_COLOR_STDERR = '1';
 
 // La barra de carga arranca antes de los require pesados (discord.js y Server.js tardan ~1.5 s)
 const progreso = require("./utils/progresoCarga");
+const entorno = require("./config/entorno");
 progreso.iniciar(
   ["Módulos", "Discord", "MongoDB", "Configuración", "Catálogo", "Diálogos", "Servidor web", "Interacciones", "Comandos"],
-  { alTerminar: () => `v${client.config.version}` }
+  { alTerminar: () => `v${client.config.version} · ${entorno.etiqueta}` }
 );
 progreso.comenzar("Módulos");
 
@@ -107,7 +108,7 @@ async function arrancar() {
   // Discord y MongoDB se conectan a la vez; antes iban uno detrás de otro.
   const discordListo = progreso.medir("Discord", () => new Promise((resolve, reject) => {
     client.once(Events.ClientReady, () => resolve());
-    client.login(process.env.TOKEN_BOT).catch(reject);
+    client.login(entorno.token).catch(reject);
   })).then(() => {
     client.user.setPresence({
       status: "idle",

@@ -4,8 +4,8 @@
 
 /**
  * Interruptor general (XII.D). Apagado: los desafinados juegan como un jugador normal.
- * No encender sin haber corrido antes `node scripts/migrarContenedores.js --aplicar`:
- * un desafinado sin contenedor no puede lanzar nada.
+ * Encendido desde la migración del 2026-11-09 (scripts/migrarContenedores.js, retirado; está en
+ * el historial de git). Una base nueva necesita esa migración: un desafinado sin contenedor no puede lanzar nada.
  */
 const BANDERAS = { CONTENEDORES_ACTIVOS: true }
 

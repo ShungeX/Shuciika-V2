@@ -14,7 +14,7 @@ const { CATALOGO } = require("../functions/Duelo/hechizos/catalogo")
 async function cargar() {
     if (process.argv.includes("--catalogo")) return CATALOGO
     const { MongoClient } = require("mongodb")
-    const client = new MongoClient(process.env.MONGODB_URI, { family: 4 })
+    const client = new MongoClient(require("../config/entorno").variable("MONGODB_URI"), { family: 4 })
     await client.connect()
     try {
         return await client.db("Rol_db").collection("Hechizos_globales").find({}).toArray()
