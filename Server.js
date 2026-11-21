@@ -353,6 +353,7 @@ async function obtenerPersonajeActivoUsuario(discordID) {
 
 const port = entorno.variable("PORT", 3000);
 const app = express();
+app.set('trust proxy', 1);
 
 let client = null;
 let sessionMiddleware = null;
