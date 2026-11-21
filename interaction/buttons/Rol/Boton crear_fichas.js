@@ -12,6 +12,7 @@ const sleep = util.promisify(setTimeout)
 const { crearBoton } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
 const { marcarCorreccionUsada, TAG_PENDIENTE } = require("../../selectMenus/Rol/verificar_ficha");
+const { construirModalOpinion, MENSAJE_YA_ENVIADA } = require("../../../utils/opinionFicha");
 
 function construirTextoFicha(characterCache, user) {
     const familia = characterCache?.familia ? characterCache.familia : "Desconocida";
@@ -66,30 +67,11 @@ module.exports = crearBoton({
         console.log(selectOption)
         console.log(extras)
         if (selectOption === "opinion") {
-            const opinion = new TextInputBuilder()
-                .setCustomId("opinionpj")
-                .setLabel("¿Te gustaria dejar tu opinion?")
-                .setPlaceholder("Opinion sobre el metodo para crear personajes.")
-                .setStyle(TextInputStyle.Paragraph)
-                .setMaxLength(1000)
-                .setMinLength(20)
-                .setRequired(false)
-
-            const modal = new ModalBuilder()
-                .setTitle("Creacion de ficha")
-                .setCustomId(crearCustomId(
-                    {
-                        action: "actualizarPerfil",
-                        userId: interaction.user.id,
-                        extras: ["opinion"]
-                    }))
-            const row = new ActionRowBuilder()
-
-            row.addComponents(opinion)
-
-
-            modal.addComponents(row)
-            return await interaction.showModal(modal)
+            // Una sola opinión por ficha
+            if (cachepj?.opinionEnviada) {
+                return interaction.reply({ content: MENSAJE_YA_ENVIADA, flags: ["Ephemeral"] })
+            }
+            return await interaction.showModal(construirModalOpinion(interaction.user.id))
         }
 
         if (selectOption === "selectStudent") {
@@ -688,6 +670,19 @@ module.exports = crearBoton({
             return;
         }
 
+        // T0: «Enviar ficha» primero pregunta quién te invitó y cómo nos conociste
+        // (functions/invitaciones.js). El modal lleva después a la confirmación.
+        if (selectOption === "enviar_Ficha" && require("../../../config/accesoComandos").esT0("rol", "crear_ficha")) {
+            const cacheT0 = await Cachedb.findOne({ _id: interaction.user.id })
+            if (!cacheT0) return interaction.reply({ content: "No encuentro tu ficha en borrador 〒▽〒\n-# Vuelve a usar `/rol crear_ficha`.", flags: ["Ephemeral"] })
+            if (cacheT0.waiting) return interaction.reply({ content: "Tu ficha ya fue enviada y se encuentra en revisión. Por favor espera a que la administración la revise.", flags: ["Ephemeral"] })
+            const esDocenteT0 = cacheT0?.rol === "Docente" || cacheT0?.rol === "Profesor";
+            if (esDocenteT0 && !cacheT0?.aspiracion) {
+                return interaction.reply({ content: "Para postularte como **Docente**, es obligatorio incluir tu **Argumentación** explicando detalladamente por qué deseas ser docente.", flags: ["Ephemeral"] })
+            }
+            return interaction.showModal(require("../../../functions/invitaciones").construirModalInvitacion(interaction.user.id))
+        }
+
         await interaction.deferReply({ flags: ["Ephemeral"] })
 
         if (selectOption === "enviar_ficha_corregida") {
@@ -764,6 +759,11 @@ module.exports = crearBoton({
 
             if (characterCache.waiting) return interaction.editReply({ content: "Tu ficha ya fue enviada y se encuentra en revisión. Por favor espera a que la administración la revise." })
 
+            // T0: sin responder quién te invitó no se envía
+            if (!characterCache.invitacion && require("../../../config/accesoComandos").esT0("rol", "crear_ficha")) {
+                return interaction.editReply({ content: "Antes de enviarla, dinos quién te invitó y cómo nos conociste (◕‿◕)\n-# Pulsa otra vez **Enviar ficha** en tu ficha." })
+            }
+
             const esDocenteCache = characterCache?.rol === "Docente" || characterCache?.rol === "Profesor";
             if (esDocenteCache && !characterCache?.aspiracion) {
                 return interaction.editReply({ content: "Para postularte como **Docente**, es obligatorio incluir tu **Argumentación** explicando detalladamente por qué deseas ser docente." })
@@ -829,6 +829,16 @@ module.exports = crearBoton({
                     files: characterCache.avatarURL ? [characterCache.avatarURL] : []
                 }
             })
+
+            // Para el staff: quién lo invitó y cómo nos conoció (T0)
+            if (characterCache.invitacion) {
+                const { etiquetaFuente } = require("../../../functions/invitaciones")
+                const inv = characterCache.invitacion
+                hilo.send({
+                    content: `-# 💌 Invitado por ${inv.invitadoPor ? `<@${inv.invitadoPor}>` : "nadie (llegó solo/a)"} · Nos conoció por: ${etiquetaFuente(inv.comoNosConociste)}`,
+                    allowedMentions: { parse: [] }
+                }).catch(() => { })
+            }
 
             // T0: si /rol crear_ficha está marcado como pre-lanzamiento al enviarla, la
             // ficha lo recuerda; al verificarla recibirá la carta pre-apertura.

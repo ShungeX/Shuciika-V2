@@ -61,7 +61,7 @@ const CONFIG_CAMPOS_MODAL = {
     especialidades: {
         customId: "especialidadpj",
         label: "¿En que es bueno tu personaje?",
-        placeholder: "Respuesta libre [Maximo 4 cosas] - [Deportes, cocina, etc. separalo con una coma (,)]",
+        placeholder: "Maximo 4, separadas con una coma (,) - Ej: Deportes, cocina, videojuegos",
         style: TextInputStyle.Paragraph,
         maxLength: 50,
         required: false,

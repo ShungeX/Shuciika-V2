@@ -281,6 +281,9 @@ module.exports = crearModal({
                     ownerID: targetUserId,
                     // Ficha enviada con /rol crear_ficha en T0: su carta será la pre-apertura
                     ...(cachepj?.t0 ? { registroT0: true } : {}),
+                    // Tracking de invitaciones (functions/invitaciones.js): el conteo se
+                    // calcula con una consulta sobre estos campos, no se suma a mano
+                    ...(cachepj?.invitacion ? { invitadoPor: cachepj.invitacion.invitadoPor || null, invitacion: cachepj.invitacion } : {}),
                     perfil: {
                         Nombre: cachepj.nombre,
                         Apodo: defaultIfEmpty(cachepj?.apodo, ""),

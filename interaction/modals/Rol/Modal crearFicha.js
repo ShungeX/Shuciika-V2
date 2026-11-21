@@ -11,6 +11,9 @@ const { crearModal } = require("../../../utils/constructores/crearComponente");
 const { crearCustomId } = require("../../../utils/constructores/customId");
 const { construirJsonV2Personalidad } = require("../../../utils/constructores/construirPersonalidad");
 const { marcarCorreccionUsada, construirEditorFichaCorreccion } = require("../../selectMenus/Rol/verificar_ficha");
+const { parsearEspecialidades } = require("../../../utils/especialidades");
+const { leerRespuestasOpinion, MENSAJE_YA_ENVIADA } = require("../../../utils/opinionFicha");
+const CANAL_OPINIONES = "1009685257215287346";
 
 module.exports = crearModal({
     customId: "actualizarPerfil",
@@ -262,7 +265,14 @@ module.exports = crearModal({
                     }
                     break;
                 case "especialidades":
-                    const especialidad = interaction.fields.getTextInputValue("especialidadpj")
+                    const resultadoEsp = parsearEspecialidades(interaction.fields.getTextInputValue("especialidadpj"))
+                    if (!resultadoEsp.ok) {
+                        return interaction.reply({ content: `¡Ups! ${resultadoEsp.error}（︶^︶）\n-# [Escríbelas separadas por comas. Ej: Cocina, Deportes]`, flags: ["Ephemeral"] })
+                    }
+                    if (resultadoEsp.valor && await Badwords(resultadoEsp.lista.join(" "))) {
+                        return interaction.reply({ content: `¡Hey! Tus especialidades contienen malas palabras（︶^︶）\n-# [Verifica las especialidades de tu personaje]`, flags: ["Ephemeral"] })
+                    }
+                    const especialidad = resultadoEsp.valor
 
                     try {
                         await characters.updateOne({ _id: interaction.user.id }, {
@@ -353,6 +363,11 @@ module.exports = crearModal({
             }
 
             return;
+        }
+
+        // La opinión no toca el mensaje de la ficha: se atiende antes de buscarlo
+        if (selectOption === "opinion") {
+            return this.enviarOpinion(client, interaction)
         }
 
         const messageId = userfind?.fichaStatus?.messageTemp
@@ -642,7 +657,14 @@ module.exports = crearModal({
                 }
                 break;
             case "especialidades":
-                const especialidad = interaction.fields.getTextInputValue("especialidadpj")
+                const resultadoEsp = parsearEspecialidades(interaction.fields.getTextInputValue("especialidadpj"))
+                if (!resultadoEsp.ok) {
+                    return interaction.reply({ content: `¡Ups! ${resultadoEsp.error}（︶^︶）\n-# [Escríbelas separadas por comas. Ej: Cocina, Deportes]`, flags: ["Ephemeral"] })
+                }
+                if (resultadoEsp.valor && await Badwords(resultadoEsp.lista.join(" "))) {
+                    return interaction.reply({ content: `¡Hey! Tus especialidades contienen malas palabras（︶^︶）\n-# [Verifica las especialidades de tu personaje]`, flags: ["Ephemeral"] })
+                }
+                const especialidad = resultadoEsp.valor
 
                 try {
                     cacheCharacter.especialidad = especialidad
@@ -793,20 +815,6 @@ module.exports = crearModal({
                     console.log("Error al actualizar gustos", error)
                 }
                 break
-            case "opinion":
-                const channelop = client.channels.cache.get("1009685257215287346")
-                const opinionpj = interaction.fields.getTextInputValue("opinionpj")
-
-                const embedopinion = new EmbedBuilder()
-                    .setTitle("Opinion del comando Crear Ficha")
-                    .setDescription(`${opinionpj}`)
-                    .addFields({ name: "Usuario:", value: `${interaction.user.username}`, inline: true })
-                    .setColor("Random")
-
-                await channelop.send({ embeds: [embedopinion] })
-                await interaction.reply({ content: "Gracias por dar tu opinion, apreciamos a todas las personitas que se toman el tiempo de hacerlo (≧◡≦) ♡", flags: ["Ephemeral"] })
-                break;
-
             default:
         }
 
@@ -870,6 +878,51 @@ module.exports = crearModal({
             return meses[mes - 1];
         }
 
+    },
+
+    // Opinión de "Da tu opinión": una sola vez por ficha (CachePJ.opinionEnviada)
+    enviarOpinion: async function (client, interaction) {
+        const userId = interaction.user.id
+        const respuestas = leerRespuestasOpinion(interaction.fields)
+        const ficha = await Cachedb.findOne({ _id: userId }, { projection: { nombre: 1 } })
+
+        if (ficha) {
+            // Marca atómica: si el modal se envía dos veces, solo una pasa
+            const marca = await Cachedb.updateOne(
+                { _id: userId, opinionEnviada: { $ne: true } },
+                { $set: { opinionEnviada: true, opinionFecha: Date.now() } }
+            )
+            if (marca.modifiedCount === 0) {
+                return interaction.reply({ content: MENSAJE_YA_ENVIADA, flags: ["Ephemeral"] })
+            }
+        }
+
+        const color = !respuestas.puntuacion ? 0x99AAB5 : respuestas.puntuacion <= 2 ? 0xED4245 : respuestas.puntuacion === 3 ? 0xFEE75C : 0x57F287
+
+        const embed = new EmbedBuilder()
+            .setTitle("Opinión · Crear ficha")
+            .setColor(color)
+            .addFields(
+                { name: "¿Qué tan fácil fue?", value: respuestas.facilidad, inline: false },
+                { name: "¿Algo le trabó?", value: respuestas.trabas, inline: false },
+                { name: "¿Qué cambiaría o agregaría?", value: respuestas.comentario || "-# Sin comentario", inline: false },
+                { name: "Usuario", value: `${interaction.user.username} (<@${userId}>)`, inline: true },
+            )
+            .setTimestamp()
+
+        if (ficha?.nombre) embed.addFields({ name: "Personaje", value: `${ficha.nombre}`, inline: true })
+
+        try {
+            const canal = await client.channels.fetch(CANAL_OPINIONES)
+            await canal.send({ embeds: [embed] })
+        } catch (error) {
+            console.log("Error al enviar la opinión de crear ficha", error)
+            // Si no llegó, se libera la marca para que pueda intentarlo de nuevo
+            if (ficha) await Cachedb.updateOne({ _id: userId }, { $unset: { opinionEnviada: "", opinionFecha: "" } }).catch(() => { })
+            return interaction.reply({ content: "No pude enviar tu opinión ahora mismo (；′⌒`) Inténtalo de nuevo en un rato.", flags: ["Ephemeral"] })
+        }
+
+        return interaction.reply({ content: "¡Gracias por contarnos cómo te fue! Apreciamos a todas las personitas que se toman el tiempo de hacerlo (✿◡‿◡)", flags: ["Ephemeral"] })
     },
 
     updateMessage: async function (interaction, message, data, externo, info, campoModificado) {

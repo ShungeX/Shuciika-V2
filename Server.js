@@ -2480,6 +2480,41 @@ app.post('/api/admin/dialogos', requireAdminOrMod, async (req, res) => {
     }
 });
 
+// ── Tracking de invitaciones (functions/invitaciones.js) — temporal, pre-lanzamiento ──
+
+// GET /api/admin/invitaciones — invitadores con su conteo (calculado, no guardado)
+app.get('/api/admin/invitaciones', requireAdminOrMod, async (req, res) => {
+    try {
+        const datos = await require('./functions/invitaciones').contarInvitaciones(clientdb);
+
+        // Nombres y fotos de Discord (de la caché del bot cuando se puede)
+        const ids = new Set();
+        for (const inv of datos.invitadores) {
+            ids.add(inv.id);
+            for (const i of inv.invitados) ids.add(i.id);
+        }
+        const perfiles = new Map();
+        await Promise.all([...ids].slice(0, 500).map(async (id) => {
+            const u = client?.users?.cache.get(id) || await client?.users?.fetch(id).catch(() => null);
+            if (u) perfiles.set(id, { nombre: u.globalName || u.username, usuario: u.username, avatar: u.displayAvatarURL({ size: 64 }) });
+        }));
+        const con = (id) => ({ id, ...(perfiles.get(id) || { nombre: null, usuario: null, avatar: null }) });
+
+        res.json({
+            ...datos,
+            invitadores: datos.invitadores.map(inv => ({
+                ...con(inv.id),
+                conteo: inv.conteo,
+                invitadorVerificado: inv.invitadorVerificado,
+                invitados: inv.invitados.map(i => ({ ...con(i.id), personaje: i.personaje, charId: i.charId, fecha: i.fecha }))
+            }))
+        });
+    } catch (err) {
+        console.error('[Invitaciones] GET:', err);
+        res.status(500).json({ error: 'No se pudieron contar las invitaciones.' });
+    }
+});
+
 // ── Diálogos de servidor (functions/dialogoServidor.js) ──
 
 // POST /api/admin/dialogos/:id/lanzar — publica el guion en sus canales ahora mismo
