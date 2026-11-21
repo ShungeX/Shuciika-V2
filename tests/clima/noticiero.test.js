@@ -1,3 +1,5 @@
+// Estos tests prueban el modo con envíos automáticos (Shuciika). El modo Navi está en noticieroNavi.test.js.
+process.env.ENVIOS_AUTOMATICOS = "si";
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ColeccionFalsa } = require("./coleccionFalsa");

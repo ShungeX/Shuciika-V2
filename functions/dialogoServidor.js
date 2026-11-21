@@ -250,6 +250,8 @@ function estadoDe(dialogoId) {
 /** Lo llama el programador de la apertura cada minuto. */
 async function revisarProgramados(client) {
     if (!client?.user) return;
+    // En Navi ni se lanzan ni se marcan como lanzados: así no le "roba" el diálogo a Shuciika
+    if (!require('../config/entorno').envioAutomatico('diálogos programados')) return;
     const dm = dialogoManager();
     const ahora = Date.now();
 

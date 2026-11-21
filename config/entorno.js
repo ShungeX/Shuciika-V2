@@ -32,6 +32,10 @@ const ENTORNOS = {
         // Eventos que solo debe atender la versión final (despedidas, alianzas…).
         // En Navi se omiten para no duplicar mensajes ni registros.
         esProduccion: false,
+        // Mensajes que el bot publica solo, sin que nadie lo pida (noticiero del clima,
+        // resumen de economía, diálogos programados…). En Navi solo se mandan a mano
+        // desde el dashboard. Se puede forzar con ENVIOS_AUTOMATICOS=si|no.
+        enviosAutomaticos: false,
     },
     shuciika: {
         nombre: "shuciika",
@@ -39,6 +43,7 @@ const ENTORNOS = {
         botId: "721903366837501975",
         prefijoComandos: "",
         esProduccion: true,
+        enviosAutomaticos: true,
     },
 };
 
@@ -95,6 +100,17 @@ if (idDelToken && idDelToken !== actual.botId) {
 
 const prefijo = actual.prefijoComandos;
 
+/** "si"/"no" (y equivalentes) del .env; cualquier otra cosa deja el valor del entorno. */
+function booleano(valor, porDefecto) {
+    const v = String(valor ?? "").trim().toLowerCase();
+    if (["1", "true", "si", "sí", "on", "yes"].includes(v)) return true;
+    if (["0", "false", "no", "off"].includes(v)) return false;
+    return porDefecto;
+}
+
+const enviosAutomaticos = booleano(variable("ENVIOS_AUTOMATICOS"), actual.enviosAutomaticos);
+const avisados = new Set();
+
 const entorno = {
     ENTORNOS,
     nombre: actual.nombre,
@@ -105,6 +121,7 @@ const entorno = {
     esShuciika: actual.nombre === "shuciika",
     esProduccion: actual.esProduccion,
     prefijoComandos: prefijo,
+    enviosAutomaticos,
 
     variable,
     token,
@@ -133,6 +150,20 @@ const entorno = {
         const ruta = sub ? `${nombre} ${sub}` : nombre;
         const cmd = client?.application?.commands?.cache?.find((c) => c.name === nombre);
         return cmd ? `</${ruta}:${cmd.id}>` : `\`/${ruta}\``;
+    },
+
+    /**
+     * ¿Puede este sistema publicar por su cuenta? En Navi no: lo que depende del dashboard
+     * solo se manda cuando alguien lo pide ahí. Avisa una vez por sistema en consola.
+     * @param {string} sistema  Nombre para el aviso ("noticiero del clima")
+     */
+    envioAutomatico(sistema) {
+        if (enviosAutomaticos) return true;
+        if (sistema && !avisados.has(sistema)) {
+            avisados.add(sistema);
+            console.log(`⏸️ [${actual.etiqueta}] Envío automático omitido: ${sistema}. Solo se manda a mano desde el dashboard.`);
+        }
+        return false;
     },
 
     /** Avisa si el bot que inició sesión no es el que se esperaba. Se llama en clientReady. */

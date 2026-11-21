@@ -4,12 +4,15 @@
 //   - y, mientras está publicado, cada CONFIG.noticieroRefrescoMin minutos reales → solo
 //     hora y temperatura; la frase, la imagen y el aviso se mantienen durante esa hora.
 // Si el mensaje se borró, se envía uno nuevo y se guarda su id; el sistema nunca se detiene por eso.
+// Sin envíos automáticos (Navi, config/entorno.js) no se edita solo: cada acción del dashboard
+// (iniciar, refrescar, reenviar) publica una vez y ahí se queda.
 
 const { MessageFlags } = require("discord.js");
 const estadoRegion = require("./estadoRegion");
 const { configDe } = require("./config");
 const { getTexto } = require("./textos");
 const { obtenerImagen } = require("./imagenes");
+const entorno = require("../../config/entorno");
 
 const EVENTOS_QUE_EDITAN = ["cambioHora", "cambioFase", "cambioClima"];
 // Unknown Message / mensaje de otro autor / el mensaje no admite el cambio (p. ej. embed antiguo → V2)
@@ -41,6 +44,7 @@ function configurar(discordClient) {
 
 /** Junta todos los eventos emitidos en el mismo tick en UNA sola edición. */
 function programar(regionId, { previo } = {}) {
+    if (!entorno.envioAutomatico("noticiero del clima")) return;
     let p = pendientes.get(regionId);
     if (!p) {
         p = { previo: undefined };
@@ -157,7 +161,7 @@ function actualizarNoticiero(regionId, opciones = {}) {
             return await publicar(regionId, opciones);
         } finally {
             const info = await estadoRegion.getNoticiero(regionId).catch(() => ({}));
-            if (info.canalId && client) armarRefresco(regionId);
+            if (info.canalId && client && entorno.envioAutomatico("noticiero del clima")) armarRefresco(regionId);
             else detenerRefresco(regionId);
         }
     });

@@ -181,7 +181,8 @@ async function tick() {
     try {
         const t = ahora();
         if (estado.timestamp && !estado.campanaSonada && !estado.aviso1hEnviado
-            && t >= estado.timestamp - UNA_HORA && t < estado.timestamp) {
+            && t >= estado.timestamp - UNA_HORA && t < estado.timestamp
+            && require('../../config/entorno').envioAutomatico('aviso de 1 hora de la apertura')) {
             await persistir({ aviso1hEnviado: true });
             await avisarRecordatorios('1h');
         }
@@ -204,7 +205,8 @@ function iniciar(clienteDiscord, db) {
     intervalo = setInterval(tick, TICK_MS);
     tick();
 
-    if (estado.campanaSonada && estado.trabajo?.estado === 'en_curso') {
+    if (estado.campanaSonada && estado.trabajo?.estado === 'en_curso'
+        && require('../../config/entorno').envioAutomatico('reanudar las cartas de la apertura')) {
         console.log('🔔 [Apertura] Reanudando el trabajo de cartas que quedó a medias.');
         require('./cartas').actualizarCartas(client).catch(err => console.error('[Apertura] Error reanudando cartas:', err));
     }

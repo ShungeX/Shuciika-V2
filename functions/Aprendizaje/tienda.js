@@ -70,7 +70,7 @@ async function reponerInstituto({ client = null } = {}) {
         { $set: { "Objetos.$[p].Cantidad": TIENDA.EXISTENCIAS_SEMANALES } },
         { arrayFilters: [{ "p.fuente": "instituto", "p.hechizo": { $exists: true } }] }
     )
-    if (client) {
+    if (client && require("../../config/entorno").envioAutomatico("paneles del Instituto tras la reposición")) {
         const { guild } = require("../../config/configslash.json")
         const { refrescarPaneles } = require("../mensajesServidor")
         await refrescarPaneles(client, guild, clientdb.db("Server_db"), rol).catch(e => console.error("[Aprendizaje] No se pudieron refrescar los paneles:", e.message))

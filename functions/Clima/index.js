@@ -20,6 +20,7 @@ async function iniciar(client) {
     iniciado = true;
     noticiero.configurar(client);          // suscribirse ANTES de la recuperación
     await estadoRegion.iniciarTicks();
+    if (!require("../../config/entorno").envioAutomatico("noticiero del clima")) return;
     for (const regionId of Object.keys(REGIONES)) {
         // El mensaje pudo quedar desfasado o borrado mientras el bot estaba apagado
         noticiero.actualizarNoticiero(regionId)

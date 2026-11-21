@@ -17,6 +17,7 @@ const diario = db_rol.collection("econ_diario")
 const snapshots = db_rol.collection("econ_snapshots")
 const { volcarContadores, fechaMx } = require("./lumens")
 const { calcularAlertas, enviarResumenDiario } = require("./analisisEconomia")
+const entorno = require("../../config/entorno")
 
 const TRAMOS = [0, 1, 50, 100, 250, 500, 1000, 2500, 5000]
 
@@ -120,6 +121,8 @@ async function cerrarDia(client, fecha, opciones) {
     const foto = await tomarSnapshot(fecha, opciones)
     const alertas = await calcularAlertas(fecha, foto)
     await snapshots.updateOne({ _id: fecha }, { $set: { alertas } })
+    // La foto y las alertas se guardan siempre (el dashboard las muestra); el mensaje al canal, solo en Shuciika
+    if (!entorno.envioAutomatico("resumen diario de economía")) return
     await enviarResumenDiario(client, fecha, foto, alertas)
         .catch(err => console.error("[Economía] No se pudo mandar el resumen diario:", err.message))
 }
