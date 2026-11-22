@@ -464,6 +464,39 @@ app.use((req, res, next) => {
     next();
 });
 
+// Puerta T0: mientras /rol crear_ficha sea T0, la API del dashboard solo
+// responde al staff, los devs y el creador. Quedan abiertas las rutas que usa
+// la web pública (login, logout, noticias) y /api/me, que es la que devuelve
+// la fecha de apertura para la cuenta regresiva.
+const RUTAS_LIBRES_T0 = [/^\/auth(\/|$)/, /^\/logout\/?$/, /^\/me\/?$/, /^\/noticias(\/|$)/];
+const _cacheT0 = new Map(); // userId -> { bloqueo, hasta }
+
+app.use('/api', async (req, res, next) => {
+    try {
+        if (!req.session?.user) return next();
+        if (RUTAS_LIBRES_T0.some(re => re.test(req.path))) return next();
+        if (!require('./config/accesoComandos').esT0('rol', 'crear_ficha')) return next();
+
+        const id = String(req.session.user.id);
+        const ahora = Date.now();
+        let entrada = _cacheT0.get(id);
+        if (!entrada || entrada.hasta < ahora) {
+            entrada = { bloqueo: await puertaT0Dashboard(id), hasta: ahora + 30_000 };
+            _cacheT0.set(id, entrada);
+            if (_cacheT0.size > 2000) {
+                for (const [k, v] of _cacheT0) if (v.hasta < ahora) _cacheT0.delete(k);
+            }
+        }
+        if (entrada.bloqueo) {
+            return res.status(403).json({ error: 'Aún no es momento', ...entrada.bloqueo });
+        }
+        next();
+    } catch (err) {
+        console.error('[Puerta T0] Error al comprobar acceso:', err.message);
+        return res.status(503).json({ error: 'No se pudo comprobar el acceso' });
+    }
+});
+
 // Ruta de inicio de sesión con Discord (verifica si ya existe sesión activa)
 app.get('/api/auth/discord', async (req, res) => {
     if (req.session && req.session.user) {
