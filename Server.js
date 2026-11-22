@@ -6836,6 +6836,32 @@ app.post('/api/admin/system-config/apertura', async (req, res) => {
     }
 });
 
+// ── Canales de estado (functions/canalesEstado): meta del canal «💌 Cartas» ──
+app.get('/api/admin/system-config/canales-estado', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    try {
+        res.json({ success: true, ...(await require('./functions/canalesEstado').resumen()) });
+    } catch (err) {
+        console.error('[CanalesEstado] GET:', err);
+        res.status(500).json({ error: 'No se pudo leer la configuración de los canales.' });
+    }
+});
+
+app.post('/api/admin/system-config/canales-estado', async (req, res) => {
+    if (!guardiaPanel(req, res)) return;
+    try {
+        const canales = require('./functions/canalesEstado');
+        const meta = await canales.guardarMeta(req.body?.metaCartas);
+        // Se refleja ya en el canal (si este proceso es Shuciika y Discord lo permite)
+        canales.actualizar(client, 'cartas').catch(() => {});
+        res.json({ success: true, message: `Meta de cartas guardada: ${meta}.`, ...(await canales.resumen()) });
+    } catch (err) {
+        if (err.status === 400) return res.status(400).json({ error: err.message });
+        console.error('[CanalesEstado] POST:', err);
+        res.status(500).json({ error: 'No se pudo guardar la meta.' });
+    }
+});
+
 // POST: suena la Campana a mano (si la ceremonia no la suena)
 app.post('/api/admin/system-config/apertura/campana', async (req, res) => {
     if (!guardiaPanel(req, res)) return;
