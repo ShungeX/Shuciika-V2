@@ -11,7 +11,7 @@ const rolDb = clientdb.db("Rol_db")
 const personajesDb = rolDb.collection("Personajes")
 const cacheDb = rolDb.collection("CachePJ")
 
-const CANAL_DESPEDIDA = "716342375743488052"
+const CANAL_DESPEDIDA = "1573958431130255420"
 const AVATAR_POR_DEFECTO = "https://res.cloudinary.com/dn1cubayf/image/upload/v1727127018/Resources/unknowncharacter.png"
 
 const GIFS_ADIOS = [
