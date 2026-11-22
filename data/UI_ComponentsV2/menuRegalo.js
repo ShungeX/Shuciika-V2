@@ -5,7 +5,7 @@
 // reordena una plantilla, actualizar los índices en construirEditor / construirVistaPrevia.
 // Solo construyen componentes: los datos llegan ya leídos de functions/Regalos.
 
-const { ModalBuilder, LabelBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } = require("discord.js")
+const { ModalBuilder, LabelBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, FileUploadBuilder } = require("discord.js")
 const { crearCustomId } = require("../../utils/constructores/customId")
 const cfg = require("../../config/regalos")
 const { FIRMA } = require("../../config/mensajesRegalos")
@@ -501,14 +501,23 @@ function modalNota({ userId, token, titulo = "", nota = "" }) {
         )
 }
 
+// Enlace o archivo. Si se llenan los dos manda el enlace (ver regaloModal).
 function modalBanner({ userId, token, actual = "" }) {
     const input = new TextInputBuilder().setCustomId("banner").setStyle(TextInputStyle.Short)
         .setRequired(false).setMaxLength(400).setPlaceholder("https://...png / jpg / gif / webp")
     if (actual) input.setValue(actual)
+    const archivo = new FileUploadBuilder().setCustomId("bannerArchivo").setRequired(false).setMinValues(0).setMaxValues(1)
     return new ModalBuilder()
         .setCustomId(idEditor("regaloModal", userId, token, "banner"))
         .setTitle("Banner del regalo")
-        .addLabelComponents(new LabelBuilder().setLabel("Enlace de la imagen").setDescription("Déjalo vacío para quitarlo").setTextInputComponent(input))
+        .addLabelComponents(
+            new LabelBuilder().setLabel("Enlace de la imagen")
+                .setDescription("Tiene prioridad sobre el archivo. Vacía ambos para quitar el banner.")
+                .setTextInputComponent(input),
+            new LabelBuilder().setLabel("O sube una imagen")
+                .setDescription("png, jpg, gif o webp · máx. 8 MB")
+                .setFileUploadComponent(archivo),
+        )
 }
 
 function modalLumens({ userId, token, actual = 0 }) {

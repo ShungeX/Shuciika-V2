@@ -25,6 +25,7 @@ const cfg = require("../../config/regalos")
 const { congelarLumens, descongelarLumens } = require("../Economia/lumens")
 const { leerItem, definicionDe, entradaRegalable } = require("./leerItem")
 const c = require("./comun")
+const { liberar: liberarImagen } = require("../imagenesTemporales")
 
 const INV = c.INV
 
@@ -227,7 +228,11 @@ async function ponerBanner({ pjId, instanciaID, url }) {
     if (!cfg.permiteBanner(bolsa)) return c.fallo("BANNER_NO_PERMITIDO")
     const limpio = String(url ?? "").trim()
     if (limpio && !c.bannerValido(limpio)) return c.fallo("BANNER_INVALIDO")
-    return setEnBolsa(pjId, instanciaID, { banner: limpio || null })
+    const anterior = datosRegalo(bolsa).banner || null
+    const r = await setEnBolsa(pjId, instanciaID, { banner: limpio || null })
+    // Si el anterior era una imagen subida y ya nadie la usa, se borra
+    if (r.ok && anterior && anterior !== limpio) await liberarImagen(anterior)
+    return r
 }
 
 async function ponerColor({ pjId, instanciaID, color }) {
@@ -291,6 +296,7 @@ async function borrar({ pjId, instanciaID }) {
     })
     if (!r.ok) return r
     if (lumens > 0) await descongelarLumens(pjId, lumens)
+    if (datosRegalo(bolsa).banner) await liberarImagen(datosRegalo(bolsa).banner)
     return c.ok({ items, lumens })
 }
 
@@ -331,6 +337,7 @@ async function abrirPropia({ character, soul, instanciaID }) {
     })
     if (!r.ok) return r
     if (lumens > 0) await descongelarLumens(character._id, lumens)
+    if (datosRegalo(bolsa).banner) await liberarImagen(datosRegalo(bolsa).banner)
     return c.ok({ modo: "abierto", items, lumens })
 }
 

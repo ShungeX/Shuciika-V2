@@ -683,6 +683,12 @@ module.exports = crearBoton({
             return interaction.showModal(require("../../../functions/invitaciones").construirModalInvitacion(interaction.user.id))
         }
 
+        // "Establecer foto": modal con enlace o archivo (interaction/modals/Rol/Modal fotoFicha.js)
+        if (selectOption === "foto") {
+            const { construirModalFoto } = require("../../modals/Rol/Modal fotoFicha")
+            return interaction.showModal(construirModalFoto(interaction.user.id, cachepj?.avatarURL || ""))
+        }
+
         await interaction.deferReply({ flags: ["Ephemeral"] })
 
         if (selectOption === "enviar_ficha_corregida") {
@@ -851,55 +857,7 @@ module.exports = crearBoton({
             return await interaction.editReply({ content: "¡Muchas gracias por unirte al instituto! ♡( ◡‿◡ )\n**Solo falta que la administración revise tu ficha antes de darte la bienvenida oficial. Mientras puedes revisar el [hilo de tu ficha haciendo click aqui](https://discord.com/channels/716342375303217285/" + hilo.id + ")**\n\n-# *No te preocupes, yo te avisare cuando la verifiquen.~*" })
         }
 
-        if (selectOption === "foto") {
-            await interaction.editReply({ content: "Por favor, envía tu imagen (archivo/desde tu galeria o URL) en este canal en los próximos dos minutos" })
-
-            const filter = msg => msg.author.id === interaction.user.id &&
-                (msg.attachments.size > 0 ||
-                    /^https?:\/\/.+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(msg.content));
-
-            const collector = interaction.channel.createMessageCollector({
-                filter,
-                max: 1,
-                time: 120_000
-            });
-
-            collector.on('collect', async msg => {
-                let imageUrl;
-                if (msg.attachments.size > 0) {
-                    imageUrl = msg.attachments.first().url;
-                } else {
-                    imageUrl = msg.content.trim();
-                }
-
-                await Cachedb.updateOne({ _id: interaction.user.id }, {
-                    $setOnInsert: {
-                        created: Date.now(),
-                    },
-                    $set: {
-                        avatarURL: imageUrl,
-                    }
-                }, { upsert: true })
-
-
-                const info = {
-                    action: "avatarURL",
-                    option: imageUrl
-                }
-
-                await marcarCorreccionUsada(interaction.user.id, "avatarURL");
-
-                await updateMessage(interaction, message, null, true, info);
-
-                await interaction.editReply('✅ Tu foto de perfil ha sido actualizada.');
-            });
-
-            collector.on('end', (collected, reason) => {
-                if (reason === 'time' && collected.size === 0) {
-                    interaction.editReply('⏰ Se acabó el tiempo. Vuelve a pulsar “Establecer foto” para intentarlo de nuevo.');
-                }
-            });
-        } else if (selectOption === "guia") {
+        if (selectOption === "guia") {
             const tutorialV2 = [
                 {
                     "type": 17,

@@ -162,7 +162,16 @@ async function procesarFoto(interaction, imgURL, ignore, user) {
     const targetId = (typeof user === 'object' && user !== null) ? (user.id || user._id) : user;
     const discordUserId = (typeof user === 'object' && user !== null && user.id) ? user.id : (interaction?.user?.id || null);
 
-    if (esDiscord) {
+    const temporales = require("../../../functions/imagenesTemporales")
+    if (await temporales.esTemporal(urlDesenrollada).catch(() => false)) {
+        // Imagen subida en el modal de la ficha -> copia definitiva en Rol/Avatars; la temporal se borra
+        try {
+            img = await temporales.promover(urlDesenrollada, { folder: "Rol/Avatars", public_id: `${targetId}_AvatarRol` })
+        } catch (e) {
+            console.error("Error al promover la imagen temporal:", e)
+            img = urlDesenrollada
+        }
+    } else if (esDiscord) {
         // Proviene de la red de Discord -> subir a Cloudinary
         try {
             const getResponse = await fetch(urlDesenrollada);

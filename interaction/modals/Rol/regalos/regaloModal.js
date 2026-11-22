@@ -1,11 +1,12 @@
 // Modals del editor de regalos (se envían desde el mensaje del editor, así que
 // responden actualizándolo).
 // customId: regaloModal-{userId}--{token}-{tipo}
-//   tipo: agregar | retirar (select "objeto" + "cantidad") | nota | banner | lumens
+//   tipo: agregar | retirar (select "objeto" + "cantidad") | nota | banner (enlace o archivo) | lumens
 const { crearModal } = require("../../../../utils/constructores/crearComponente")
 const bolsa = require("../../../../functions/Regalos/bolsa")
 const P = require("../../../../functions/Regalos/pantallas")
 const c = require("../../../../functions/Regalos/comun")
+const temporales = require("../../../../functions/imagenesTemporales")
 
 const entero = (v) => (/^\s*\d+\s*$/.test(String(v ?? "")) ? parseInt(v, 10) : NaN)
 
@@ -45,7 +46,26 @@ module.exports = crearModal({
                 })
                 if (r.ok) aviso = "📝 Nota guardada"
             } else if (tipo === "banner") {
-                r = await bolsa.ponerBanner({ pjId, instanciaID, url: interaction.fields.getTextInputValue("banner") })
+                // Prioridad: 1) enlace, 2) archivo subido. El enlace viene prellenado con el
+                // banner actual: si no lo tocó y subió un archivo, cuenta el archivo.
+                let url = String(interaction.fields.getTextInputValue("banner") ?? "").trim()
+                const adjunto = temporales.archivoDelModal(interaction, "bannerArchivo")
+                const actual = bolsa.datosRegalo(await bolsa.obtenerBolsa(pjId, instanciaID))?.banner || ""
+                if (adjunto && url === actual) url = ""
+
+                if (!url && adjunto) {
+                    // Subir tarda más de 3 s: se difiere y responder() edita el editor
+                    await interaction.deferUpdate()
+                    const subida = await temporales.subirTemporal({ adjunto, uso: "regalo", userId })
+                    if (!subida.ok) {
+                        r = { ok: false, codigo: temporales.MENSAJES[subida.codigo] || "BANNER_INVALIDO" }
+                    } else {
+                        r = await bolsa.ponerBanner({ pjId, instanciaID, url: subida.url })
+                        if (!r.ok) await temporales.liberar(subida.url)
+                    }
+                } else {
+                    r = await bolsa.ponerBanner({ pjId, instanciaID, url })
+                }
                 if (r.ok) aviso = "🖼️ Banner actualizado"
             } else if (tipo === "lumens") {
                 r = await bolsa.ponerLumens({ pjId, instanciaID, total: entero(interaction.fields.getTextInputValue("lumens")) })
