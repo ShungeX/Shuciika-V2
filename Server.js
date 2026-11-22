@@ -52,6 +52,29 @@ async function esUsuarioAdminOMod(discordID) {
 }
 
 /**
+ * Puerta T0 del dashboard (pre-lanzamiento).
+ * Mientras /rol crear_ficha esté marcado como T0 en "Acceso a comandos",
+ * el dashboard queda cerrado y muestra una cuenta regresiva. Pasan el
+ * creador, los devs de configslash.json y el staff (admins/mods).
+ */
+const APERTURA_DASHBOARD = '2026-12-13T01:00:00.000Z'; // 12/12/2026 19:00, hora del centro de México (UTC-6)
+
+async function puertaT0Dashboard(discordID) {
+    const accesoComandos = require('./config/accesoComandos');
+    if (!accesoComandos.esT0('rol', 'crear_ficha')) return null;
+
+    const id = String(discordID ?? '');
+    if (id === accesoComandos.CREADOR) return null;
+
+    const { devs } = require('./config/configslash.json');
+    const listaDevs = [].concat(devs || []).join(' ').split(/[\s,]+/).filter(Boolean);
+    if (listaDevs.includes(id)) return null;
+
+    if (await esUsuarioAdminOMod(id)) return null;
+    return { motivo: 't0', apertura: APERTURA_DASHBOARD };
+}
+
+/**
  * ¿El usuario pertenece al servidor del Instituto?
  * Se le pregunta al bot, que ya vive dentro del gremio: así el dato sigue
  * siendo cierto aunque alguien se salga después de iniciar sesión.
@@ -3331,6 +3354,11 @@ app.get('/api/me', async (req, res) => {
         return res.status(401).json({ error: 'No autenticado' });
     }
     try {
+        const puertaT0 = await puertaT0Dashboard(req.session.user.id);
+        if (puertaT0) {
+            return res.status(403).json({ error: 'Aún no es momento', ...puertaT0 });
+        }
+
         const db = clientdb.db(dbname);
         const { charDoc: perfilExistente } = await obtenerPersonajeActivoUsuario(req.session.user.id);
         if (perfilExistente) {
