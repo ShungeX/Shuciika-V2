@@ -13,7 +13,7 @@ const ROL_PING_BIENVENIDA = "795804715476320256"
 const ACCION_REENVIAR = "bienvenidaReenviar"
 
 const URL_NORMAS = "https://discord.com/channels/716342375303217285/1571966740970213387"
-const URL_GUIA_FICHA = "https://discord.com/channels/716342375303217285/1339103959855661096"
+const URL_GUIA_FICHA = "https://canary.discord.com/channels/716342375303217285/1573971743146774599"
 
 const GIFS = [
     "https://media1.tenor.com/m/o9Ak0TpPek0AAAAd/aikatsu-aikatsu-hello.gif",
